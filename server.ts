@@ -1,0 +1,1667 @@
+import crypto from 'crypto';
+import dotenv from 'dotenv';
+import express, { NextFunction, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
+import type {
+  Category,
+  Coupon,
+  DashboardAnalytics,
+  Expense,
+  FulfillmentStatus,
+  Order,
+  OrderItem,
+  PaymentMethod,
+  Product,
+  ProductReview,
+  ProductVariant,
+  ProductVariantOption,
+  StoreSettings,
+  Subscriber,
+} from './src/types.ts';
+
+dotenv.config();
+
+interface AdminAuthRecord {
+  salt: string;
+  passwordHash: string;
+  claimedAt: string;
+}
+
+interface PendingPaymentSession {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  deliveryAddress: string;
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka';
+  items: OrderItem[];
+  subtotal: number;
+  shippingFee: number;
+  discountAmount: number;
+  couponCode?: string;
+  total: number;
+  paymentMethod: Exclude<PaymentMethod, 'cod'>;
+  source: 'Web' | 'POS';
+  channel: string;
+  createdAt: number;
+}
+
+interface StoreDatabase {
+  settings: StoreSettings;
+  categories: Category[];
+  products: Product[];
+  orders: Order[];
+  subscribers: Subscriber[];
+  coupons: Coupon[];
+  expenses: Expense[];
+  reviews: ProductReview[];
+  adminAuth: AdminAuthRecord | null;
+}
+
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DB_FILE = path.resolve(DATA_DIR, 'store.json');
+const SESSION_SECRET = process.env.SESSION_SECRET?.trim() || crypto.randomBytes(32).toString('hex');
+const pendingPayments = new Map<string, PendingPaymentSession>();
+
+function createInitialData(): StoreDatabase {
+  const now = new Date().toISOString();
+  return {
+    settings: {
+      storeName: 'Classy Cases',
+      tagline: 'Premium phone cases, made to fit "Your Perfect Case". Everyday protection. Effortless style.',
+      orderPrefix: '',
+      nextOrderNumber: 1001,
+      takePreOrders: true,
+      autoMovePending: true,
+      costingMethod: 'FIFO',
+      phone: '01799576210',
+      email: 'mdebrahim.contact@gmail.com',
+      address: 'Tilapara, Ekuria, Dhaka Jute Mills,',
+      openingHours: '10:00 AM - 10:00 PM',
+      shippingInsideDhaka: 60,
+      shippingOutsideDhaka: 120,
+      freeShippingThreshold: 1500,
+      seoTitle: 'Classy Cases — Premium Phone Cases & Accessories',
+      seoDescription: 'Premium phone cases, made to fit Your Perfect Case. Everyday protection. Effortless style.',
+      paymentGateways: {
+        bkash: { enabled: true, merchantNumber: '01799576210', mode: 'sandbox' },
+        nagad: { enabled: true, merchantNumber: '01799576210', mode: 'sandbox' },
+        card: { enabled: true, provider: 'SSLCommerz', storeId: 'classycases_live', mode: 'sandbox' },
+        cod: { enabled: true },
+      },
+      storefrontConfig: {
+        shopPageColumns: 3,
+        showOutOfStock: true,
+        showStockBadgeOnProduct: true,
+        showRelatedProducts: true,
+        checkoutRequireEmail: false,
+        checkoutNoteEnabled: true,
+        thankYouHeadline: 'Thank you for your order!',
+        thankYouMessage: 'We have received your order and will confirm dispatch shortly.',
+        reviewsEnabled: true,
+        reviewsAutoApprove: true,
+        sizeGuideTitle: 'Phone Model & Case Fit Guide',
+        sizeGuideNotes: 'Verify your exact device model under Settings -> About Phone before selecting your case.',
+        offerPageTitle: 'Flash Deals & Combo Offers',
+        offerPageBannerText: 'Up to 30% OFF on MagSafe & Carbon Armor Cases.',
+        popupOfferEnabled: false,
+        popupOfferHeadline: 'Get 10% OFF Your First Case',
+        popupOfferCode: 'CLASSY10',
+      },
+      orderSettings: {
+        sources: ['Web', 'POS', 'Facebook Page', 'Instagram DM', 'WhatsApp'],
+        quickNotes: ['Call customer before dispatch', 'Check exact camera cutout', 'Urgent same-day Dhaka delivery'],
+      },
+      deliverySettings: {
+        shippingClasses: [
+          { name: 'Standard Case', fee: 60, defaultWeightKg: 0.25 },
+          { name: 'Fragile Armor', fee: 80, defaultWeightKg: 0.45 },
+          { name: 'Express Courier', fee: 120, defaultWeightKg: 0.5 },
+        ],
+        courierProvider: 'Steadfast',
+        courierApiKey: '',
+        courierSecretKey: '',
+        fraudCheckEnabled: true,
+        fraudThresholdPercent: 30,
+      },
+      marketingSettings: {
+        metaPixelId: '',
+        gtmId: '',
+        tiktokPixelId: '',
+      },
+      systemSettings: {
+        smtpFromName: 'Classy Cases',
+        smtpReplyTo: 'mdebrahim.contact@gmail.com',
+        orderEmailNotifications: true,
+        lowStockAlertEnabled: true,
+        requireTwoFactorAdmin: false,
+        invoiceHeaderNote: 'Classy Cases — Premium Everyday Protection',
+        invoiceFooterNote: '7-day fit guarantee. Contact 01799576210 for support.',
+        supportAccessEnabled: false,
+      },
+    },
+    categories: [
+      { id: 'cat-moto', name: 'Motorola', slug: 'motorola', brandKey: 'motorola', featured: true },
+      { id: 'cat-vivo', name: 'VIVO', slug: 'vivo', brandKey: 'vivo', featured: true },
+      { id: 'cat-xiaomi', name: 'Xiaomi', slug: 'xiaomi', brandKey: 'xiaomi', featured: true },
+    ],
+    products: [
+      {
+        id: 'prod-1',
+        title: 'Magsafe Frosted Syndee Case for Motorola Edge 50',
+        slug: 'magsafe-frosted-syndee-case-motorola-edge-50',
+        category: 'Motorola',
+        brandModels: ['Motorola Edge 50 Pro', 'Motorola Edge 50 Fusion', 'Motorola G85 5G'],
+        price: 250,
+        originalPrice: 350,
+        discountPercent: 29,
+        stock: 34,
+        sku: 'CC-MOT-001',
+        image: '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg',
+        description:
+          'Anti-fingerprint frosted translucent matte back with strong N52 magnetic ring and raised metallic rose-gold camera bezel for everyday drop protection.',
+        featured: true,
+        createdAt: now,
+      },
+      {
+        id: 'prod-2',
+        title: 'Magsafe Frosted Syndee Case for Redmi Note 13',
+        slug: 'magsafe-frosted-syndee-case-redmi-note-13',
+        category: 'Xiaomi',
+        brandModels: ['Redmi Note 13 Pro', 'Redmi Note 13 5G', 'Xiaomi 14 Civi'],
+        price: 250,
+        originalPrice: 350,
+        discountPercent: 29,
+        stock: 42,
+        sku: 'CC-XIA-002',
+        image: '/src/assets/images/case_magsafe_frosted_copper_1795455911268.jpg',
+        description:
+          'Translucent smoky frosted shield engineered with shock-absorbing TPU edges, tactile metallic buttons, and MagSafe wireless charging alignment.',
+        featured: true,
+        createdAt: now,
+      },
+      {
+        id: 'prod-3',
+        title: 'Solid Color Chubby with Electroplated Camera Frame',
+        slug: 'solid-color-chubby-electroplated-camera-frame',
+        category: 'VIVO',
+        brandModels: ['Vivo V30 Pro', 'Vivo V40 5G', 'Vivo Y200e'],
+        price: 250,
+        originalPrice: 350,
+        discountPercent: 29,
+        stock: 28,
+        sku: 'CC-VIV-003',
+        image: '/src/assets/images/case_pastel_electroplated_1795455911610.jpg',
+        description:
+          'Soft-touch liquid silicone chubby bumper with plush microfiber lining and a precision electroplated silver lens guard.',
+        featured: true,
+        createdAt: now,
+      },
+      {
+        id: 'prod-4',
+        title: 'Camera Lens Holder Carbon fiber Pattern Matte Case',
+        slug: 'camera-lens-holder-carbon-fiber-pattern-matte-case',
+        category: 'Xiaomi',
+        brandModels: ['Redmi Note 13 Pro+', 'Poco X6 Pro', 'Xiaomi 13T'],
+        price: 850,
+        originalPrice: 1050,
+        discountPercent: 19,
+        stock: 19,
+        sku: 'CC-XIA-004',
+        image: '/src/assets/images/case_carbon_lens_holder_1795455912129.jpg',
+        description:
+          'Woven carbon-fiber texture shell featuring an integrated 360-degree aluminum kickstand ring and recessed lens armor.',
+        featured: true,
+        createdAt: now,
+      },
+      {
+        id: 'prod-5',
+        title: 'Luxury Carbon Fiber Texture Matte PU Leather Case',
+        slug: 'luxury-carbon-fiber-texture-matte-pu-leather-case',
+        category: 'Motorola',
+        brandModels: ['Motorola Edge 50 Ultra', 'Motorola Razr 50', 'Motorola Edge 40 Neo'],
+        price: 600,
+        originalPrice: 850,
+        discountPercent: 29,
+        stock: 24,
+        sku: 'CC-MOT-005',
+        image: '/src/assets/images/case_luxury_carbon_red_1795455912097.jpg',
+        description:
+          'Executive matte PU leather and aramid-inspired carbon weave finish accented with crimson racing trim and slim pocket-friendly profile.',
+        featured: true,
+        createdAt: now,
+      },
+      {
+        id: 'prod-6',
+        title: 'Crystal Clear Anti-Yellowing MagSafe Armor for VIVO',
+        slug: 'crystal-clear-anti-yellowing-magsafe-armor-vivo',
+        category: 'VIVO',
+        brandModels: ['Vivo X100 Pro', 'Vivo V30', 'Vivo T3 5G'],
+        price: 390,
+        originalPrice: 550,
+        discountPercent: 29,
+        stock: 31,
+        sku: 'CC-VIV-006',
+        image: '/src/assets/images/case_crystal_clear_vivo_1795455912579.jpg',
+        description:
+          'Optical-grade Bayer TPU hybrid crystal case with air-pocket reinforced corners and embedded silver MagSafe array.',
+        featured: true,
+        createdAt: now,
+      },
+    ],
+    orders: [],
+    subscribers: [],
+    coupons: [
+      { id: 'coup-1', code: 'CLASSY10', discountPercent: 10, active: true },
+      { id: 'coup-2', code: 'WELCOME15', discountPercent: 15, active: true },
+    ],
+    expenses: [],
+    reviews: [],
+    adminAuth: null,
+  };
+}
+
+function loadDatabase(): StoreDatabase {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  if (!fs.existsSync(DB_FILE)) {
+    const initial = createInitialData();
+    fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf8');
+    return initial;
+  }
+  try {
+    const raw = fs.readFileSync(DB_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as StoreDatabase;
+    if (!Array.isArray(parsed.expenses)) {
+      parsed.expenses = [];
+    }
+    if (!Array.isArray(parsed.reviews)) {
+      parsed.reviews = [];
+    }
+    return parsed;
+  } catch {
+    const fallback = createInitialData();
+    fs.writeFileSync(DB_FILE, JSON.stringify(fallback, null, 2), 'utf8');
+    return fallback;
+  }
+}
+
+let db: StoreDatabase = loadDatabase();
+
+function saveDatabase(): void {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+}
+
+function hashPassword(password: string, salt?: string): { salt: string; passwordHash: string } {
+  const actualSalt = salt || crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(password, actualSalt, 64).toString('hex');
+  return { salt: actualSalt, passwordHash: derived };
+}
+
+function verifyScryptPassword(password: string, record: AdminAuthRecord): boolean {
+  const derived = crypto.scryptSync(password, record.salt, 64);
+  const stored = Buffer.from(record.passwordHash, 'hex');
+  if (derived.length !== stored.length) return false;
+  return crypto.timingSafeEqual(derived, stored);
+}
+
+function verifyEnvPasscode(candidate: string, expected: string): boolean {
+  const h1 = crypto.createHash('sha256').update(candidate).digest();
+  const h2 = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(h1, h2);
+}
+
+function createSessionToken(): string {
+  const payload = Buffer.from(
+    JSON.stringify({
+      role: 'admin',
+      iat: Date.now(),
+      exp: Date.now() + 24 * 60 * 60 * 1000,
+      nonce: crypto.randomBytes(8).toString('hex'),
+    })
+  ).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifySessionToken(token: string): boolean {
+  const parts = token.split('.');
+  if (parts.length !== 2) return false;
+  const [payload, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const b1 = Buffer.from(sig);
+  const b2 = Buffer.from(expectedSig);
+  if (b1.length !== b2.length || !crypto.timingSafeEqual(b1, b2)) return false;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { exp?: number; role?: string };
+    return parsed.role === 'admin' && typeof parsed.exp === 'number' && parsed.exp > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+function normalizePhoneTail(phone: string): string {
+  return phone.replace(/\D/g, '').slice(-8);
+}
+
+function createCustomerOrderToken(phone: string): string {
+  const tail = normalizePhoneTail(phone);
+  const payload = Buffer.from(
+    JSON.stringify({
+      role: 'customer_orders',
+      tail,
+      iat: Date.now(),
+      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    })
+  ).toString('base64url');
+  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyCustomerOrderToken(token: string): string | null {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const b1 = Buffer.from(sig);
+  const b2 = Buffer.from(expectedSig);
+  if (b1.length !== b2.length || !crypto.timingSafeEqual(b1, b2)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
+      exp?: number;
+      role?: string;
+      tail?: string;
+    };
+    if (
+      parsed.role === 'customer_orders' &&
+      typeof parsed.tail === 'string' &&
+      parsed.tail.length >= 8 &&
+      typeof parsed.exp === 'number' &&
+      parsed.exp > Date.now()
+    ) {
+      return parsed.tail;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function extractBearerToken(req: Request): string | null {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return null;
+  return auth.slice(7).trim();
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const token = extractBearerToken(req);
+  if (!token || !verifySessionToken(token)) {
+    res.status(401).json({ error: 'Admin authentication required' });
+    return;
+  }
+  next();
+}
+
+function sanitizeSettingsForPublic(settings: StoreSettings) {
+  return {
+    storeName: settings.storeName,
+    tagline: settings.tagline,
+    orderPrefix: settings.orderPrefix,
+    takePreOrders: settings.takePreOrders,
+    phone: settings.phone,
+    email: settings.email,
+    address: settings.address,
+    openingHours: settings.openingHours,
+    shippingInsideDhaka: settings.shippingInsideDhaka,
+    shippingOutsideDhaka: settings.shippingOutsideDhaka,
+    freeShippingThreshold: settings.freeShippingThreshold,
+    paymentGateways: {
+      bkash: { enabled: settings.paymentGateways.bkash.enabled, mode: settings.paymentGateways.bkash.mode },
+      nagad: { enabled: settings.paymentGateways.nagad.enabled, mode: settings.paymentGateways.nagad.mode },
+      card: {
+        enabled: settings.paymentGateways.card.enabled,
+        provider: settings.paymentGateways.card.provider,
+        mode: settings.paymentGateways.card.mode,
+      },
+      cod: { enabled: settings.paymentGateways.cod.enabled },
+    },
+  };
+}
+
+function buildOrderCalculation(
+  rawItems: Array<{ productId: string; quantity: number; model?: string }>,
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka',
+  couponCode?: string
+) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    throw new Error('Cart is empty');
+  }
+
+  const orderItems: OrderItem[] = [];
+  let subtotal = 0;
+
+  for (const reqItem of rawItems) {
+    if (!reqItem || typeof reqItem.productId !== 'string' || !Number.isInteger(reqItem.quantity) || reqItem.quantity < 1) {
+      throw new Error('Invalid order item');
+    }
+    const product = db.products.find((p) => p.id === reqItem.productId);
+    if (!product) {
+      throw new Error('Product not found');
+    }
+    if (!db.settings.takePreOrders && product.stock < reqItem.quantity) {
+      throw new Error(`Insufficient stock for ${product.title}`);
+    }
+    const lineTotal = product.price * reqItem.quantity;
+    subtotal += lineTotal;
+    orderItems.push({
+      productId: product.id,
+      title: product.title,
+      model: (reqItem.model || product.brandModels[0] || 'Standard Fit').slice(0, 80),
+      image: product.image,
+      price: product.price,
+      quantity: reqItem.quantity,
+    });
+  }
+
+  let discountAmount = 0;
+  let appliedCoupon: string | undefined;
+  if (couponCode && typeof couponCode === 'string') {
+    const normalized = couponCode.trim().toUpperCase();
+    const coupon = db.coupons.find((c) => c.code === normalized && c.active);
+    if (coupon) {
+      discountAmount = Math.round((subtotal * coupon.discountPercent) / 100);
+      appliedCoupon = coupon.code;
+    }
+  }
+
+  const afterDiscount = Math.max(0, subtotal - discountAmount);
+  const baseShipping =
+    deliveryArea === 'outside_dhaka' ? db.settings.shippingOutsideDhaka : db.settings.shippingInsideDhaka;
+  const shippingFee =
+    db.settings.freeShippingThreshold > 0 && afterDiscount >= db.settings.freeShippingThreshold ? 0 : baseShipping;
+  const total = afterDiscount + shippingFee;
+
+  return { orderItems, subtotal, discountAmount, appliedCoupon, shippingFee, total };
+}
+
+function finalizeOrder(params: {
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  deliveryAddress: string;
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka';
+  items: OrderItem[];
+  subtotal: number;
+  shippingFee: number;
+  discountAmount: number;
+  couponCode?: string;
+  total: number;
+  paymentMethod: PaymentMethod;
+  paymentStatus: 'paid' | 'pending';
+  transactionId: string;
+  source: 'Web' | 'POS';
+  channel: string;
+}): Order {
+  const num = db.settings.nextOrderNumber;
+  db.settings.nextOrderNumber += 1;
+  const orderNumber = `${db.settings.orderPrefix}${num}`;
+  const now = new Date().toISOString();
+
+  for (const item of params.items) {
+    const product = db.products.find((p) => p.id === item.productId);
+    if (product) {
+      product.stock = Math.max(0, product.stock - item.quantity);
+    }
+  }
+
+  const order: Order = {
+    id: `ord-${crypto.randomUUID().slice(0, 8)}`,
+    orderNumber,
+    customerName: params.customerName,
+    customerPhone: params.customerPhone,
+    customerEmail: params.customerEmail,
+    deliveryAddress: params.deliveryAddress,
+    deliveryArea: params.deliveryArea,
+    items: params.items,
+    subtotal: params.subtotal,
+    shippingFee: params.shippingFee,
+    discountAmount: params.discountAmount,
+    couponCode: params.couponCode,
+    total: params.total,
+    paymentMethod: params.paymentMethod,
+    paymentStatus: params.paymentStatus,
+    fulfillmentStatus: params.paymentStatus === 'paid' ? 'confirmed' : 'pending',
+    transactionId: params.transactionId,
+    source: params.source,
+    channel: params.channel,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  db.orders.unshift(order);
+  saveDatabase();
+  return order;
+}
+
+function computeDashboardAnalytics(): DashboardAnalytics {
+  const validOrders = db.orders.filter((o) => o.fulfillmentStatus !== 'cancelled');
+  const totalOrders = validOrders.length;
+  const bookedSales = validOrders.reduce((acc, o) => acc + o.total, 0);
+  const deliveredSales = validOrders
+    .filter((o) => o.fulfillmentStatus === 'delivered' || o.paymentStatus === 'paid')
+    .reduce((acc, o) => acc + o.total, 0);
+  const estimateFromOrders = validOrders.reduce((acc, o) => acc + Math.round(o.total * 0.35), 0);
+
+  const placedCount = validOrders.length;
+  const shippedOrDeliveredCount = validOrders.filter(
+    (o) => o.fulfillmentStatus === 'shipped' || o.fulfillmentStatus === 'delivered'
+  ).length;
+
+  const needsAttentionOrders = validOrders.filter(
+    (o) => o.fulfillmentStatus === 'pending' || o.fulfillmentStatus === 'confirmed'
+  );
+
+  const hourBuckets = [0, 3, 6, 9, 12, 15, 18, 21];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yesterdayDate = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  const hourlySeries = hourBuckets.map((h) => {
+    const label = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+    const today = validOrders.filter((o) => {
+      if (!o.createdAt.startsWith(todayStr)) return false;
+      const oh = new Date(o.createdAt).getHours();
+      return oh >= h && oh < h + 3;
+    }).length;
+    const yesterday = validOrders.filter((o) => {
+      if (!o.createdAt.startsWith(yesterdayDate)) return false;
+      const oh = new Date(o.createdAt).getHours();
+      return oh >= h && oh < h + 3;
+    }).length;
+    return { label, today, yesterday };
+  });
+
+  const dayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const orderVolumeSeries = [{ label: dayLabel, placed: placedCount, shipped: shippedOrDeliveredCount }];
+
+  const productMap = new Map<string, { productId: string; title: string; image: string; unitsSold: number; revenue: number }>();
+  for (const ord of validOrders) {
+    for (const item of ord.items) {
+      const existing = productMap.get(item.productId) || {
+        productId: item.productId,
+        title: item.title,
+        image: item.image,
+        unitsSold: 0,
+        revenue: 0,
+      };
+      existing.unitsSold += item.quantity;
+      existing.revenue += item.price * item.quantity;
+      productMap.set(item.productId, existing);
+    }
+  }
+  const topProducts = Array.from(productMap.values()).sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 5);
+
+  const sourceMap = new Map<string, { source: string; count: number; total: number }>();
+  const channelMap = new Map<string, { channel: string; count: number; total: number }>();
+  for (const ord of validOrders) {
+    const s = sourceMap.get(ord.source) || { source: ord.source, count: 0, total: 0 };
+    s.count += 1;
+    s.total += ord.total;
+    sourceMap.set(ord.source, s);
+
+    const c = channelMap.get(ord.channel) || { channel: ord.channel, count: 0, total: 0 };
+    c.count += 1;
+    c.total += ord.total;
+    channelMap.set(ord.channel, c);
+  }
+
+  return {
+    totalOrders,
+    bookedSales,
+    deliveredSales,
+    estimateFromOrders,
+    placedCount,
+    shippedOrDeliveredCount,
+    needsAttentionOrders,
+    hourlySeries,
+    orderVolumeSeries,
+    topProducts,
+    ordersBySource: Array.from(sourceMap.values()),
+    salesByChannel: Array.from(channelMap.values()),
+    totalProducts: db.products.length,
+    lowStockProducts: db.products.filter((p) => p.stock <= 10),
+  };
+}
+
+async function startServer() {
+  const app = express();
+  app.use(express.json({ limit: '8mb' }));
+
+  const isSafeImageSource = (val: unknown): val is string =>
+    typeof val === 'string' &&
+    (val.startsWith('/src/assets/') ||
+      val.startsWith('https://') ||
+      /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(val));
+
+  function buildSimulatedReviews(product: Product): ProductReview[] {
+    const models =
+      product.brandModels && product.brandModels.length > 0
+        ? product.brandModels
+        : [`${product.category} Series`];
+    const seed = product.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+
+    const templates = [
+      {
+        authorName: 'Tanvir Ahmed',
+        rating: 5,
+        daysAgo: 3,
+        comment: `Cutouts line up perfectly on my ${models[0]}. The buttons feel crisp and the raised camera lip protects the lenses on flat tables.`,
+      },
+      {
+        authorName: 'Nusrat Jahan',
+        rating: 5,
+        daysAgo: 8,
+        comment: `Ordered for my ${models[1 % models.length]} and received delivery in Dhaka within 24 hours. Grip feels premium without making the phone bulky.`,
+      },
+      {
+        authorName: 'Sabbir Hossain',
+        rating: seed % 2 === 0 ? 5 : 4,
+        daysAgo: 14,
+        comment: `Really happy with the finish and build quality at ৳${product.price}. Fits ${models[2 % models.length]} snugly with zero wobble.`,
+      },
+      {
+        authorName: 'Farhana Karim',
+        rating: 4,
+        daysAgo: 21,
+        comment: `Nice matte texture that keeps fingerprints away. Color and packaging matched the photos exactly.`,
+      },
+    ];
+
+    return templates.map((tpl, idx) => ({
+      id: `sim-rev-${product.id}-${idx + 1}`,
+      productId: product.id,
+      authorName: tpl.authorName,
+      deviceModel: models[idx % models.length],
+      rating: tpl.rating,
+      comment: tpl.comment,
+      verifiedPurchase: true,
+      createdAt: new Date(Date.now() - tpl.daysAgo * 86400000).toISOString(),
+    }));
+  }
+
+  // Public Storefront APIs
+  app.get('/api/storefront', (_req, res) => {
+    res.json({
+      settings: sanitizeSettingsForPublic(db.settings),
+      categories: db.categories,
+      products: db.products.filter((p) => p.active !== false),
+    });
+  });
+
+  app.get('/api/products/:id/reviews', (req, res) => {
+    const product = db.products.find((p) => p.id === req.params.id);
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const userReviews = (db.reviews || []).filter((r) => r.productId === product.id);
+    const simulated = buildSimulatedReviews(product);
+    const allReviews = [...userReviews, ...simulated];
+    const totalCount = allReviews.length;
+    const sum = allReviews.reduce((acc, r) => acc + r.rating, 0);
+    const averageRating = totalCount > 0 ? Number((sum / totalCount).toFixed(1)) : 0;
+
+    const ratingBreakdown: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    for (const r of allReviews) {
+      const bucket = Math.min(5, Math.max(1, Math.round(r.rating)));
+      ratingBreakdown[bucket] = (ratingBreakdown[bucket] || 0) + 1;
+    }
+
+    res.json({
+      reviews: allReviews,
+      averageRating,
+      totalCount,
+      ratingBreakdown,
+    });
+  });
+
+  app.post('/api/products/:id/reviews', (req, res) => {
+    const product = db.products.find((p) => p.id === req.params.id);
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+
+    const authorName = typeof req.body?.authorName === 'string' ? req.body.authorName.trim() : '';
+    const deviceModel =
+      typeof req.body?.deviceModel === 'string' && req.body.deviceModel.trim()
+        ? req.body.deviceModel.trim()
+        : product.brandModels[0] || 'Standard Fit';
+    const comment = typeof req.body?.comment === 'string' ? req.body.comment.trim() : '';
+    const rating = Math.round(Number(req.body?.rating));
+
+    if (authorName.length < 2) {
+      res.status(400).json({ error: 'Please enter your name' });
+      return;
+    }
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+      res.status(400).json({ error: 'Rating must be between 1 and 5 stars' });
+      return;
+    }
+    if (comment.length < 5) {
+      res.status(400).json({ error: 'Please write a short review (at least 5 characters)' });
+      return;
+    }
+
+    const review: ProductReview = {
+      id: `rev-${crypto.randomUUID().slice(0, 8)}`,
+      productId: product.id,
+      authorName: authorName.slice(0, 60),
+      deviceModel: deviceModel.slice(0, 60),
+      rating,
+      comment: comment.slice(0, 500),
+      verifiedPurchase: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    db.reviews.unshift(review);
+    saveDatabase();
+    res.status(201).json({ review });
+  });
+
+  app.post('/api/coupons/validate', (req, res) => {
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+    const coupon = db.coupons.find((c) => c.code === code && c.active);
+    if (!coupon) {
+      res.status(404).json({ error: 'Invalid or expired promo code' });
+      return;
+    }
+    res.json({ code: coupon.code, discountPercent: coupon.discountPercent });
+  });
+
+  app.post('/api/newsletter', (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'Please enter a valid email address' });
+      return;
+    }
+    if (!db.subscribers.some((s) => s.email === email)) {
+      db.subscribers.unshift({
+        id: `sub-${crypto.randomUUID().slice(0, 8)}`,
+        email,
+        subscribedAt: new Date().toISOString(),
+      });
+      saveDatabase();
+    }
+    res.json({ ok: true, message: 'Subscribed to Classy Cases updates' });
+  });
+
+  app.get('/api/orders/track', (req, res) => {
+    const orderNumber = typeof req.query.orderNumber === 'string' ? req.query.orderNumber.trim() : '';
+    const phone = typeof req.query.phone === 'string' ? req.query.phone.trim() : '';
+    if (!orderNumber || !phone) {
+      res.status(400).json({ error: 'Order number and phone number are required' });
+      return;
+    }
+    const phoneTail = normalizePhoneTail(phone);
+    if (phoneTail.length < 8) {
+      res.status(400).json({ error: 'Please enter a valid phone number' });
+      return;
+    }
+    const found = db.orders.find(
+      (o) =>
+        o.orderNumber.toLowerCase() === orderNumber.toLowerCase() &&
+        normalizePhoneTail(o.customerPhone) === phoneTail
+    );
+    if (!found) {
+      res.status(404).json({ error: 'No matching order found. Please check your Order ID and phone number.' });
+      return;
+    }
+    res.json({
+      order: found,
+      customerOrderToken: createCustomerOrderToken(found.customerPhone),
+    });
+  });
+
+  app.post('/api/orders/history', (req, res) => {
+    const rawTokens = Array.isArray(req.body?.tokens) ? req.body.tokens : [];
+    const lookupOrderNumber =
+      typeof req.body?.orderNumber === 'string'
+        ? req.body.orderNumber.trim().replace(/^#/, '')
+        : '';
+    const lookupPhone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+
+    const verifiedTails = new Set<string>();
+    for (const token of rawTokens.slice(0, 20)) {
+      const tail = verifyCustomerOrderToken(token);
+      if (tail) {
+        verifiedTails.add(tail);
+      }
+    }
+
+    let newToken: string | undefined;
+    if (lookupOrderNumber || lookupPhone) {
+      if (!lookupOrderNumber || !lookupPhone) {
+        res.status(400).json({ error: 'Both Order Number and Phone Number are required to verify an order.' });
+        return;
+      }
+      const phoneTail = normalizePhoneTail(lookupPhone);
+      if (phoneTail.length < 8) {
+        res.status(400).json({ error: 'Please enter a valid phone number.' });
+        return;
+      }
+      const matched = db.orders.find(
+        (o) =>
+          o.orderNumber.toLowerCase() === lookupOrderNumber.toLowerCase() &&
+          normalizePhoneTail(o.customerPhone) === phoneTail
+      );
+      if (!matched) {
+        res.status(404).json({ error: 'No matching order found. Please verify your Order Number and Phone Number.' });
+        return;
+      }
+      verifiedTails.add(normalizePhoneTail(matched.customerPhone));
+      newToken = createCustomerOrderToken(matched.customerPhone);
+    }
+
+    if (verifiedTails.size === 0) {
+      res.json({ orders: [] });
+      return;
+    }
+
+    const orders = db.orders
+      .filter((o) => verifiedTails.has(normalizePhoneTail(o.customerPhone)))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ orders, newToken });
+  });
+
+  // Checkout & Online Payment Gateway Routes
+  app.post('/api/checkout/initiate', (req, res) => {
+    try {
+      const {
+        customerName,
+        customerPhone,
+        customerEmail = '',
+        deliveryAddress,
+        deliveryArea = 'inside_dhaka',
+        items,
+        couponCode,
+        paymentMethod,
+        source = 'Web',
+      } = req.body || {};
+
+      if (typeof customerName !== 'string' || customerName.trim().length < 2) {
+        res.status(400).json({ error: 'Full name is required' });
+        return;
+      }
+      if (typeof customerPhone !== 'string' || customerPhone.replace(/\D/g, '').length < 8) {
+        res.status(400).json({ error: 'Valid phone number is required' });
+        return;
+      }
+      if (typeof deliveryAddress !== 'string' || deliveryAddress.trim().length < 5) {
+        res.status(400).json({ error: 'Complete delivery address is required' });
+        return;
+      }
+      if (!['bkash', 'nagad', 'card', 'cod'].includes(paymentMethod)) {
+        res.status(400).json({ error: 'Unsupported payment method' });
+        return;
+      }
+
+      const gatewayConfig = db.settings.paymentGateways[paymentMethod as PaymentMethod];
+      if (!gatewayConfig?.enabled) {
+        res.status(400).json({ error: 'Selected payment method is currently disabled' });
+        return;
+      }
+
+      const area = deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka';
+      const calc = buildOrderCalculation(items, area, couponCode);
+
+      if (paymentMethod === 'cod') {
+        const order = finalizeOrder({
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerEmail: typeof customerEmail === 'string' ? customerEmail.trim() : '',
+          deliveryAddress: deliveryAddress.trim(),
+          deliveryArea: area,
+          items: calc.orderItems,
+          subtotal: calc.subtotal,
+          shippingFee: calc.shippingFee,
+          discountAmount: calc.discountAmount,
+          couponCode: calc.appliedCoupon,
+          total: calc.total,
+          paymentMethod: 'cod',
+          paymentStatus: 'pending',
+          transactionId: `COD-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+          source: source === 'POS' ? 'POS' : 'Web',
+          channel: 'Direct Storefront',
+        });
+        res.json({
+          status: 'completed',
+          order,
+          customerOrderToken: createCustomerOrderToken(order.customerPhone),
+        });
+        return;
+      }
+
+      const paymentSessionId = `pay_${crypto.randomUUID()}`;
+      pendingPayments.set(paymentSessionId, {
+        id: paymentSessionId,
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        customerEmail: typeof customerEmail === 'string' ? customerEmail.trim() : '',
+        deliveryAddress: deliveryAddress.trim(),
+        deliveryArea: area,
+        items: calc.orderItems,
+        subtotal: calc.subtotal,
+        shippingFee: calc.shippingFee,
+        discountAmount: calc.discountAmount,
+        couponCode: calc.appliedCoupon,
+        total: calc.total,
+        paymentMethod,
+        source: source === 'POS' ? 'POS' : 'Web',
+        channel:
+          paymentMethod === 'bkash'
+            ? 'bKash Checkout'
+            : paymentMethod === 'nagad'
+              ? 'Nagad Checkout'
+              : 'SSLCommerz Card',
+        createdAt: Date.now(),
+      });
+
+      res.json({
+        status: 'awaiting_payment',
+        paymentSessionId,
+        amount: calc.total,
+        subtotal: calc.subtotal,
+        shippingFee: calc.shippingFee,
+        discountAmount: calc.discountAmount,
+        paymentMethod,
+        mode: 'mode' in gatewayConfig ? gatewayConfig.mode : 'sandbox',
+      });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Checkout failed' });
+    }
+  });
+
+  app.post('/api/payments/verify', (req, res) => {
+    const { paymentSessionId, accountNumber, pinOrOtp, cardNumber } = req.body || {};
+    if (typeof paymentSessionId !== 'string') {
+      res.status(400).json({ error: 'Invalid payment session' });
+      return;
+    }
+    const session = pendingPayments.get(paymentSessionId);
+    if (!session || Date.now() - session.createdAt > 15 * 60 * 1000) {
+      res.status(404).json({ error: 'Payment session expired or not found' });
+      return;
+    }
+
+    if (session.paymentMethod === 'bkash' || session.paymentMethod === 'nagad') {
+      const digits = typeof accountNumber === 'string' ? accountNumber.replace(/\D/g, '') : '';
+      const code = typeof pinOrOtp === 'string' ? pinOrOtp.trim() : '';
+      if (digits.length < 11) {
+        res.status(400).json({ error: 'Please enter a valid 11-digit mobile wallet number' });
+        return;
+      }
+      if (code.length < 4) {
+        res.status(400).json({ error: 'Please enter the 4–6 digit verification code / PIN' });
+        return;
+      }
+    } else if (session.paymentMethod === 'card') {
+      const cardDigits = typeof cardNumber === 'string' ? cardNumber.replace(/\D/g, '') : '';
+      if (cardDigits.length < 12) {
+        res.status(400).json({ error: 'Please enter a valid Visa or Mastercard number' });
+        return;
+      }
+    }
+
+    pendingPayments.delete(paymentSessionId);
+    const prefix =
+      session.paymentMethod === 'bkash' ? 'BKS' : session.paymentMethod === 'nagad' ? 'NGD' : 'SSL';
+    const transactionId = `${prefix}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+
+    const order = finalizeOrder({
+      customerName: session.customerName,
+      customerPhone: session.customerPhone,
+      customerEmail: session.customerEmail,
+      deliveryAddress: session.deliveryAddress,
+      deliveryArea: session.deliveryArea,
+      items: session.items,
+      subtotal: session.subtotal,
+      shippingFee: session.shippingFee,
+      discountAmount: session.discountAmount,
+      couponCode: session.couponCode,
+      total: session.total,
+      paymentMethod: session.paymentMethod,
+      paymentStatus: 'paid',
+      transactionId,
+      source: session.source,
+      channel: session.channel,
+    });
+
+    res.json({
+      status: 'paid',
+      order,
+      customerOrderToken: createCustomerOrderToken(order.customerPhone),
+    });
+  });
+
+  // Admin Auth Routes
+  app.get('/api/admin/auth/status', (req, res) => {
+    const envPasscode = process.env.ADMIN_PASSCODE?.trim();
+    const needsSetup = !envPasscode && !db.adminAuth;
+    const token = extractBearerToken(req);
+    const authenticated = Boolean(token && verifySessionToken(token));
+    res.json({ needsSetup, authenticated });
+  });
+
+  app.post('/api/admin/auth/setup', (req, res) => {
+    const envPasscode = process.env.ADMIN_PASSCODE?.trim();
+    if (envPasscode || db.adminAuth) {
+      res.status(409).json({ error: 'Admin password is already configured' });
+      return;
+    }
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (password.length < 6) {
+      res.status(400).json({ error: 'Password must be at least 6 characters' });
+      return;
+    }
+    const hashed = hashPassword(password);
+    db.adminAuth = {
+      salt: hashed.salt,
+      passwordHash: hashed.passwordHash,
+      claimedAt: new Date().toISOString(),
+    };
+    saveDatabase();
+    const token = createSessionToken();
+    res.json({ token });
+  });
+
+  app.post('/api/admin/auth/login', (req, res) => {
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    const envPasscode = process.env.ADMIN_PASSCODE?.trim();
+
+    if (envPasscode) {
+      if (!verifyEnvPasscode(password, envPasscode)) {
+        res.status(401).json({ error: 'Invalid admin password' });
+        return;
+      }
+      res.json({ token: createSessionToken() });
+      return;
+    }
+
+    if (!db.adminAuth) {
+      res.status(400).json({ error: 'Admin account has not been claimed yet' });
+      return;
+    }
+
+    if (!verifyScryptPassword(password, db.adminAuth)) {
+      res.status(401).json({ error: 'Invalid admin password' });
+      return;
+    }
+
+    res.json({ token: createSessionToken() });
+  });
+
+  // Protected Admin Routes
+  app.get('/api/admin/overview', requireAdmin, (_req, res) => {
+    res.json({
+      analytics: computeDashboardAnalytics(),
+      orders: db.orders,
+      products: db.products,
+      categories: db.categories,
+      settings: db.settings,
+      subscribers: db.subscribers,
+      coupons: db.coupons,
+      expenses: db.expenses || [],
+    });
+  });
+
+  app.post('/api/admin/products', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const {
+      title,
+      slug,
+      category,
+      brand,
+      alsoShowIn,
+      price,
+      originalPrice,
+      costPrice,
+      stock,
+      lowStockThreshold,
+      trackStock,
+      preOrderMode,
+      sku,
+      image,
+      galleryImages,
+      shortDescription,
+      description,
+      requiresShipping,
+      weightKg,
+      shippingClass,
+      specifications,
+      customerPrompt,
+      seoTitle,
+      seoDescription,
+      brandModels,
+      variantOptions,
+      variants,
+      active,
+      featured,
+    } = body;
+
+    if (typeof title !== 'string' || title.trim().length < 2) {
+      res.status(400).json({ error: 'Product name is required' });
+      return;
+    }
+    const numericPrice = Number(price);
+    const numericOriginal = Number(originalPrice) || numericPrice;
+    const numericCost = Math.max(0, Number(costPrice) || 0);
+    const numericStock = Math.max(0, Math.floor(Number(stock) || 0));
+    const numericLowStock = Math.max(0, Math.floor(Number(lowStockThreshold ?? 10) || 10));
+    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
+      res.status(400).json({ error: 'Valid price is required' });
+      return;
+    }
+    const discountPercent =
+      numericOriginal > numericPrice ? Math.round(((numericOriginal - numericPrice) / numericOriginal) * 100) : 0;
+    const safeImage = isSafeImageSource(image)
+      ? image
+      : '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg';
+    const safeGallery = Array.isArray(galleryImages)
+      ? galleryImages.filter(isSafeImageSource).slice(0, 4)
+      : [];
+
+    const fallbackSlug = title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+
+    const safeVariantOptions: ProductVariantOption[] = Array.isArray(variantOptions)
+      ? variantOptions
+          .filter((o) => o && typeof o.name === 'string' && Array.isArray(o.values))
+          .map((o) => ({
+            name: o.name.trim(),
+            values: o.values.map((v: unknown) => String(v).trim()).filter(Boolean),
+          }))
+          .filter((o) => o.name.length > 0 && o.values.length > 0)
+      : [];
+
+    const safeVariants: ProductVariant[] = Array.isArray(variants)
+      ? variants
+          .filter((v) => v && typeof v.label === 'string' && v.label.trim())
+          .map((v, idx) => ({
+            id: typeof v.id === 'string' && v.id.trim() ? v.id.trim() : `var-${idx + 1}`,
+            label: v.label.trim(),
+            sku: typeof v.sku === 'string' ? v.sku.trim() : '',
+            price: Number.isFinite(Number(v.price)) ? Math.max(0, Number(v.price)) : numericPrice,
+            stock: Number.isFinite(Number(v.stock)) ? Math.max(0, Math.floor(Number(v.stock))) : numericStock,
+            active: typeof v.active === 'boolean' ? v.active : true,
+          }))
+      : [];
+
+    const product: Product = {
+      id: `prod-${crypto.randomUUID().slice(0, 8)}`,
+      title: title.trim(),
+      slug: typeof slug === 'string' && slug.trim() ? slug.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-') : fallbackSlug,
+      category: typeof category === 'string' && category.trim() ? category.trim() : 'Motorola',
+      brand: typeof brand === 'string' ? brand.trim() : '',
+      alsoShowIn: Array.isArray(alsoShowIn) ? alsoShowIn.map(String).filter(Boolean) : [],
+      brandModels: Array.isArray(brandModels) && brandModels.length > 0 ? brandModels.map(String) : ['Standard Fit'],
+      variantOptions: safeVariantOptions,
+      variants: safeVariants,
+      price: numericPrice,
+      originalPrice: numericOriginal,
+      costPrice: numericCost,
+      discountPercent,
+      stock: numericStock,
+      lowStockThreshold: numericLowStock,
+      trackStock: typeof trackStock === 'boolean' ? trackStock : true,
+      preOrderMode: preOrderMode === 'allow' || preOrderMode === 'disallow' ? preOrderMode : 'store_default',
+      sku: typeof sku === 'string' && sku.trim() ? sku.trim() : `CC-${Date.now().toString().slice(-4)}`,
+      image: safeImage,
+      galleryImages: safeGallery,
+      shortDescription: typeof shortDescription === 'string' ? shortDescription.trim() : '',
+      description: typeof description === 'string' ? description.trim() : '',
+      requiresShipping: typeof requiresShipping === 'boolean' ? requiresShipping : true,
+      weightKg: Number.isFinite(Number(weightKg)) ? Math.max(0, Number(weightKg)) : 0.5,
+      shippingClass: typeof shippingClass === 'string' ? shippingClass.trim() : 'No class',
+      specifications: Array.isArray(specifications)
+        ? specifications
+            .filter((s) => s && typeof s.label === 'string' && typeof s.value === 'string')
+            .map((s) => ({ label: s.label.trim(), value: s.value.trim() }))
+        : [],
+      customerPrompt: typeof customerPrompt === 'string' ? customerPrompt.trim() : '',
+      seoTitle: typeof seoTitle === 'string' ? seoTitle.trim() : '',
+      seoDescription: typeof seoDescription === 'string' ? seoDescription.trim() : '',
+      active: typeof active === 'boolean' ? active : true,
+      featured: Boolean(featured),
+      createdAt: new Date().toISOString(),
+    };
+    db.products.unshift(product);
+    saveDatabase();
+    res.status(201).json({ product });
+  });
+
+  app.put('/api/admin/products/:id', requireAdmin, (req, res) => {
+    const product = db.products.find((p) => p.id === req.params.id);
+    if (!product) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    const body = req.body || {};
+    const {
+      title,
+      slug,
+      category,
+      brand,
+      alsoShowIn,
+      price,
+      originalPrice,
+      costPrice,
+      stock,
+      lowStockThreshold,
+      trackStock,
+      preOrderMode,
+      sku,
+      image,
+      galleryImages,
+      shortDescription,
+      description,
+      requiresShipping,
+      weightKg,
+      shippingClass,
+      specifications,
+      customerPrompt,
+      seoTitle,
+      seoDescription,
+      brandModels,
+      variantOptions,
+      variants,
+      active,
+      featured,
+    } = body;
+
+    if (typeof title === 'string' && title.trim()) product.title = title.trim();
+    if (typeof slug === 'string' && slug.trim()) {
+      product.slug = slug.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+    }
+    if (typeof category === 'string' && category.trim()) product.category = category.trim();
+    if (typeof brand === 'string') product.brand = brand.trim();
+    if (Array.isArray(alsoShowIn)) product.alsoShowIn = alsoShowIn.map(String).filter(Boolean);
+    if (price !== undefined && Number.isFinite(Number(price)) && Number(price) >= 0) {
+      product.price = Number(price);
+    }
+    if (originalPrice !== undefined && Number.isFinite(Number(originalPrice)) && Number(originalPrice) >= 0) {
+      product.originalPrice = Number(originalPrice);
+    }
+    if (costPrice !== undefined && Number.isFinite(Number(costPrice)) && Number(costPrice) >= 0) {
+      product.costPrice = Number(costPrice);
+    }
+    product.discountPercent =
+      product.originalPrice > product.price
+        ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+        : 0;
+    if (stock !== undefined && Number.isFinite(Number(stock))) {
+      product.stock = Math.max(0, Math.floor(Number(stock)));
+    }
+    if (lowStockThreshold !== undefined && Number.isFinite(Number(lowStockThreshold))) {
+      product.lowStockThreshold = Math.max(0, Math.floor(Number(lowStockThreshold)));
+    }
+    if (typeof trackStock === 'boolean') product.trackStock = trackStock;
+    if (preOrderMode === 'store_default' || preOrderMode === 'allow' || preOrderMode === 'disallow') {
+      product.preOrderMode = preOrderMode;
+    }
+    if (typeof sku === 'string' && sku.trim()) product.sku = sku.trim();
+    if (isSafeImageSource(image)) {
+      product.image = image;
+    }
+    if (Array.isArray(galleryImages)) {
+      product.galleryImages = galleryImages.filter(isSafeImageSource).slice(0, 4);
+    }
+    if (typeof shortDescription === 'string') product.shortDescription = shortDescription.trim();
+    if (typeof description === 'string') product.description = description.trim();
+    if (typeof requiresShipping === 'boolean') product.requiresShipping = requiresShipping;
+    if (weightKg !== undefined && Number.isFinite(Number(weightKg))) {
+      product.weightKg = Math.max(0, Number(weightKg));
+    }
+    if (typeof shippingClass === 'string') product.shippingClass = shippingClass.trim();
+    if (Array.isArray(specifications)) {
+      product.specifications = specifications
+        .filter((s) => s && typeof s.label === 'string' && typeof s.value === 'string')
+        .map((s) => ({ label: s.label.trim(), value: s.value.trim() }));
+    }
+    if (typeof customerPrompt === 'string') product.customerPrompt = customerPrompt.trim();
+    if (typeof seoTitle === 'string') product.seoTitle = seoTitle.trim();
+    if (typeof seoDescription === 'string') product.seoDescription = seoDescription.trim();
+    if (Array.isArray(brandModels)) product.brandModels = brandModels.map(String);
+    if (Array.isArray(variantOptions)) {
+      product.variantOptions = variantOptions
+        .filter((o) => o && typeof o.name === 'string' && Array.isArray(o.values))
+        .map((o) => ({
+          name: o.name.trim(),
+          values: o.values.map((v: unknown) => String(v).trim()).filter(Boolean),
+        }))
+        .filter((o) => o.name.length > 0 && o.values.length > 0);
+    }
+    if (Array.isArray(variants)) {
+      product.variants = variants
+        .filter((v) => v && typeof v.label === 'string' && v.label.trim())
+        .map((v, idx) => ({
+          id: typeof v.id === 'string' && v.id.trim() ? v.id.trim() : `var-${idx + 1}`,
+          label: v.label.trim(),
+          sku: typeof v.sku === 'string' ? v.sku.trim() : '',
+          price: Number.isFinite(Number(v.price)) ? Math.max(0, Number(v.price)) : product.price,
+          stock: Number.isFinite(Number(v.stock)) ? Math.max(0, Math.floor(Number(v.stock))) : product.stock,
+          active: typeof v.active === 'boolean' ? v.active : true,
+        }));
+    }
+    if (typeof active === 'boolean') product.active = active;
+    if (typeof featured === 'boolean') product.featured = featured;
+
+    saveDatabase();
+    res.json({ product });
+  });
+
+  app.delete('/api/admin/products/:id', requireAdmin, (req, res) => {
+    const idx = db.products.findIndex((p) => p.id === req.params.id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Product not found' });
+      return;
+    }
+    db.products.splice(idx, 1);
+    saveDatabase();
+    res.json({ ok: true });
+  });
+
+  app.post('/api/admin/categories', requireAdmin, (req, res) => {
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (name.length < 2) {
+      res.status(400).json({ error: 'Category name is required' });
+      return;
+    }
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (db.categories.some((c) => c.slug === slug)) {
+      res.status(409).json({ error: 'Category already exists' });
+      return;
+    }
+    const category: Category = {
+      id: `cat-${crypto.randomUUID().slice(0, 6)}`,
+      name,
+      slug,
+      brandKey: 'custom',
+      featured: true,
+    };
+    db.categories.push(category);
+    saveDatabase();
+    res.status(201).json({ category });
+  });
+
+  app.delete('/api/admin/categories/:id', requireAdmin, (req, res) => {
+    const idx = db.categories.findIndex((c) => c.id === req.params.id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Category not found' });
+      return;
+    }
+    db.categories.splice(idx, 1);
+    saveDatabase();
+    res.json({ ok: true });
+  });
+
+  app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
+    const order = db.orders.find((o) => o.id === req.params.id);
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    const { fulfillmentStatus, paymentStatus } = req.body || {};
+    const allowedFulfillment: FulfillmentStatus[] = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
+    if (fulfillmentStatus && allowedFulfillment.includes(fulfillmentStatus)) {
+      order.fulfillmentStatus = fulfillmentStatus;
+      if (fulfillmentStatus === 'delivered' && order.paymentMethod === 'cod') {
+        order.paymentStatus = 'paid';
+      }
+    }
+    if (paymentStatus && ['paid', 'pending', 'failed'].includes(paymentStatus)) {
+      order.paymentStatus = paymentStatus;
+    }
+    order.updatedAt = new Date().toISOString();
+    saveDatabase();
+    res.json({ order });
+  });
+
+  app.post('/api/admin/pos-order', requireAdmin, (req, res) => {
+    try {
+      const { customerName, customerPhone, items, paymentMethod = 'cod' } = req.body || {};
+      const calc = buildOrderCalculation(items, 'inside_dhaka');
+      const order = finalizeOrder({
+        customerName: typeof customerName === 'string' && customerName.trim() ? customerName.trim() : 'Walk-in Customer',
+        customerPhone: typeof customerPhone === 'string' && customerPhone.trim() ? customerPhone.trim() : '01700000000',
+        customerEmail: '',
+        deliveryAddress: 'In-Store Pickup — Dhaka Counter',
+        deliveryArea: 'inside_dhaka',
+        items: calc.orderItems,
+        subtotal: calc.subtotal,
+        shippingFee: 0,
+        discountAmount: 0,
+        total: calc.subtotal,
+        paymentMethod: ['bkash', 'nagad', 'card', 'cod'].includes(paymentMethod) ? paymentMethod : 'cod',
+        paymentStatus: 'paid',
+        transactionId: `POS-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
+        source: 'POS',
+        channel: 'Point of Sale',
+      });
+      res.status(201).json({ order });
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'POS order failed' });
+    }
+  });
+
+  app.put('/api/admin/settings', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    const s = db.settings;
+    if (typeof body.storeName === 'string' && body.storeName.trim()) s.storeName = body.storeName.trim();
+    if (typeof body.tagline === 'string') s.tagline = body.tagline.trim();
+    if (typeof body.orderPrefix === 'string') s.orderPrefix = body.orderPrefix.trim().slice(0, 10);
+    if (typeof body.takePreOrders === 'boolean') s.takePreOrders = body.takePreOrders;
+    if (typeof body.autoMovePending === 'boolean') s.autoMovePending = body.autoMovePending;
+    if (body.costingMethod === 'FIFO' || body.costingMethod === 'Weighted Average') s.costingMethod = body.costingMethod;
+    if (typeof body.phone === 'string') s.phone = body.phone.trim();
+    if (typeof body.email === 'string') s.email = body.email.trim();
+    if (typeof body.address === 'string') s.address = body.address.trim();
+    if (typeof body.openingHours === 'string') s.openingHours = body.openingHours.trim();
+    if (Number.isFinite(Number(body.shippingInsideDhaka))) s.shippingInsideDhaka = Math.max(0, Number(body.shippingInsideDhaka));
+    if (Number.isFinite(Number(body.shippingOutsideDhaka))) s.shippingOutsideDhaka = Math.max(0, Number(body.shippingOutsideDhaka));
+    if (Number.isFinite(Number(body.freeShippingThreshold))) s.freeShippingThreshold = Math.max(0, Number(body.freeShippingThreshold));
+    if (typeof body.seoTitle === 'string') s.seoTitle = body.seoTitle.trim();
+    if (typeof body.seoDescription === 'string') s.seoDescription = body.seoDescription.trim();
+    if (body.paymentGateways && typeof body.paymentGateways === 'object') {
+      const pg = body.paymentGateways;
+      if (pg.bkash) {
+        s.paymentGateways.bkash.enabled = Boolean(pg.bkash.enabled);
+        if (typeof pg.bkash.merchantNumber === 'string') s.paymentGateways.bkash.merchantNumber = pg.bkash.merchantNumber.trim();
+        if (pg.bkash.mode === 'sandbox' || pg.bkash.mode === 'live') s.paymentGateways.bkash.mode = pg.bkash.mode;
+      }
+      if (pg.nagad) {
+        s.paymentGateways.nagad.enabled = Boolean(pg.nagad.enabled);
+        if (typeof pg.nagad.merchantNumber === 'string') s.paymentGateways.nagad.merchantNumber = pg.nagad.merchantNumber.trim();
+        if (pg.nagad.mode === 'sandbox' || pg.nagad.mode === 'live') s.paymentGateways.nagad.mode = pg.nagad.mode;
+      }
+      if (pg.card) {
+        s.paymentGateways.card.enabled = Boolean(pg.card.enabled);
+        if (typeof pg.card.storeId === 'string') s.paymentGateways.card.storeId = pg.card.storeId.trim();
+        if (pg.card.mode === 'sandbox' || pg.card.mode === 'live') s.paymentGateways.card.mode = pg.card.mode;
+      }
+      if (pg.cod) {
+        s.paymentGateways.cod.enabled = Boolean(pg.cod.enabled);
+      }
+    }
+    if (body.storefrontConfig && typeof body.storefrontConfig === 'object') {
+      const sc = body.storefrontConfig;
+      s.storefrontConfig = {
+        shopPageColumns: sc.shopPageColumns === 2 || sc.shopPageColumns === 4 ? sc.shopPageColumns : 3,
+        showOutOfStock: sc.showOutOfStock !== false,
+        showStockBadgeOnProduct: sc.showStockBadgeOnProduct !== false,
+        showRelatedProducts: sc.showRelatedProducts !== false,
+        checkoutRequireEmail: Boolean(sc.checkoutRequireEmail),
+        checkoutNoteEnabled: sc.checkoutNoteEnabled !== false,
+        thankYouHeadline: typeof sc.thankYouHeadline === 'string' ? sc.thankYouHeadline.trim() : 'Thank you for your order!',
+        thankYouMessage: typeof sc.thankYouMessage === 'string' ? sc.thankYouMessage.trim() : '',
+        reviewsEnabled: sc.reviewsEnabled !== false,
+        reviewsAutoApprove: sc.reviewsAutoApprove !== false,
+        sizeGuideTitle: typeof sc.sizeGuideTitle === 'string' ? sc.sizeGuideTitle.trim() : 'Phone Model & Case Fit Guide',
+        sizeGuideNotes: typeof sc.sizeGuideNotes === 'string' ? sc.sizeGuideNotes.trim() : '',
+        offerPageTitle: typeof sc.offerPageTitle === 'string' ? sc.offerPageTitle.trim() : 'Flash Deals & Combo Offers',
+        offerPageBannerText: typeof sc.offerPageBannerText === 'string' ? sc.offerPageBannerText.trim() : '',
+        popupOfferEnabled: Boolean(sc.popupOfferEnabled),
+        popupOfferHeadline: typeof sc.popupOfferHeadline === 'string' ? sc.popupOfferHeadline.trim() : '',
+        popupOfferCode: typeof sc.popupOfferCode === 'string' ? sc.popupOfferCode.trim().toUpperCase() : '',
+      };
+    }
+    if (body.orderSettings && typeof body.orderSettings === 'object') {
+      const os = body.orderSettings;
+      s.orderSettings = {
+        sources: Array.isArray(os.sources) ? os.sources.map((x: unknown) => String(x).trim()).filter(Boolean) : [],
+        quickNotes: Array.isArray(os.quickNotes) ? os.quickNotes.map((x: unknown) => String(x).trim()).filter(Boolean) : [],
+      };
+    }
+    if (body.deliverySettings && typeof body.deliverySettings === 'object') {
+      const ds = body.deliverySettings;
+      s.deliverySettings = {
+        shippingClasses: Array.isArray(ds.shippingClasses)
+          ? ds.shippingClasses
+              .filter((c: unknown) => c && typeof (c as { name?: unknown }).name === 'string')
+              .map((c: { name: string; fee?: unknown; defaultWeightKg?: unknown }) => ({
+                name: c.name.trim(),
+                fee: Math.max(0, Number(c.fee) || 0),
+                defaultWeightKg: Math.max(0, Number(c.defaultWeightKg) || 0),
+              }))
+              .filter((c: { name: string }) => c.name.length > 0)
+          : [],
+        courierProvider:
+          ds.courierProvider === 'Steadfast' ||
+          ds.courierProvider === 'Pathao' ||
+          ds.courierProvider === 'RedX'
+            ? ds.courierProvider
+            : 'None',
+        courierApiKey: typeof ds.courierApiKey === 'string' ? ds.courierApiKey.trim() : '',
+        courierSecretKey: typeof ds.courierSecretKey === 'string' ? ds.courierSecretKey.trim() : '',
+        fraudCheckEnabled: ds.fraudCheckEnabled !== false,
+        fraudThresholdPercent: Math.min(100, Math.max(0, Number(ds.fraudThresholdPercent) || 30)),
+      };
+    }
+    if (body.marketingSettings && typeof body.marketingSettings === 'object') {
+      const ms = body.marketingSettings;
+      s.marketingSettings = {
+        metaPixelId: typeof ms.metaPixelId === 'string' ? ms.metaPixelId.trim() : '',
+        gtmId: typeof ms.gtmId === 'string' ? ms.gtmId.trim() : '',
+        tiktokPixelId: typeof ms.tiktokPixelId === 'string' ? ms.tiktokPixelId.trim() : '',
+      };
+    }
+    if (body.systemSettings && typeof body.systemSettings === 'object') {
+      const sys = body.systemSettings;
+      s.systemSettings = {
+        smtpFromName: typeof sys.smtpFromName === 'string' ? sys.smtpFromName.trim() : s.storeName,
+        smtpReplyTo: typeof sys.smtpReplyTo === 'string' ? sys.smtpReplyTo.trim() : s.email,
+        orderEmailNotifications: sys.orderEmailNotifications !== false,
+        lowStockAlertEnabled: sys.lowStockAlertEnabled !== false,
+        requireTwoFactorAdmin: Boolean(sys.requireTwoFactorAdmin),
+        invoiceHeaderNote: typeof sys.invoiceHeaderNote === 'string' ? sys.invoiceHeaderNote.trim() : '',
+        invoiceFooterNote: typeof sys.invoiceFooterNote === 'string' ? sys.invoiceFooterNote.trim() : '',
+        supportAccessEnabled: Boolean(sys.supportAccessEnabled),
+      };
+    }
+    saveDatabase();
+    res.json({ settings: s });
+  });
+
+  app.post('/api/admin/coupons', requireAdmin, (req, res) => {
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+    const discountPercent = Number(req.body?.discountPercent);
+    if (!code || !Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent > 90) {
+      res.status(400).json({ error: 'Valid coupon code and discount (1–90%) required' });
+      return;
+    }
+    if (db.coupons.some((c) => c.code === code)) {
+      res.status(409).json({ error: 'Coupon code already exists' });
+      return;
+    }
+    const coupon: Coupon = {
+      id: `coup-${crypto.randomUUID().slice(0, 6)}`,
+      code,
+      discountPercent,
+      active: true,
+    };
+    db.coupons.unshift(coupon);
+    saveDatabase();
+    res.status(201).json({ coupon });
+  });
+
+  app.post('/api/admin/expenses', requireAdmin, (req, res) => {
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
+    const category = typeof req.body?.category === 'string' && req.body.category.trim() ? req.body.category.trim() : 'Operations';
+    const amount = Number(req.body?.amount);
+    const date = typeof req.body?.date === 'string' && req.body.date.trim() ? req.body.date.trim() : new Date().toISOString().slice(0, 10);
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+
+    if (title.length < 2 || !Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: 'Valid expense title and positive amount are required' });
+      return;
+    }
+
+    const expense: Expense = {
+      id: `exp-${crypto.randomUUID().slice(0, 8)}`,
+      title,
+      category,
+      amount,
+      date,
+      note,
+      createdAt: new Date().toISOString(),
+    };
+    db.expenses.unshift(expense);
+    saveDatabase();
+    res.status(201).json({ expense });
+  });
+
+  app.delete('/api/admin/expenses/:id', requireAdmin, (req, res) => {
+    const idx = db.expenses.findIndex((e) => e.id === req.params.id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+    db.expenses.splice(idx, 1);
+    saveDatabase();
+    res.json({ ok: true });
+  });
+
+  // Vite Dev Middleware or Static Production Build
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!isProd) {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distDir = path.resolve(process.cwd(), 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  }
+
+  const PORT = 3000;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Classy Cases server listening on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

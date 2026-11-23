@@ -1,0 +1,6 @@
+{
+  "name": "Classy Cases",
+  "description": "Classy Cases e-commerce storefront, online payment gateway checkout, and full-featured store admin dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

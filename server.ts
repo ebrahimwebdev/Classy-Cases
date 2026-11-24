@@ -25,6 +25,7 @@ import {
   deleteCategoryFromSql,
   deleteExpenseFromSql,
   deleteProductFromSql,
+  deleteReviewFromSql,
   insertCouponToSql,
   insertExpenseToSql,
   insertOrderToSql,
@@ -34,6 +35,7 @@ import {
   replaceProductsInSql,
   saveStoreConfigToSql,
   updateOrderInSql,
+  updateReviewVerifiedInSql,
   upsertCategoryToSql,
   upsertProductToSql,
   type StoreSnapshot,
@@ -1566,6 +1568,7 @@ async function startServer() {
       subscribers: db.subscribers,
       coupons: db.coupons,
       expenses: db.expenses || [],
+      reviews: db.reviews || [],
       catalogModified: Boolean(db.catalogModified),
     });
   });
@@ -2326,6 +2329,49 @@ async function startServer() {
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete expense' });
+    }
+  });
+
+  app.patch('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
+    const review = (db.reviews || []).find((r) => r.id === req.params.id);
+    if (!review) {
+      res.status(404).json({ error: 'Review not found' });
+      return;
+    }
+    const verifiedPurchase =
+      typeof req.body?.verifiedPurchase === 'boolean'
+        ? req.body.verifiedPurchase
+        : !review.verifiedPurchase;
+
+    try {
+      if (isSqlConfigured()) {
+        await updateReviewVerifiedInSql(review.id, verifiedPurchase);
+      }
+      review.verifiedPurchase = verifiedPurchase;
+      saveDatabase();
+      res.json({ review });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update review' });
+    }
+  });
+
+  app.delete('/api/admin/reviews/:id', requireAdmin, async (req, res) => {
+    const list = db.reviews || [];
+    const idx = list.findIndex((r) => r.id === req.params.id);
+    if (idx === -1) {
+      res.status(404).json({ error: 'Review not found' });
+      return;
+    }
+    try {
+      if (isSqlConfigured()) {
+        await deleteReviewFromSql(req.params.id);
+      }
+      list.splice(idx, 1);
+      db.reviews = list;
+      saveDatabase();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete review' });
     }
   });
 

@@ -39,6 +39,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
+  Star,
   Store,
   Tag,
   Trash2,
@@ -58,6 +59,7 @@ import type {
   FulfillmentStatus,
   Order,
   Product,
+  ProductReview,
   StoreSettings,
   Subscriber,
 } from '../types';
@@ -86,6 +88,7 @@ type AdminSection =
   | 'Order Scan'
   | 'Purchases'
   | 'Customers'
+  | 'Reviews'
   | 'Marketing'
   | 'Products'
   | 'Import Product'
@@ -151,6 +154,7 @@ export function AdminDashboard({
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Interactive Dashboard filters
@@ -250,6 +254,7 @@ export function AdminDashboard({
       setSubscribers(data.subscribers || []);
       setCoupons(data.coupons || []);
       setExpenses(data.expenses || []);
+      setReviews(data.reviews || []);
     } finally {
       setDataLoading(false);
     }
@@ -691,6 +696,28 @@ export function AdminDashboard({
     if (res.ok) await fetchOverview(adminToken);
   }
 
+  async function handleToggleReviewVerified(review: ProductReview) {
+    if (!adminToken) return;
+    const res = await fetch(`/api/admin/reviews/${review.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ verifiedPurchase: !review.verifiedPurchase }),
+    });
+    if (res.ok) await fetchOverview(adminToken);
+  }
+
+  async function handleDeleteReview(id: string) {
+    if (!adminToken) return;
+    const res = await fetch(`/api/admin/reviews/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    if (res.ok) await fetchOverview(adminToken);
+  }
+
   // Auth Gate Screen
   if (authLoading) {
     return (
@@ -856,6 +883,11 @@ export function AdminDashboard({
     { label: 'Order Scan', icon: <ScanLine className="w-4 h-4" /> },
     { label: 'Purchases', icon: <Package className="w-4 h-4" /> },
     { label: 'Customers', icon: <Users className="w-4 h-4" /> },
+    {
+      label: 'Reviews',
+      icon: <Star className="w-4 h-4" />,
+      badge: reviews.length || undefined,
+    },
     { label: 'Marketing', icon: <Megaphone className="w-4 h-4" /> },
   ];
 
@@ -2647,6 +2679,149 @@ export function AdminDashboard({
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* REVIEWS */}
+            {activeSection === 'Reviews' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h1 className="text-xl font-bold text-slate-900">Customer Reviews</h1>
+                    <p className="text-xs text-slate-500">
+                      Customer feedback submitted on product pages ({reviews.length} total)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('Settings')}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Review Settings
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-white border border-slate-200 rounded-xl p-4">
+                    <div className="text-xs text-slate-500">Submitted Reviews</div>
+                    <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                      {reviews.length}
+                    </div>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4">
+                    <div className="text-xs text-slate-500">Average Rating</div>
+                    <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                      {reviews.length > 0
+                        ? (
+                            reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+                          ).toFixed(1)
+                        : '—'}{' '}
+                      <span className="text-sm font-medium text-amber-500">/ 5</span>
+                    </div>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-4">
+                    <div className="text-xs text-slate-500">Verified Buyers</div>
+                    <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
+                      {reviews.filter((r) => r.verifiedPurchase).length}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                  {reviews.length === 0 ? (
+                    <div className="py-14 text-center text-xs text-slate-500 space-y-1">
+                      <p className="font-medium text-slate-700">No customer reviews submitted yet.</p>
+                      <p>
+                        When shoppers submit a review from any product page, it will appear right here.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {reviews.map((rev) => {
+                        const product = products.find((p) => p.id === rev.productId);
+                        return (
+                          <div
+                            key={rev.id}
+                            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:bg-slate-50/70 transition-colors"
+                          >
+                            <div className="flex items-start gap-3 min-w-0 flex-1">
+                              {product?.image ? (
+                                <img
+                                  src={product.image}
+                                  alt={product.title}
+                                  className="w-11 h-11 rounded-lg object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-11 h-11 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                                  <Package className="w-4 h-4" />
+                                </div>
+                              )}
+                              <div className="min-w-0 space-y-1 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-bold text-slate-900">
+                                    {rev.authorName}
+                                  </span>
+                                  <span className="inline-flex items-center gap-0.5 text-amber-500 text-xs font-semibold">
+                                    {Array.from({ length: 5 }).map((_, idx) => (
+                                      <Star
+                                        key={idx}
+                                        className={`w-3.5 h-3.5 ${
+                                          idx < rev.rating
+                                            ? 'fill-amber-400 text-amber-400'
+                                            : 'text-slate-200'
+                                        }`}
+                                      />
+                                    ))}
+                                  </span>
+                                  {rev.verifiedPurchase && (
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+                                      Verified Buyer
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] text-slate-400">
+                                    {new Date(rev.createdAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  Product:{' '}
+                                  <span className="font-medium text-slate-700">
+                                    {product?.title || rev.productId}
+                                  </span>{' '}
+                                  · Model: <span className="font-medium">{rev.deviceModel}</span>
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed pt-1">
+                                  &ldquo;{rev.comment}&rdquo;
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleReviewVerified(rev)}
+                                className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
+                                  rev.verifiedPurchase
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                {rev.verifiedPurchase ? 'Verified' : 'Mark Verified'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteReview(rev.id)}
+                                title="Delete review"
+                                className="p-2 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

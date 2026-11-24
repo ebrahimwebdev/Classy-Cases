@@ -712,3 +712,25 @@ export async function deleteExpenseFromSql(expenseId: string) {
     throw new Error('Failed to delete expense.', { cause: error });
   }
 }
+
+export async function updateReviewVerifiedInSql(reviewId: string, verifiedPurchase: boolean) {
+  try {
+    await db
+      .update(reviews)
+      .set({ verifiedPurchase })
+      .where(eq(reviews.id, reviewId));
+  } catch (error) {
+    console.error('Database query failed in updateReviewVerifiedInSql:', error);
+    throw new Error('Failed to update review.', { cause: error });
+  }
+}
+
+export async function deleteReviewFromSql(reviewId: string) {
+  try {
+    await db.delete(reviews).where(eq(reviews.id, reviewId));
+  } catch (error) {
+    console.error('Database query failed in deleteReviewFromSql:', error);
+    throw new Error('Failed to delete review.', { cause: error });
+  }
+}
+

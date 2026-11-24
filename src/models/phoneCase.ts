@@ -44,6 +44,8 @@ export function matchesPhoneCaseSearch(product: PhoneCaseProduct, query: string)
   const haystack = [
     product.title,
     product.category,
+    product.brand || '',
+    ...(product.alsoShowIn || []),
     product.sku,
     ...product.brandModels,
   ]
@@ -55,13 +57,17 @@ export function matchesPhoneCaseSearch(product: PhoneCaseProduct, query: string)
 
 export interface SearchSuggestion {
   label: string;
-  kind: 'Brand' | 'Model';
+  kind: 'Product' | 'Brand' | 'Model';
+  productId?: string;
+  image?: string;
+  price?: number;
+  category?: string;
 }
 
 export function extractSearchSuggestions(
   products: PhoneCaseProduct[],
   query: string,
-  limit = 6
+  limit = 8
 ): SearchSuggestion[] {
   const q = query.trim().toLowerCase();
   const seen = new Set<string>();
@@ -73,6 +79,22 @@ export function extractSearchSuggestions(
       if (!q || brand.toLowerCase().includes(q)) {
         seen.add(`brand:${brand.toLowerCase()}`);
         suggestions.push({ label: brand, kind: 'Brand' });
+      }
+    }
+  }
+
+  if (q) {
+    for (const product of products) {
+      if (matchesPhoneCaseSearch(product, q) && !seen.has(`product:${product.id}`)) {
+        seen.add(`product:${product.id}`);
+        suggestions.push({
+          label: product.title,
+          kind: 'Product',
+          productId: product.id,
+          image: product.image,
+          price: product.price,
+          category: product.category,
+        });
       }
     }
   }

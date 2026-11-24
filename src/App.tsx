@@ -12,6 +12,7 @@ export default function App() {
   const [view, setView] = useState<'storefront' | 'admin'>(() => {
     return window.location.hash.startsWith('#/admin') ? 'admin' : 'storefront';
   });
+  const [adminToken, setAdminToken] = useState<string | null>(null);
 
   useEffect(() => {
     function handleHashChange() {
@@ -34,7 +35,11 @@ export default function App() {
   return (
     <CartProvider>
       {view === 'admin' ? (
-        <AdminDashboard onBackToStore={openStorefront} />
+        <AdminDashboard
+          adminToken={adminToken}
+          onAdminTokenChange={setAdminToken}
+          onBackToStore={openStorefront}
+        />
       ) : (
         <Storefront onOpenAdmin={openAdmin} />
       )}

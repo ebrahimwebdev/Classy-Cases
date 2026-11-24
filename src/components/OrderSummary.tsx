@@ -73,19 +73,19 @@ export function OrderSummary({
   return (
     <section
       aria-label="Order Summary"
-      className="px-5 sm:px-6 pt-4 pb-5 border-t border-neutral-200 bg-white space-y-3.5"
+      className="px-5 sm:px-6 pt-4 pb-5 border-t border-[#DFCFB0] bg-[#FFFDF8] space-y-3.5"
     >
-      {/* Subtotal line matching screenshot */}
+      {/* Subtotal line */}
       <div className="flex items-center justify-between">
-        <span className="text-lg font-normal text-neutral-900">Subtotal</span>
-        <span className="text-xl font-bold text-neutral-950 tabular-nums">
+        <span className="text-lg font-medium text-[#2B1416]">Subtotal</span>
+        <span className="text-xl font-bold text-[#650108] tabular-nums">
           {formatTaka(subtotal)}
         </span>
       </div>
 
       {/* Shipping estimate toggle & breakdown */}
       <div className="space-y-2.5">
-        <div className="flex items-center justify-between gap-2 text-[13px] text-neutral-500">
+        <div className="flex items-center justify-between gap-2 text-[13px] text-[#6B4C4E]">
           <span>
             {qualifiesForFreeShipping
               ? 'Free nationwide delivery unlocked'
@@ -94,22 +94,22 @@ export function OrderSummary({
           <button
             type="button"
             onClick={() => setShowShippingEstimator((v) => !v)}
-            className="text-xs font-semibold text-neutral-800 underline underline-offset-4 hover:text-neutral-950 shrink-0"
+            className="text-xs font-semibold text-[#650108] underline underline-offset-4 hover:opacity-80 shrink-0"
           >
             {showShippingEstimator ? 'Hide estimate' : 'Estimate total'}
           </button>
         </div>
 
         {showShippingEstimator && (
-          <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2.5 text-[13px]">
-            <div className="grid grid-cols-2 gap-1.5 bg-neutral-200/70 p-1 rounded-lg">
+          <div className="p-3 rounded-xl bg-[#FAF4E6] border border-[#DFCFB0] space-y-2.5 text-[13px]">
+            <div className="grid grid-cols-2 gap-1.5 bg-[#E4D5B7] p-1 rounded-lg">
               <button
                 type="button"
                 onClick={() => setDeliveryZone('inside_dhaka')}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   deliveryZone === 'inside_dhaka'
-                    ? 'bg-white text-neutral-950 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                    ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                    : 'text-[#6B4C4E] hover:text-[#650108]'
                 }`}
               >
                 Inside Dhaka ({formatTaka(shippingInsideDhaka)})
@@ -119,20 +119,20 @@ export function OrderSummary({
                 onClick={() => setDeliveryZone('outside_dhaka')}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                   deliveryZone === 'outside_dhaka'
-                    ? 'bg-white text-neutral-950 shadow-xs'
-                    : 'text-neutral-600 hover:text-neutral-900'
+                    ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                    : 'text-[#6B4C4E] hover:text-[#650108]'
                 }`}
               >
                 Outside Dhaka ({formatTaka(shippingOutsideDhaka)})
               </button>
             </div>
-            <div className="flex items-center justify-between text-neutral-600">
+            <div className="flex items-center justify-between text-[#6B4C4E]">
               <span>Estimated Shipping</span>
-              <span className="font-semibold text-neutral-900 tabular-nums">
+              <span className="font-semibold text-[#2B1416] tabular-nums">
                 {qualifiesForFreeShipping ? 'Free' : formatTaka(estimatedShipping)}
               </span>
             </div>
-            <div className="flex items-center justify-between font-bold text-neutral-950 pt-1.5 border-t border-neutral-200">
+            <div className="flex items-center justify-between font-bold text-[#650108] pt-1.5 border-t border-[#DFCFB0]">
               <span>Estimated Total</span>
               <span className="tabular-nums">{formatTaka(total)}</span>
             </div>
@@ -140,11 +140,11 @@ export function OrderSummary({
         )}
       </div>
 
-      <div className="border-t border-neutral-200 pt-4 grid grid-cols-2 gap-3">
+      <div className="border-t border-[#DFCFB0] pt-4 grid grid-cols-2 gap-3">
         <button
           type="button"
           onClick={() => setShowShippingEstimator((v) => !v)}
-          className="py-3 px-4 rounded-xl border border-neutral-300 bg-white text-neutral-950 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+          className="py-3 px-4 rounded-xl border border-[#650108]/40 bg-[#FFFDF8] text-[#650108] text-sm font-semibold hover:bg-[#F2E8D2] transition-colors"
         >
           View cart
         </button>
@@ -155,7 +155,7 @@ export function OrderSummary({
             closeDrawer();
             onProceedToCheckout();
           }}
-          className="py-3 px-4 rounded-xl bg-[#111111] text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+          className="py-3 px-4 rounded-xl bg-[#650108] text-[#F2E8D2] text-sm font-semibold hover:bg-[#4D0106] transition-colors"
         >
           Check out
         </button>

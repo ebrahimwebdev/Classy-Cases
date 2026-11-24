@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -108,13 +108,21 @@ function slugifyCategory(value: string): string {
 }
 
 function CategoryBrandBadge({ category }: { category: Category }) {
-  if (category.image) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [category.image]);
+
+  if (category.image && !imgFailed) {
     return (
       <img
+        key={category.image}
         src={category.image}
         alt={category.name}
         referrerPolicy="no-referrer"
-        className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
+        onError={() => setImgFailed(true)}
+        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shrink-0"
       />
     );
   }
@@ -188,6 +196,8 @@ export function AdminInventoryCatalogViews({
   const [newShippingClassInput, setNewShippingClassInput] = useState('');
   const [catModalError, setCatModalError] = useState('');
   const [catSaving, setCatSaving] = useState(false);
+  const [catImageProcessing, setCatImageProcessing] = useState(false);
+  const [catPreviewFailed, setCatPreviewFailed] = useState(false);
   const catFileInputRef = useRef<HTMLInputElement>(null);
 
   const [warranties, setWarranties] = useState<WarrantyRule[]>(DEFAULT_WARRANTIES);
@@ -256,6 +266,8 @@ export function AdminInventoryCatalogViews({
     setAddingShippingClass(false);
     setNewShippingClassInput('');
     setCatModalError('');
+    setCatImageProcessing(false);
+    setCatPreviewFailed(false);
     setCategoryModalOpen(true);
   }
 
@@ -277,30 +289,95 @@ export function AdminInventoryCatalogViews({
     setAddingShippingClass(false);
     setNewShippingClassInput('');
     setCatModalError('');
+    setCatImageProcessing(false);
+    setCatPreviewFailed(false);
     setCategoryModalOpen(true);
   }
 
-  function handleCategoryImageUpload(file: File) {
-    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
-      setCatModalError('Please upload a PNG, JPG, WEBP, or GIF image.');
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Could not read the selected image file.'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function compressCategoryImageFile(file: File): Promise<string> {
+    const rawDataUrl = await readFileAsDataUrl(file);
+    const smallDirectTypes = new Set([
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'image/webp',
+      'image/gif',
+      'image/x-icon',
+      'image/vnd.microsoft.icon',
+    ]);
+    if (file.size <= 350 * 1024 && smallDirectTypes.has(file.type.toLowerCase())) {
+      return rawDataUrl;
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 512;
+        const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+        const width = Math.max(1, Math.round((img.width || maxDim) * scale));
+        const height = Math.max(1, Math.round((img.height || maxDim) * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(rawDataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/png');
+        resolve(compressed.length < rawDataUrl.length || file.type === 'image/avif' ? compressed : rawDataUrl);
+      };
+      img.onerror = () => reject(new Error('Unsupported or corrupted image file. Please choose a PNG, JPG, or WEBP file.'));
+      img.src = rawDataUrl;
+    });
+  }
+
+  async function handleCategoryImageUpload(file: File) {
+    const lowerName = file.name.toLowerCase();
+    const isIco = lowerName.endsWith('.ico');
+    if ((!file.type.startsWith('image/') && !isIco) || file.type === 'image/svg+xml' || lowerName.endsWith('.svg')) {
+      setCatModalError('Please upload a PNG, JPG, WEBP, GIF, AVIF, or ICO image.');
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setCatModalError('Category image size must be under 3 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setCatModalError('Category image size must be under 10 MB.');
       return;
     }
     setCatModalError('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCatImage(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setCatPreviewFailed(false);
+    setCatImageProcessing(true);
+    try {
+      const processedUrl = await compressCategoryImageFile(file);
+      setCatImage(processedUrl);
+    } catch (err) {
+      setCatModalError(err instanceof Error ? err.message : 'Failed to load image.');
+    } finally {
+      setCatImageProcessing(false);
+    }
   }
 
   async function handleSaveCategoryModal(e: React.FormEvent) {
     e.preventDefault();
+    if (catImageProcessing) {
+      setCatModalError('Please wait for the category image upload to finish.');
+      return;
+    }
     const trimmedName = catName.trim();
     if (!trimmedName) {
       setCatModalError('Category name is required.');
@@ -863,17 +940,19 @@ export function AdminInventoryCatalogViews({
                     <div className="md:col-span-5 space-y-5">
                       <div>
                         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 mb-2.5">
-                          <span>Image</span>
+                          <span>Image / Icon</span>
                           <Info className="w-3.5 h-3.5 text-slate-400" />
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="w-20 h-20 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center justify-center overflow-hidden shrink-0">
-                            {catImage ? (
+                            {catImage && !catPreviewFailed ? (
                               <img
+                                key={catImage}
                                 src={catImage}
                                 alt="Category preview"
                                 referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
+                                onError={() => setCatPreviewFailed(true)}
+                                className="w-full h-full object-contain p-1 bg-white"
                               />
                             ) : (
                               <ImageIcon className="w-6 h-6 text-slate-400" />
@@ -883,27 +962,35 @@ export function AdminInventoryCatalogViews({
                             <input
                               ref={catFileInputRef}
                               type="file"
-                              accept="image/png,image/jpeg,image/webp,image/gif"
+                              accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon,.ico"
                               className="hidden"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handleCategoryImageUpload(file);
+                                if (file) void handleCategoryImageUpload(file);
                                 e.target.value = '';
                               }}
                             />
                             <button
                               type="button"
+                              disabled={catImageProcessing}
                               onClick={() => catFileInputRef.current?.click()}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
                             >
-                              <Upload className="w-3.5 h-3.5 text-slate-600" />
-                              <span>Upload</span>
+                              {catImageProcessing ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                              ) : (
+                                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                              )}
+                              <span>{catImageProcessing ? 'Processing...' : 'Upload'}</span>
                             </button>
                             {catImage && (
                               <div>
                                 <button
                                   type="button"
-                                  onClick={() => setCatImage('')}
+                                  onClick={() => {
+                                    setCatImage('');
+                                    setCatPreviewFailed(false);
+                                  }}
                                   className="text-[11px] font-medium text-rose-600 hover:text-rose-700 cursor-pointer"
                                 >
                                   Remove image
@@ -911,6 +998,29 @@ export function AdminInventoryCatalogViews({
                               </div>
                             )}
                           </div>
+                        </div>
+                        <div className="mt-3">
+                          <label
+                            htmlFor="cat-image-url-input"
+                            className="block text-[11px] font-medium text-slate-500 mb-1"
+                          >
+                            Or paste image URL
+                          </label>
+                          <input
+                            id="cat-image-url-input"
+                            type="text"
+                            value={catImage.startsWith('data:') ? '' : catImage}
+                            onChange={(e) => {
+                              setCatPreviewFailed(false);
+                              setCatImage(e.target.value);
+                            }}
+                            placeholder={
+                              catImage.startsWith('data:')
+                                ? 'Uploaded image active (or paste https:// URL to replace)'
+                                : 'https://example.com/category-icon.png'
+                            }
+                            className="w-full px-3 py-2 text-xs text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                          />
                         </div>
                       </div>
 

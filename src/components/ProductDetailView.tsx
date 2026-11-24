@@ -210,7 +210,7 @@ export function ProductDetailView({
   }
 
   return (
-    <div className="bg-white">
+    <div className="bg-[#F2E8D2]">
       {/* Lightbox Zoom Preview */}
       {zoomOpen && (
         <div
@@ -221,7 +221,7 @@ export function ProductDetailView({
             type="button"
             onClick={() => setZoomOpen(false)}
             aria-label="Close zoom preview"
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white text-neutral-900 flex items-center justify-center shadow-lg"
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-[#FAF4E6] text-[#650108] flex items-center justify-center shadow-lg"
           >
             <X className="w-5 h-5" />
           </button>
@@ -229,7 +229,7 @@ export function ProductDetailView({
             src={currentImg}
             alt={product.title}
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[88vh] max-w-full rounded-2xl object-contain"
+            className="max-h-[88vh] max-w-full rounded-2xl object-contain bg-white"
           />
         </div>
       )}
@@ -240,18 +240,18 @@ export function ProductDetailView({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-neutral-600 hover:text-neutral-950 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6B4C4E] hover:text-[#650108] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to {product.category} &amp; All Cases</span>
           </button>
         </div>
 
-        {/* Top 2-Column Hero Section matching reference screenshot */}
+        {/* Top 2-Column Hero Section */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 lg:gap-10 items-start">
           {/* Left: Gallery */}
           <div className="lg:col-span-6 space-y-3">
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200">
+            <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-[#DFCFB0] shadow-xs">
               <img
                 src={currentImg}
                 alt={product.title}
@@ -262,11 +262,11 @@ export function ProductDetailView({
               {/* Top-left Discount & SKU badges */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5">
                 {discountPct > 0 && (
-                  <span className="px-2 py-1 rounded-md bg-neutral-950 text-white text-[11px] font-bold tabular-nums">
+                  <span className="px-2 py-1 rounded-md bg-[#650108] text-[#F2E8D2] text-[11px] font-bold tabular-nums">
                     -{discountPct}%
                   </span>
                 )}
-                <span className="px-2 py-1 rounded-md bg-white/95 border border-neutral-200 text-neutral-800 text-[11px] font-mono font-semibold">
+                <span className="px-2 py-1 rounded-md bg-[#FAF4E6]/95 border border-[#DFCFB0] text-[#650108] text-[11px] font-mono font-semibold">
                   {displaySku}
                 </span>
               </div>
@@ -276,13 +276,13 @@ export function ProductDetailView({
                 type="button"
                 onClick={() => setZoomOpen(true)}
                 aria-label="Zoom product image"
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/95 border border-neutral-200 text-neutral-700 hover:text-neutral-950 flex items-center justify-center shadow-xs transition-colors"
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[#FAF4E6]/95 border border-[#DFCFB0] text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] flex items-center justify-center shadow-xs transition-colors"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
 
               {/* Bottom-left Slide Counter */}
-              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-neutral-950/85 text-white text-[11px] font-mono font-medium tabular-nums">
+              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-[#650108]/90 text-[#F2E8D2] text-[11px] font-mono font-medium tabular-nums">
                 {String(activeImageIdx + 1).padStart(2, '0')} / {String(images.length).padStart(2, '0')}
               </div>
             </div>
@@ -294,10 +294,10 @@ export function ProductDetailView({
                   key={`${imgUrl}-${idx}`}
                   type="button"
                   onClick={() => setActiveImageIdx(idx)}
-                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 shrink-0 transition-all bg-neutral-100 ${
+                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 shrink-0 transition-all bg-white ${
                     idx === activeImageIdx
-                      ? 'border-neutral-950 ring-1 ring-neutral-950'
-                      : 'border-neutral-200 opacity-75 hover:opacity-100'
+                      ? 'border-[#650108] ring-1 ring-[#650108]'
+                      : 'border-[#DFCFB0] opacity-75 hover:opacity-100'
                   }`}
                 >
                   <img
@@ -312,40 +312,40 @@ export function ProductDetailView({
           </div>
 
           {/* Right: Title, Price, Variants, Actions, Help Card */}
-          <div className="lg:col-span-6 space-y-5">
+          <div className="lg:col-span-6 space-y-5 bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-5 sm:p-7 shadow-xs">
             <div>
-              <span className="inline-block px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-700 text-xs font-bold uppercase tracking-wider">
+              <span className="inline-block px-2.5 py-1 rounded-md bg-[#F2E8D2] text-[#650108] text-xs font-bold uppercase tracking-wider">
                 {product.category}
               </span>
-              <h1 className="text-2xl sm:text-[28px] font-bold text-neutral-950 leading-snug mt-3">
+              <h1 className="text-2xl sm:text-[28px] font-bold text-[#2B1416] leading-snug mt-3">
                 {product.title}
               </h1>
 
               <div className="flex items-center gap-3 mt-4 flex-wrap">
-                <span className="text-3xl font-black text-neutral-950 tabular-nums">
+                <span className="text-3xl font-black text-[#650108] tabular-nums">
                   {formatTaka(displayPrice)}
                 </span>
                 {displayOriginalPrice > displayPrice && (
-                  <span className="text-lg text-neutral-400 line-through tabular-nums">
+                  <span className="text-lg text-[#8E6F70] line-through tabular-nums">
                     {formatTaka(displayOriginalPrice)}
                   </span>
                 )}
                 {discountPct > 0 && (
-                  <span className="px-2.5 py-1 rounded-md bg-neutral-100 text-neutral-900 text-xs font-bold tabular-nums">
+                  <span className="px-2.5 py-1 rounded-md bg-[#F2E8D2] text-[#650108] text-xs font-bold tabular-nums">
                     -{discountPct}%
                   </span>
                 )}
               </div>
 
               {savings > 0 && (
-                <p className="text-sm font-semibold text-emerald-600 mt-1.5 tabular-nums">
+                <p className="text-sm font-semibold text-emerald-700 mt-1.5 tabular-nums">
                   You save {formatTaka(savings)} on this item
                 </p>
               )}
             </div>
 
-            <div className="border-t border-neutral-200 pt-4 space-y-4">
-              {/* Separate Option Rows matching reference screenshot (e.g. Color -> Choose one, Model -> Choose one) */}
+            <div className="border-t border-[#EDE2C9] pt-4 space-y-4">
+              {/* Separate Option Rows */}
               {optionGroups.length > 0 && (
                 <div className="space-y-4">
                   {optionGroups.map((group) => {
@@ -353,10 +353,10 @@ export function ProductDetailView({
                     return (
                       <div key={group.name}>
                         <div className="flex items-center gap-2 mb-2.5">
-                          <span className="text-sm font-bold text-neutral-950">
+                          <span className="text-sm font-bold text-[#2B1416]">
                             {group.name}
                           </span>
-                          <span className="text-sm text-neutral-500">
+                          <span className="text-sm text-[#6B4C4E]">
                             {currentVal || 'Choose one'}
                           </span>
                         </div>
@@ -376,8 +376,8 @@ export function ProductDetailView({
                                 }}
                                 className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
                                   isSelected
-                                    ? 'border-neutral-950 bg-neutral-950 text-white font-semibold'
-                                    : 'border-neutral-300 bg-white text-neutral-900 font-medium hover:border-neutral-500'
+                                    ? 'border-[#650108] bg-[#650108] text-[#F2E8D2] font-semibold'
+                                    : 'border-[#DFCFB0] bg-[#FAF4E6] text-[#2B1416] font-medium hover:border-[#650108]'
                                 }`}
                               >
                                 {val}
@@ -390,30 +390,30 @@ export function ProductDetailView({
                   })}
 
                   {selectionError && (
-                    <p className="text-sm font-medium text-red-600">{selectionError}</p>
+                    <p className="text-sm font-medium text-[#650108]">{selectionError}</p>
                   )}
                 </div>
               )}
 
               {/* Quantity + Add to cart */}
               <div className="flex items-center gap-3 pt-1">
-                <div className="flex items-center border border-neutral-200 rounded-xl h-12 px-1.5 bg-white shrink-0">
+                <div className="flex items-center border border-[#DFCFB0] rounded-xl h-12 px-1.5 bg-[#FAF4E6] shrink-0">
                   <button
                     type="button"
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                     aria-label="Decrease quantity"
-                    className="w-9 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-950"
+                    className="w-9 h-full flex items-center justify-center text-[#650108] hover:opacity-75"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-9 text-center text-sm font-semibold tabular-nums">
+                  <span className="w-9 text-center text-sm font-semibold text-[#2B1416] tabular-nums">
                     {quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => setQuantity((q) => q + 1)}
                     aria-label="Increase quantity"
-                    className="w-9 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-950"
+                    className="w-9 h-full flex items-center justify-center text-[#650108] hover:opacity-75"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -425,7 +425,7 @@ export function ProductDetailView({
                     if (!validateOptionSelection()) return;
                     onAddToCart(product, chosenModelOrVariant, quantity, cartItemMeta);
                   }}
-                  className="flex-1 h-12 rounded-xl border border-neutral-300 bg-white text-neutral-950 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-colors"
+                  className="flex-1 h-12 rounded-xl border border-[#650108]/40 bg-[#FAF4E6] text-[#650108] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#F2E8D2] transition-colors"
                 >
                   <ShoppingBag className="w-4 h-4" />
                   <span>Add to cart</span>
@@ -440,7 +440,7 @@ export function ProductDetailView({
                     if (!validateOptionSelection()) return;
                     onBuyNow(product, chosenModelOrVariant, quantity, cartItemMeta);
                   }}
-                  className="flex-1 h-12 rounded-xl bg-[#111111] text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-neutral-800 transition-colors"
+                  className="flex-1 h-12 rounded-xl bg-[#650108] text-[#F2E8D2] text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[#4D0106] transition-colors"
                 >
                   <Zap className="w-4 h-4" />
                   <span>Buy now</span>
@@ -450,18 +450,18 @@ export function ProductDetailView({
                   type="button"
                   onClick={() => onToggleWishlist(product.id)}
                   aria-label={isWishlisted ? 'Remove from wishlist' : 'Save to wishlist'}
-                  className="w-12 h-12 rounded-xl border border-neutral-200 bg-white flex items-center justify-center hover:bg-neutral-50 shrink-0 transition-colors"
+                  className="w-12 h-12 rounded-xl border border-[#DFCFB0] bg-[#FAF4E6] flex items-center justify-center hover:bg-[#F2E8D2] shrink-0 transition-colors"
                 >
                   <Heart
                     className={`w-4.5 h-4.5 ${
-                      isWishlisted ? 'fill-red-500 text-red-500' : 'text-neutral-700'
+                      isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'
                     }`}
                   />
                 </button>
               </div>
 
               {/* Compare & Share */}
-              <div className="flex items-center gap-6 pt-1 text-sm font-medium text-neutral-600">
+              <div className="flex items-center gap-6 pt-1 text-sm font-medium text-[#6B4C4E]">
                 <button
                   type="button"
                   onClick={() => {
@@ -472,7 +472,7 @@ export function ProductDetailView({
                         : `${product.title.slice(0, 26)}... marked for comparison.`
                     );
                   }}
-                  className="inline-flex items-center gap-1.5 hover:text-neutral-950"
+                  className="inline-flex items-center gap-1.5 hover:text-[#650108]"
                 >
                   <ArrowLeftRight className="w-4 h-4" />
                   <span>Compare</span>
@@ -481,7 +481,7 @@ export function ProductDetailView({
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center gap-1.5 hover:text-neutral-950"
+                  className="inline-flex items-center gap-1.5 hover:text-[#650108]"
                 >
                   <Share2 className="w-4 h-4" />
                   <span>Share</span>
@@ -492,33 +492,33 @@ export function ProductDetailView({
               <button
                 type="button"
                 onClick={onOpenWhatsAppHelp}
-                className="w-full border border-neutral-200 rounded-xl px-4 py-3.5 flex items-center justify-between text-left hover:bg-neutral-50 transition-colors"
+                className="w-full border border-[#DFCFB0] bg-[#FAF4E6] rounded-xl px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F2E8D2] transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-neutral-100 text-neutral-700 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-lg bg-[#650108]/10 text-[#650108] flex items-center justify-center shrink-0">
                     <MessageCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-neutral-950">Need help choosing?</div>
-                    <div className="text-xs text-neutral-500">Chat with us on WhatsApp</div>
+                    <div className="text-sm font-semibold text-[#650108]">Need help choosing?</div>
+                    <div className="text-xs text-[#6B4C4E]">Chat with us on WhatsApp</div>
                   </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-[#8E6F70] shrink-0" />
               </button>
             </div>
           </div>
         </div>
 
         {/* Middle Tabbed Specifications / Shipping & Return Card */}
-        <section className="bg-white border border-neutral-200 rounded-2xl p-5 sm:p-6 shadow-xs">
-          <div className="inline-flex items-center gap-1 bg-neutral-100/80 p-1 rounded-xl mb-5">
+        <section className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-5 sm:p-6 shadow-xs">
+          <div className="inline-flex items-center gap-1 bg-[#E4D5B7] p-1 rounded-xl mb-5">
             <button
               type="button"
               onClick={() => setActiveInfoTab('specs')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 activeInfoTab === 'specs'
-                  ? 'bg-white text-neutral-950 shadow-xs'
-                  : 'text-neutral-500 hover:text-neutral-900'
+                  ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                  : 'text-[#6B4C4E] hover:text-[#650108]'
               }`}
             >
               Specifications
@@ -528,8 +528,8 @@ export function ProductDetailView({
               onClick={() => setActiveInfoTab('shipping')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 activeInfoTab === 'shipping'
-                  ? 'bg-white text-neutral-950 shadow-xs'
-                  : 'text-neutral-500 hover:text-neutral-900'
+                  ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                  : 'text-[#6B4C4E] hover:text-[#650108]'
               }`}
             >
               Shipping &amp; Return
@@ -537,63 +537,63 @@ export function ProductDetailView({
           </div>
 
           {activeInfoTab === 'specs' ? (
-            <div className="divide-y divide-neutral-100 text-sm">
+            <div className="divide-y divide-[#EDE2C9] text-sm">
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">SKU</span>
-                <span className="col-span-2 font-mono font-semibold text-neutral-900">
+                <span className="text-[#6B4C4E]">SKU</span>
+                <span className="col-span-2 font-mono font-semibold text-[#650108]">
                   {displaySku}
                 </span>
               </div>
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Category</span>
-                <span className="col-span-2 font-medium text-neutral-900">
+                <span className="text-[#6B4C4E]">Category</span>
+                <span className="col-span-2 font-medium text-[#2B1416]">
                   {product.category}
                 </span>
               </div>
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Compatible Models</span>
-                <span className="col-span-2 text-neutral-800">
+                <span className="text-[#6B4C4E]">Compatible Models</span>
+                <span className="col-span-2 text-[#2B1416]">
                   {product.brandModels.join(', ')}
                 </span>
               </div>
               {product.description && (
                 <div className="py-3.5 grid grid-cols-3 gap-4">
-                  <span className="text-neutral-500">Overview</span>
-                  <span className="col-span-2 text-neutral-700 leading-relaxed">
+                  <span className="text-[#6B4C4E]">Overview</span>
+                  <span className="col-span-2 text-[#2B1416] leading-relaxed">
                     {product.description}
                   </span>
                 </div>
               )}
               {product.specifications?.map((spec, idx) => (
                 <div key={idx} className="py-3.5 grid grid-cols-3 gap-4">
-                  <span className="text-neutral-500">{spec.label}</span>
-                  <span className="col-span-2 text-neutral-900 font-medium">{spec.value}</span>
+                  <span className="text-[#6B4C4E]">{spec.label}</span>
+                  <span className="col-span-2 text-[#2B1416] font-medium">{spec.value}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="divide-y divide-neutral-100 text-sm">
+            <div className="divide-y divide-[#EDE2C9] text-sm">
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Inside Dhaka</span>
-                <span className="col-span-2 font-semibold text-neutral-900">
+                <span className="text-[#6B4C4E]">Inside Dhaka</span>
+                <span className="col-span-2 font-semibold text-[#2B1416]">
                   {formatTaka(shippingInsideDhaka)} (24–48 hours express delivery)
                 </span>
               </div>
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Outside Dhaka</span>
-                <span className="col-span-2 font-semibold text-neutral-900">
+                <span className="text-[#6B4C4E]">Outside Dhaka</span>
+                <span className="col-span-2 font-semibold text-[#2B1416]">
                   {formatTaka(shippingOutsideDhaka)} (2–4 business days via courier)
                 </span>
               </div>
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Free Shipping</span>
-                <span className="col-span-2 text-neutral-800">
+                <span className="text-[#6B4C4E]">Free Shipping</span>
+                <span className="col-span-2 text-[#2B1416]">
                   Orders over {formatTaka(freeShippingThreshold)} qualify for free nationwide shipping.
                 </span>
               </div>
               <div className="py-3.5 grid grid-cols-3 gap-4">
-                <span className="text-neutral-500">Returns &amp; Exchange</span>
-                <span className="col-span-2 text-neutral-700">
+                <span className="text-[#6B4C4E]">Returns &amp; Exchange</span>
+                <span className="col-span-2 text-[#2B1416]">
                   7-day hassle-free replacement guarantee if your case arrives damaged or does not fit your phone model.
                 </span>
               </div>
@@ -603,7 +603,7 @@ export function ProductDetailView({
 
         {/* Preserved Customer Reviews & Testimonials Section */}
         {reviewsEnabled && (
-          <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+          <div className="border border-[#DFCFB0] rounded-2xl overflow-hidden bg-[#FFFDF8] shadow-xs">
             <Reviews
               productId={product.id}
               availableModels={product.brandModels}
@@ -612,10 +612,10 @@ export function ProductDetailView({
           </div>
         )}
 
-        {/* "You may also like" 4-Card Section matching screenshot */}
+        {/* "You may also like" 4-Card Section */}
         {relatedProducts.length > 0 && (
           <section className="pt-4 space-y-7">
-            <h2 className="text-2xl sm:text-3xl font-bold text-neutral-950 text-center tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#650108] text-center tracking-tight">
               You may also like
             </h2>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">

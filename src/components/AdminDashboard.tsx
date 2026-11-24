@@ -23,6 +23,7 @@ import {
   LayoutGrid,
   Loader2,
   Lock,
+  LogOut,
   Megaphone,
   Menu,
   Package,
@@ -103,6 +104,8 @@ type AdminSection =
   | 'Settings';
 
 interface AdminDashboardProps {
+  adminToken: string | null;
+  onAdminTokenChange: (token: string | null) => void;
   onBackToStore: () => void;
 }
 
@@ -115,11 +118,14 @@ const PRESET_PRODUCT_IMAGES = [
   { label: 'Crystal Clear MagSafe Armor', url: '/src/assets/images/case_crystal_clear_vivo_1795455912579.jpg' },
 ];
 
-export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
-  // Auth state kept strictly in memory
-  const [adminToken, setAdminToken] = useState<string | null>(null);
+export function AdminDashboard({
+  adminToken,
+  onAdminTokenChange,
+  onBackToStore,
+}: AdminDashboardProps) {
+  const setAdminToken = onAdminTokenChange;
   const [needsSetup, setNeedsSetup] = useState<boolean>(false);
-  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [authLoading, setAuthLoading] = useState<boolean>(() => !adminToken);
   const [passwordInput, setPasswordInput] = useState('');
   const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
@@ -168,11 +174,19 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
   useEffect(() => {
     async function checkAuth() {
       try {
-        const res = await fetch('/api/admin/auth/status');
+        const res = await fetch('/api/admin/auth/status', {
+          credentials: 'same-origin',
+          headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : undefined,
+        });
         const data = await res.json();
         setNeedsSetup(Boolean(data.needsSetup));
+        if (data.authenticated && typeof data.token === 'string') {
+          setAdminToken(data.token);
+        } else if (!data.authenticated && adminToken) {
+          setAdminToken(null);
+        }
       } catch {
-        // ignore
+        // ignore transient network check error
       } finally {
         setAuthLoading(false);
       }
@@ -225,7 +239,11 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
     try {
       const res = await fetch('/api/admin/auth/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({ password: passwordInput }),
       });
       const data = await res.json();
@@ -251,7 +269,11 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
     try {
       const res = await fetch('/api/admin/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
         body: JSON.stringify({ password: passwordInput }),
       });
       const data = await res.json();
@@ -266,6 +288,19 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
     } finally {
       setAuthSubmitting(false);
     }
+  }
+
+  async function handleAdminLogout() {
+    try {
+      await fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+    } catch {
+      // ignore network errors on logout
+    }
+    setAdminToken(null);
   }
 
   function openAddProduct() {
@@ -1359,6 +1394,16 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
             <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center">
               ME
             </div>
+
+            <button
+              type="button"
+              onClick={handleAdminLogout}
+              title="Sign out of Admin"
+              aria-label="Sign out of Admin"
+              className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 cursor-pointer transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 

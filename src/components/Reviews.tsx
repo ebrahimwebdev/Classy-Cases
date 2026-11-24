@@ -45,7 +45,7 @@ function StarRow({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'md' }
           className={`${iconSize} ${
             star <= Math.round(rating)
               ? 'fill-amber-400 text-amber-400'
-              : 'fill-neutral-100 text-neutral-300'
+              : 'fill-[#F2E8D2] text-[#CBB894]'
           }`}
         />
       ))}
@@ -137,12 +137,12 @@ export function Reviews({
   return (
     <section
       aria-label="Customer Reviews"
-      className="bg-neutral-50/40 p-5 sm:p-6 space-y-5"
+      className="bg-[#FAF4E6] p-5 sm:p-6 space-y-5"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h4 className="text-base font-bold text-neutral-900">Customer Reviews &amp; Ratings</h4>
-          <p className="text-[13px] text-neutral-500 mt-0.5">
+          <h4 className="text-base font-bold text-[#650108]">Customer Reviews &amp; Ratings</h4>
+          <p className="text-[13px] text-[#6B4C4E] mt-0.5">
             Feedback from phone case buyers across Bangladesh
           </p>
         </div>
@@ -150,7 +150,7 @@ export function Reviews({
         <button
           type="button"
           onClick={() => setFormOpen((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-neutral-300 bg-white text-[13px] font-semibold text-neutral-900 hover:bg-neutral-100 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#650108]/35 bg-[#FFFDF8] text-[13px] font-semibold text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors"
         >
           <MessageSquarePlus className="w-4 h-4" />
           <span>{formOpen ? 'Cancel' : 'Write a Review'}</span>
@@ -160,28 +160,28 @@ export function Reviews({
       {formOpen && (
         <form
           onSubmit={handleSubmitReview}
-          className="bg-white border border-neutral-200 rounded-xl p-4 sm:p-5 space-y-3.5 text-[13px]"
+          className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl p-4 sm:p-5 space-y-3.5 text-[13px]"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-medium text-neutral-700 mb-1">Your Name *</label>
+              <label className="block font-medium text-[#2B1416] mb-1">Your Name *</label>
               <input
                 type="text"
                 required
                 value={authorName}
                 onChange={(e) => setAuthorName(e.target.value)}
                 placeholder="e.g. Rafiul Islam"
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:border-neutral-900"
+                className="w-full px-3 py-2 rounded-lg border border-[#DFCFB0] bg-white focus:outline-none focus:border-[#650108]"
               />
             </div>
 
             <div>
-              <label className="block font-medium text-neutral-700 mb-1">Phone Model</label>
+              <label className="block font-medium text-[#2B1416] mb-1">Phone Model</label>
               {availableModels.length > 0 ? (
                 <select
                   value={deviceModel}
                   onChange={(e) => setDeviceModel(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white focus:outline-none focus:border-neutral-900"
+                  className="w-full px-3 py-2 rounded-lg border border-[#DFCFB0] bg-white focus:outline-none focus:border-[#650108]"
                 >
                   {availableModels.map((m) => (
                     <option key={m} value={m}>
@@ -195,14 +195,14 @@ export function Reviews({
                   value={deviceModel}
                   onChange={(e) => setDeviceModel(e.target.value)}
                   placeholder="Your phone model"
-                  className="w-full px-3 py-2 rounded-lg border border-neutral-200"
+                  className="w-full px-3 py-2 rounded-lg border border-[#DFCFB0] bg-white focus:outline-none focus:border-[#650108]"
                 />
               )}
             </div>
           </div>
 
           <div>
-            <span className="block font-medium text-neutral-700 mb-1">Your Rating</span>
+            <span className="block font-medium text-[#2B1416] mb-1">Your Rating</span>
             <div className="inline-flex items-center gap-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
@@ -216,7 +216,7 @@ export function Reviews({
                     className={`w-5 h-5 ${
                       star <= rating
                         ? 'fill-amber-400 text-amber-400'
-                        : 'fill-neutral-100 text-neutral-300'
+                        : 'fill-[#F2E8D2] text-[#CBB894]'
                     }`}
                   />
                 </button>
@@ -225,14 +225,14 @@ export function Reviews({
           </div>
 
           <div>
-            <label className="block font-medium text-neutral-700 mb-1">Review *</label>
+            <label className="block font-medium text-[#2B1416] mb-1">Review *</label>
             <textarea
               rows={2}
               required
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Share how the case fits, feels, and protects your phone..."
-              className="w-full px-3 py-2 rounded-lg border border-neutral-200 focus:outline-none focus:border-neutral-900"
+              className="w-full px-3 py-2 rounded-lg border border-[#DFCFB0] bg-white focus:outline-none focus:border-[#650108]"
             />
           </div>
 
@@ -242,7 +242,7 @@ export function Reviews({
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 rounded-lg bg-neutral-950 text-white font-semibold hover:bg-neutral-800 disabled:opacity-60"
+              className="px-4 py-2 rounded-lg bg-[#650108] text-[#F2E8D2] font-semibold hover:bg-[#4D0106] disabled:opacity-60"
             >
               {submitting ? 'Submitting...' : 'Submit Review'}
             </button>
@@ -252,25 +252,25 @@ export function Reviews({
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
-          <div className="h-16 rounded-xl bg-neutral-200/70" />
-          <div className="h-20 rounded-xl bg-neutral-200/70" />
+          <div className="h-16 rounded-xl bg-[#DFCFB0]/70" />
+          <div className="h-20 rounded-xl bg-[#DFCFB0]/70" />
         </div>
       ) : error ? (
-        <div className="p-4 rounded-xl bg-white border border-neutral-200 text-xs text-neutral-600">
+        <div className="p-4 rounded-xl bg-[#FFFDF8] border border-[#DFCFB0] text-xs text-[#6B4C4E]">
           {error}
         </div>
       ) : data ? (
         <>
           {/* Rating Summary & Breakdown */}
-          <div className="bg-white border border-neutral-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-            <div className="sm:col-span-4 text-center sm:text-left sm:border-r sm:border-neutral-100 sm:pr-4">
-              <div className="text-3xl font-black text-neutral-950 tabular-nums leading-none">
+          <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+            <div className="sm:col-span-4 text-center sm:text-left sm:border-r sm:border-[#EDE2C9] sm:pr-4">
+              <div className="text-3xl font-black text-[#650108] tabular-nums leading-none">
                 {data.averageRating.toFixed(1)}
               </div>
               <div className="mt-1.5">
                 <StarRow rating={data.averageRating} size="md" />
               </div>
-              <p className="text-xs text-neutral-500 mt-1.5 tabular-nums">
+              <p className="text-xs text-[#6B4C4E] mt-1.5 tabular-nums">
                 Based on {data.totalCount} {data.totalCount === 1 ? 'review' : 'reviews'}
               </p>
             </div>
@@ -281,13 +281,13 @@ export function Reviews({
                 const widthClass = getBarWidthClass(count, data.totalCount);
                 return (
                   <div key={stars} className="flex items-center gap-2 text-xs">
-                    <span className="w-6 text-neutral-600 font-medium tabular-nums shrink-0">
+                    <span className="w-6 text-[#6B4C4E] font-medium tabular-nums shrink-0">
                       {stars}★
                     </span>
-                    <div className="flex-1 h-1.5 rounded-full bg-neutral-100 overflow-hidden">
-                      <div className={`h-full rounded-full bg-neutral-900 ${widthClass}`} />
+                    <div className="flex-1 h-1.5 rounded-full bg-[#F2E8D2] overflow-hidden">
+                      <div className={`h-full rounded-full bg-[#650108] ${widthClass}`} />
                     </div>
-                    <span className="w-5 text-right text-neutral-500 tabular-nums shrink-0">
+                    <span className="w-5 text-right text-[#6B4C4E] tabular-nums shrink-0">
                       {count}
                     </span>
                   </div>
@@ -301,11 +301,11 @@ export function Reviews({
             {data.reviews.map((review) => (
               <article
                 key={review.id}
-                className="bg-white border border-neutral-200 rounded-xl p-4 sm:p-5 space-y-2.5"
+                className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl p-4 sm:p-5 space-y-2.5"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-neutral-900">{review.authorName}</span>
+                    <span className="text-sm font-bold text-[#650108]">{review.authorName}</span>
                     {review.verifiedPurchase && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
                         <CheckCircle2 className="w-3 h-3" />
@@ -313,7 +313,7 @@ export function Reviews({
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-neutral-400">
+                  <span className="text-xs text-[#8E6F70]">
                     {new Date(review.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -321,13 +321,13 @@ export function Reviews({
                 <div className="flex flex-wrap items-center gap-2">
                   <StarRow rating={review.rating} />
                   {review.deviceModel && (
-                    <span className="text-xs text-neutral-500">
-                      Model: <strong className="text-neutral-700 font-medium">{review.deviceModel}</strong>
+                    <span className="text-xs text-[#6B4C4E]">
+                      Model: <strong className="text-[#2B1416] font-medium">{review.deviceModel}</strong>
                     </span>
                   )}
                 </div>
 
-                <p className="text-[13px] sm:text-sm text-neutral-700 leading-relaxed">{review.comment}</p>
+                <p className="text-[13px] sm:text-sm text-[#2B1416] leading-relaxed">{review.comment}</p>
               </article>
             ))}
           </div>

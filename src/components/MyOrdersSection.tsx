@@ -148,23 +148,23 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
   ];
 
   return (
-    <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
+    <div className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] p-5 sm:p-6 space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#EDE2C9]">
         <div>
-          <div className="text-[11px] font-medium text-neutral-500">Live Parcel Tracking</div>
+          <div className="text-[11px] font-medium text-[#6B4C4E]">Live Parcel Tracking</div>
           <div className="flex flex-wrap items-center gap-2 mt-0.5">
-            <h3 className="text-base sm:text-lg font-bold text-neutral-950 font-mono">
+            <h3 className="text-base sm:text-lg font-bold text-[#650108] font-mono">
               Order #{order.orderNumber}
             </h3>
-            <span className="text-xs text-neutral-400">·</span>
-            <span className="text-xs font-mono text-neutral-600">
+            <span className="text-xs text-[#C9B38D]">·</span>
+            <span className="text-xs font-mono text-[#6B4C4E]">
               CC-TRK-{order.orderNumber}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-[#6B4C4E]">
             {order.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka' : 'Inside Dhaka'}
           </span>
           <span
@@ -193,8 +193,8 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center border text-[11px] font-bold shrink-0 ${
                     m.done
-                      ? 'bg-neutral-950 border-neutral-950 text-white'
-                      : 'bg-white border-neutral-300 text-neutral-400'
+                      ? 'bg-[#650108] border-[#650108] text-[#F2E8D2]'
+                      : 'bg-[#FFFDF8] border-[#C9B38D] text-[#8E6F70]'
                   }`}
                 >
                   {m.done ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx + 1}
@@ -202,7 +202,7 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
                 {idx < milestones.length - 1 && (
                   <div
                     className={`w-px flex-1 my-1 min-h-[20px] ${
-                      stepIdx > idx ? 'bg-neutral-950' : 'bg-neutral-200'
+                      stepIdx > idx ? 'bg-[#650108]' : 'bg-[#DFCFB0]'
                     }`}
                   />
                 )}
@@ -213,17 +213,17 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
                   <span
                     className={`text-sm font-semibold ${
                       m.current
-                        ? 'text-neutral-950'
+                        ? 'text-[#650108]'
                         : m.done
-                          ? 'text-neutral-800'
-                          : 'text-neutral-400'
+                          ? 'text-[#2B1416]'
+                          : 'text-[#8E6F70]'
                     }`}
                   >
                     {m.title}
                   </span>
-                  <span className="text-xs text-neutral-500 tabular-nums">{m.time}</span>
+                  <span className="text-xs text-[#6B4C4E] tabular-nums">{m.time}</span>
                 </div>
-                <p className="text-[13px] text-neutral-500 mt-0.5 leading-relaxed">{m.detail}</p>
+                <p className="text-[13px] text-[#6B4C4E] mt-0.5 leading-relaxed">{m.detail}</p>
               </div>
             </div>
           ))}
@@ -415,29 +415,29 @@ export function MyOrdersSection({
           <button
             type="button"
             onClick={onBackToShop}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-950 transition-colors mb-2"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B4C4E] hover:text-[#650108] transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Shop</span>
           </button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-950 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#650108] tracking-tight">
             My Orders &amp; Tracking
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+          <p className="text-xs sm:text-sm text-[#6B4C4E] mt-1">
             View purchase history, track real-time courier progress, or verify any order by ID and phone.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Primary Section Tabs inside My Orders */}
-          <div className="inline-flex items-center gap-1 bg-neutral-100 p-1 rounded-xl">
+          <div className="inline-flex items-center gap-1 bg-[#E4D5B7] p-1 rounded-xl">
             <button
               type="button"
               onClick={() => setSectionTab('history')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
                 sectionTab === 'history'
-                  ? 'bg-white text-neutral-950 shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-950'
+                  ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                  : 'text-[#6B4C4E] hover:text-[#650108]'
               }`}
             >
               <Package className="w-3.5 h-3.5" />
@@ -448,8 +448,8 @@ export function MyOrdersSection({
               onClick={() => setSectionTab('tracking')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
                 sectionTab === 'tracking'
-                  ? 'bg-white text-neutral-950 shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-950'
+                  ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                  : 'text-[#6B4C4E] hover:text-[#650108]'
               }`}
             >
               <Truck className="w-3.5 h-3.5" />
@@ -463,7 +463,7 @@ export function MyOrdersSection({
                 type="button"
                 onClick={() => fetchOrders(false)}
                 disabled={refreshing}
-                className="px-3.5 py-2 rounded-xl border border-neutral-300 bg-white text-xs font-semibold text-neutral-800 hover:bg-neutral-50 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                className="px-3.5 py-2 rounded-xl border border-[#DFCFB0] bg-[#FFFDF8] text-xs font-semibold text-[#650108] hover:bg-[#FAF4E6] transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Refresh</span>
@@ -472,7 +472,7 @@ export function MyOrdersSection({
                 type="button"
                 onClick={handleClearHistory}
                 title="Remove saved order session from this device"
-                className="p-2 rounded-xl border border-neutral-200 bg-white text-neutral-500 hover:text-red-600 hover:border-red-200 transition-colors"
+                className="p-2 rounded-xl border border-[#DFCFB0] bg-[#FFFDF8] text-[#6B4C4E] hover:text-[#650108] hover:border-[#650108]/40 transition-colors"
                 aria-label="Clear saved order history on this device"
               >
                 <Trash2 className="w-4 h-4" />
@@ -482,16 +482,16 @@ export function MyOrdersSection({
         </div>
       </div>
 
-      {/* Track Any Order Form Bar (shown in Order Tracking tab OR when history is empty) */}
+      {/* Track Any Order Form Bar */}
       {(sectionTab === 'tracking' || (!loading && orders.length === 0)) && (
-        <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 sm:p-6">
+        <div className="bg-[#FAF4E6] border border-[#DFCFB0] rounded-2xl p-5 sm:p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="max-w-md">
-              <h2 className="text-base font-bold text-neutral-950 flex items-center gap-2">
-                <Truck className="w-4 h-4 text-neutral-700" />
+              <h2 className="text-base font-bold text-[#650108] flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[#650108]" />
                 <span>Track Your Order</span>
               </h2>
-              <p className="text-[13px] text-neutral-600 mt-1 leading-relaxed">
+              <p className="text-[13px] text-[#6B4C4E] mt-1 leading-relaxed">
                 Enter your Order Number and checkout Phone Number to inspect live courier status and sync past orders to this browser.
               </p>
             </div>
@@ -506,7 +506,7 @@ export function MyOrdersSection({
                 value={lookupOrderNumber}
                 onChange={(e) => setLookupOrderNumber(e.target.value)}
                 placeholder="Order # (e.g. 1001)"
-                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-[#DFCFB0] rounded-xl focus:outline-none focus:border-[#650108]"
               />
               <input
                 type="tel"
@@ -514,12 +514,12 @@ export function MyOrdersSection({
                 value={lookupPhone}
                 onChange={(e) => setLookupPhone(e.target.value)}
                 placeholder="Phone (e.g. 017XXXXXXXX)"
-                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-[#DFCFB0] rounded-xl focus:outline-none focus:border-[#650108]"
               />
               <button
                 type="submit"
                 disabled={lookupLoading}
-                className="px-5 py-2.5 rounded-xl bg-neutral-950 text-white text-[13px] font-semibold hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-60"
+                className="px-5 py-2.5 rounded-xl bg-[#650108] text-[#F2E8D2] text-[13px] font-semibold hover:bg-[#4D0106] transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-60"
               >
                 {lookupLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -548,7 +548,7 @@ export function MyOrdersSection({
         <div className="space-y-5">
           {orders.length > 1 && (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-neutral-600 mr-1">
+              <span className="text-xs font-semibold text-[#6B4C4E] mr-1">
                 Quick select from your orders:
               </span>
               {orders.map((ord) => (
@@ -558,8 +558,8 @@ export function MyOrdersSection({
                   onClick={() => setTrackedOrder(ord)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors ${
                     trackedOrder?.id === ord.id
-                      ? 'bg-neutral-950 text-white border-neutral-950'
-                      : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+                      ? 'bg-[#650108] text-[#F2E8D2] border-[#650108]'
+                      : 'bg-[#FFFDF8] text-[#2B1416] border-[#DFCFB0] hover:border-[#650108]'
                   }`}
                 >
                   #{ord.orderNumber}
@@ -571,7 +571,7 @@ export function MyOrdersSection({
           {trackedOrder ? (
             <OrderTrackingTimeline order={trackedOrder} />
           ) : (
-            <div className="border border-neutral-200 rounded-2xl py-12 px-4 text-center bg-white text-xs text-neutral-500">
+            <div className="border border-[#DFCFB0] rounded-2xl py-12 px-4 text-center bg-[#FFFDF8] text-xs text-[#6B4C4E]">
               Enter your Order Number and Phone Number above to track your shipment in real time.
             </div>
           )}
@@ -584,21 +584,21 @@ export function MyOrdersSection({
           {/* Summary Stats */}
           {orders.length > 0 && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              <div className="border border-neutral-200 rounded-2xl p-4 bg-white">
-                <div className="text-[11px] font-medium text-neutral-500">Total Purchases</div>
-                <div className="text-xl font-bold text-neutral-950 mt-1 tabular-nums">{stats.total}</div>
+              <div className="border border-[#DFCFB0] rounded-2xl p-4 bg-[#FFFDF8]">
+                <div className="text-[11px] font-medium text-[#6B4C4E]">Total Purchases</div>
+                <div className="text-xl font-bold text-[#650108] mt-1 tabular-nums">{stats.total}</div>
               </div>
-              <div className="border border-neutral-200 rounded-2xl p-4 bg-white">
-                <div className="text-[11px] font-medium text-neutral-500">Active Orders</div>
-                <div className="text-xl font-bold text-neutral-950 mt-1 tabular-nums">{stats.active}</div>
+              <div className="border border-[#DFCFB0] rounded-2xl p-4 bg-[#FFFDF8]">
+                <div className="text-[11px] font-medium text-[#6B4C4E]">Active Orders</div>
+                <div className="text-xl font-bold text-[#650108] mt-1 tabular-nums">{stats.active}</div>
               </div>
-              <div className="border border-neutral-200 rounded-2xl p-4 bg-white">
-                <div className="text-[11px] font-medium text-neutral-500">Delivered</div>
+              <div className="border border-[#DFCFB0] rounded-2xl p-4 bg-[#FFFDF8]">
+                <div className="text-[11px] font-medium text-[#6B4C4E]">Delivered</div>
                 <div className="text-xl font-bold text-emerald-700 mt-1 tabular-nums">{stats.delivered}</div>
               </div>
-              <div className="border border-neutral-200 rounded-2xl p-4 bg-white">
-                <div className="text-[11px] font-medium text-neutral-500">Total Spent</div>
-                <div className="text-xl font-bold text-neutral-950 mt-1 tabular-nums">
+              <div className="border border-[#DFCFB0] rounded-2xl p-4 bg-[#FFFDF8]">
+                <div className="text-[11px] font-medium text-[#6B4C4E]">Total Spent</div>
+                <div className="text-xl font-bold text-[#650108] mt-1 tabular-nums">
                   {formatTaka(stats.spent)}
                 </div>
               </div>
@@ -608,7 +608,7 @@ export function MyOrdersSection({
           {/* Filter Tabs + Order Search */}
           {orders.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-1 bg-neutral-100 p-1 rounded-xl self-start overflow-x-auto max-w-full">
+              <div className="inline-flex items-center gap-1 bg-[#E4D5B7] p-1 rounded-xl self-start overflow-x-auto max-w-full">
                 {(
                   [
                     { id: 'all', label: `All (${orders.length})` },
@@ -626,8 +626,8 @@ export function MyOrdersSection({
                     onClick={() => setStatusFilter(tab.id)}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                       statusFilter === tab.id
-                        ? 'bg-white text-neutral-950 shadow-xs'
-                        : 'text-neutral-600 hover:text-neutral-950'
+                        ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                        : 'text-[#6B4C4E] hover:text-[#650108]'
                     }`}
                   >
                     {tab.label}
@@ -636,13 +636,13 @@ export function MyOrdersSection({
               </div>
 
               <div className="relative w-full sm:w-72">
-                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-[#8E6F70] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search order # or case model..."
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950"
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-[#DFCFB0] rounded-xl bg-[#FFFDF8] focus:outline-none focus:border-[#650108]"
                 />
               </div>
             </div>
@@ -650,30 +650,30 @@ export function MyOrdersSection({
 
           {/* Orders List */}
           {loading ? (
-            <div className="border border-neutral-200 rounded-2xl p-12 text-center text-xs text-neutral-500">
-              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-neutral-400" />
+            <div className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] p-12 text-center text-xs text-[#6B4C4E]">
+              <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-[#650108]" />
               Loading your order history...
             </div>
           ) : orders.length === 0 ? (
-            <div className="border border-neutral-200 rounded-2xl py-16 px-4 text-center bg-white">
-              <div className="w-12 h-12 rounded-2xl bg-neutral-100 text-neutral-700 flex items-center justify-center mx-auto mb-3">
+            <div className="border border-[#DFCFB0] rounded-2xl py-16 px-4 text-center bg-[#FFFDF8]">
+              <div className="w-12 h-12 rounded-2xl bg-[#F2E8D2] text-[#650108] flex items-center justify-center mx-auto mb-3">
                 <Package className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-neutral-950">No purchases found on this browser yet</h3>
-              <p className="text-xs text-neutral-500 max-w-md mx-auto mt-1.5 leading-relaxed">
+              <h3 className="text-base font-bold text-[#650108]">No purchases found on this browser yet</h3>
+              <p className="text-xs text-[#6B4C4E] max-w-md mx-auto mt-1.5 leading-relaxed">
                 Orders you place automatically appear here with live tracking. You can also track any past order above using your Order Number and Phone Number.
               </p>
               <button
                 type="button"
                 onClick={onBackToShop}
-                className="mt-5 px-5 py-2.5 rounded-xl bg-neutral-950 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors inline-flex items-center gap-2"
+                className="mt-5 px-5 py-2.5 rounded-xl bg-[#650108] text-[#F2E8D2] text-xs font-semibold hover:bg-[#4D0106] transition-colors inline-flex items-center gap-2"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 <span>Browse Phone Cases</span>
               </button>
             </div>
           ) : filteredOrders.length === 0 ? (
-            <div className="border border-neutral-200 rounded-2xl py-12 px-4 text-center bg-white text-xs text-neutral-500">
+            <div className="border border-[#DFCFB0] rounded-2xl py-12 px-4 text-center bg-[#FFFDF8] text-xs text-[#6B4C4E]">
               No orders match your current filter.
             </div>
           ) : (
@@ -690,27 +690,27 @@ export function MyOrdersSection({
                 return (
                   <article
                     key={order.id}
-                    className="border border-neutral-200 rounded-2xl bg-white overflow-hidden shadow-xs"
+                    className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] overflow-hidden shadow-xs"
                   >
                     {/* Card Header */}
-                    <div className="px-4 sm:px-6 py-4 bg-neutral-50/70 border-b border-neutral-200 flex flex-wrap items-center justify-between gap-3">
+                    <div className="px-4 sm:px-6 py-4 bg-[#FAF4E6] border-b border-[#DFCFB0] flex flex-wrap items-center justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                         <div>
-                          <div className="text-[11px] text-neutral-500">Order Number</div>
-                          <div className="text-sm font-bold font-mono text-neutral-950">
+                          <div className="text-[11px] text-[#6B4C4E]">Order Number</div>
+                          <div className="text-sm font-bold font-mono text-[#650108]">
                             #{order.orderNumber}
                           </div>
                         </div>
                         <div>
-                          <div className="text-[11px] text-neutral-500">Placed On</div>
-                          <div className="text-xs font-medium text-neutral-800 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-neutral-400" />
+                          <div className="text-[11px] text-[#6B4C4E]">Placed On</div>
+                          <div className="text-xs font-medium text-[#2B1416] flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-[#8E6F70]" />
                             <span>{formatOrderDate(order.createdAt)}</span>
                           </div>
                         </div>
                         <div>
-                          <div className="text-[11px] text-neutral-500">Total</div>
-                          <div className="text-sm font-bold text-neutral-950 tabular-nums">
+                          <div className="text-[11px] text-[#6B4C4E]">Total</div>
+                          <div className="text-sm font-bold text-[#650108] tabular-nums">
                             {formatTaka(order.total)}
                           </div>
                         </div>
@@ -721,7 +721,7 @@ export function MyOrdersSection({
                           className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold inline-flex items-center gap-1 ${
                             order.paymentStatus === 'paid'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-neutral-100 text-neutral-700 border-neutral-200'
+                              : 'bg-[#FFFDF8] text-[#2B1416] border-[#DFCFB0]'
                           }`}
                         >
                           <CreditCard className="w-3 h-3" />
@@ -755,16 +755,16 @@ export function MyOrdersSection({
                               <div key={st.key} className="space-y-1.5">
                                 <div
                                   className={`h-1.5 rounded-full transition-colors ${
-                                    completed ? 'bg-neutral-950' : 'bg-neutral-200'
+                                    completed ? 'bg-[#650108]' : 'bg-[#E4D5B7]'
                                   }`}
                                 />
                                 <div
                                   className={`text-[10px] sm:text-[11px] font-medium ${
                                     active
-                                      ? 'text-neutral-950 font-bold'
+                                      ? 'text-[#650108] font-bold'
                                       : completed
-                                        ? 'text-neutral-700'
-                                        : 'text-neutral-400'
+                                        ? 'text-[#2B1416]'
+                                        : 'text-[#8E6F70]'
                                   }`}
                                 >
                                   {st.label}
@@ -776,28 +776,28 @@ export function MyOrdersSection({
                       )}
 
                       {/* Ordered Items */}
-                      <div className="divide-y divide-neutral-100 border border-neutral-100 rounded-xl overflow-hidden">
+                      <div className="divide-y divide-[#EDE2C9] border border-[#EDE2C9] rounded-xl overflow-hidden">
                         {order.items.map((item, idx) => (
                           <div
                             key={`${order.id}-${item.productId}-${idx}`}
-                            className="p-3 sm:px-4 flex items-center gap-3.5 bg-white"
+                            className="p-3 sm:px-4 flex items-center gap-3.5 bg-[#FFFDF8]"
                           >
                             <img
                               src={item.image}
                               alt={item.title}
                               referrerPolicy="no-referrer"
-                              className="w-14 h-14 rounded-xl object-cover border border-neutral-200 shrink-0 bg-neutral-100"
+                              className="w-14 h-14 rounded-xl object-cover border border-[#EDE2C9] shrink-0 bg-white"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-neutral-950 line-clamp-1">
+                              <div className="text-sm font-semibold text-[#2B1416] line-clamp-1">
                                 {item.title}
                               </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">
-                                Model: <span className="font-medium text-neutral-700">{item.model}</span> · Qty:{' '}
-                                <span className="font-medium text-neutral-700 tabular-nums">{item.quantity}</span>
+                              <div className="text-xs text-[#6B4C4E] mt-0.5">
+                                Model: <span className="font-medium text-[#2B1416]">{item.model}</span> · Qty:{' '}
+                                <span className="font-medium text-[#2B1416] tabular-nums">{item.quantity}</span>
                               </div>
                             </div>
-                            <div className="text-sm font-bold text-neutral-950 tabular-nums shrink-0">
+                            <div className="text-sm font-bold text-[#650108] tabular-nums shrink-0">
                               {formatTaka(item.price * item.quantity)}
                             </div>
                           </div>
@@ -806,30 +806,30 @@ export function MyOrdersSection({
 
                       {/* Expanded Delivery & Breakdown */}
                       {isExpanded && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 text-[13px]">
-                          <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/80 space-y-1.5">
-                            <div className="font-semibold text-neutral-900 flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-neutral-500" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-[#EDE2C9] text-[13px]">
+                          <div className="p-3.5 rounded-xl bg-[#FAF4E6] border border-[#DFCFB0] space-y-1.5">
+                            <div className="font-semibold text-[#650108] flex items-center gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#650108]" />
                               <span>Delivery Details</span>
                             </div>
-                            <p className="text-neutral-700 font-medium">
+                            <p className="text-[#2B1416] font-medium">
                               {order.customerName} · {order.customerPhone}
                             </p>
-                            <p className="text-neutral-600">{order.deliveryAddress}</p>
-                            <p className="text-[11px] text-neutral-500 flex items-center gap-1 pt-0.5">
+                            <p className="text-[#6B4C4E]">{order.deliveryAddress}</p>
+                            <p className="text-[11px] text-[#6B4C4E] flex items-center gap-1 pt-0.5">
                               <Truck className="w-3 h-3" />
                               <span>
                                 {order.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka Courier' : 'Inside Dhaka Express'} · TrxID:{' '}
-                                <span className="font-mono text-neutral-700">{order.transactionId}</span>
+                                <span className="font-mono text-[#2B1416]">{order.transactionId}</span>
                               </span>
                             </p>
                           </div>
 
-                          <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/80 space-y-1.5">
-                            <div className="font-semibold text-neutral-900">Payment Summary</div>
-                            <div className="flex justify-between text-neutral-600">
+                          <div className="p-3.5 rounded-xl bg-[#FAF4E6] border border-[#DFCFB0] space-y-1.5">
+                            <div className="font-semibold text-[#650108]">Payment Summary</div>
+                            <div className="flex justify-between text-[#6B4C4E]">
                               <span>Subtotal</span>
-                              <span className="tabular-nums text-neutral-900">{formatTaka(order.subtotal)}</span>
+                              <span className="tabular-nums text-[#2B1416]">{formatTaka(order.subtotal)}</span>
                             </div>
                             {order.discountAmount > 0 && (
                               <div className="flex justify-between text-emerald-700">
@@ -837,13 +837,13 @@ export function MyOrdersSection({
                                 <span className="tabular-nums">-{formatTaka(order.discountAmount)}</span>
                               </div>
                             )}
-                            <div className="flex justify-between text-neutral-600">
+                            <div className="flex justify-between text-[#6B4C4E]">
                               <span>Delivery Fee</span>
-                              <span className="tabular-nums text-neutral-900">
+                              <span className="tabular-nums text-[#2B1416]">
                                 {order.shippingFee === 0 ? 'Free' : formatTaka(order.shippingFee)}
                               </span>
                             </div>
-                            <div className="flex justify-between pt-1.5 border-t border-neutral-200 font-bold text-neutral-950">
+                            <div className="flex justify-between pt-1.5 border-t border-[#DFCFB0] font-bold text-[#650108]">
                               <span>Total Paid / Payable</span>
                               <span className="tabular-nums">{formatTaka(order.total)}</span>
                             </div>
@@ -856,7 +856,7 @@ export function MyOrdersSection({
                         <button
                           type="button"
                           onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                          className="text-xs font-semibold text-neutral-600 hover:text-neutral-950 underline underline-offset-4"
+                          className="text-xs font-semibold text-[#6B4C4E] hover:text-[#650108] underline underline-offset-4"
                         >
                           {isExpanded ? 'Hide Receipt Details' : 'View Delivery & Receipt Details'}
                         </button>
@@ -869,7 +869,7 @@ export function MyOrdersSection({
                               setSectionTab('tracking');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="px-3.5 py-2 rounded-xl border border-neutral-300 bg-white text-xs font-semibold text-neutral-900 hover:bg-neutral-50 transition-colors inline-flex items-center gap-1.5"
+                            className="px-3.5 py-2 rounded-xl border border-[#DFCFB0] bg-[#FAF4E6] text-xs font-semibold text-[#650108] hover:bg-[#F2E8D2] transition-colors inline-flex items-center gap-1.5"
                           >
                             <Truck className="w-3.5 h-3.5" />
                             <span>Track Package</span>
@@ -879,7 +879,7 @@ export function MyOrdersSection({
                             <button
                               type="button"
                               onClick={() => onBuyAgain(order.items)}
-                              className="px-3.5 py-2 rounded-xl border border-neutral-300 bg-white text-xs font-semibold text-neutral-900 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 transition-colors inline-flex items-center gap-1.5"
+                              className="px-3.5 py-2 rounded-xl border border-[#650108] bg-[#FFFDF8] text-xs font-semibold text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors inline-flex items-center gap-1.5"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                               <span>Buy Again</span>

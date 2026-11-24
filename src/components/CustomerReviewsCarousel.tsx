@@ -1,0 +1,400 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  Star,
+} from 'lucide-react';
+import { formatTaka } from '../models/phoneCase';
+
+export interface StorefrontReviewItem {
+  id: string;
+  productId: string;
+  productTitle: string;
+  productImage: string;
+  productPrice: number;
+  authorName: string;
+  city: string;
+  deviceModel: string;
+  rating: number;
+  comment: string;
+  verifiedPurchase: boolean;
+  createdAt: string;
+}
+
+interface StorefrontReviewsPayload {
+  reviews: StorefrontReviewItem[];
+  averageRating: number;
+  totalCount: number;
+  fiveStarPercent: number;
+}
+
+interface CustomerReviewsCarouselProps {
+  onSelectProduct: (productId: string) => void;
+}
+
+function ReviewThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div className="w-11 h-11 rounded-lg bg-white border border-[#EDE2C9] flex items-center justify-center text-[#8E6F70] shrink-0">
+        <Package className="w-4 h-4" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="w-11 h-11 rounded-lg object-cover border border-[#EDE2C9] bg-white shrink-0"
+    />
+  );
+}
+
+function formatShortDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return 'Recent';
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCarouselProps) {
+  const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [ratingFilter, setRatingFilter] = useState<'all' | '5' | '4'>('all');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(3);
+  const [isPaused, setIsPaused] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/reviews', { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Failed to load reviews');
+        return (await res.json()) as StorefrontReviewsPayload;
+      })
+      .then((data) => {
+        setPayload(data);
+      })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const updateVisibleCount = () => {
+      if (window.innerWidth < 640) {
+        setVisibleCount(1);
+      } else if (window.innerWidth < 1024) {
+        setVisibleCount(2);
+      } else {
+        setVisibleCount(3);
+      }
+    };
+    updateVisibleCount();
+    window.addEventListener('resize', updateVisibleCount);
+    return () => window.removeEventListener('resize', updateVisibleCount);
+  }, []);
+
+  const filteredReviews = useMemo(() => {
+    const list = payload?.reviews || [];
+    if (ratingFilter === '5') return list.filter((r) => r.rating === 5);
+    if (ratingFilter === '4') return list.filter((r) => r.rating >= 4);
+    return list;
+  }, [payload?.reviews, ratingFilter]);
+
+  const maxIndex = Math.max(0, filteredReviews.length - visibleCount);
+  const safeIndex = Math.min(activeIndex, maxIndex);
+  const totalPages = Math.max(1, maxIndex + 1);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [ratingFilter, visibleCount]);
+
+  useEffect(() => {
+    if (isPaused || maxIndex <= 0) return;
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setActiveIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [isPaused, maxIndex]);
+
+  function handlePrev() {
+    setActiveIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+  }
+
+  function handleNext() {
+    setActiveIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+  }
+
+  if (loading) {
+    return (
+      <section
+        aria-label="Customer Reviews"
+        className="border-t border-[#DFCFB0] bg-[#EAE0C8]/65"
+      >
+        <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-12 sm:py-16 space-y-6">
+          <div className="h-8 w-56 rounded-lg bg-[#DFCFB0]/75 animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3].map((idx) => (
+              <div
+                key={idx}
+                className="h-60 rounded-2xl bg-[#FFFDF8] border border-[#DFCFB0] animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!payload || payload.reviews.length === 0) {
+    return null;
+  }
+
+  const visibleReviews = filteredReviews.slice(safeIndex, safeIndex + visibleCount);
+
+  return (
+    <section
+      aria-labelledby="customer-reviews-heading"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={() => setIsPaused(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowLeft') handlePrev();
+        if (e.key === 'ArrowRight') handleNext();
+      }}
+      className="border-t border-[#DFCFB0] bg-[#EAE0C8]/65"
+    >
+      <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-12 sm:py-16 space-y-7">
+        {/* Section Header + Controls */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+          <div className="space-y-2">
+            <h2
+              id="customer-reviews-heading"
+              className="text-xl sm:text-2xl font-bold text-[#650108] tracking-tight [text-wrap:balance]"
+            >
+              Customer Reviews
+            </h2>
+            <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-[#6B4C4E] tabular-nums">
+              <div
+                className="inline-flex items-center gap-0.5"
+                aria-label={`Average rating ${payload.averageRating} out of 5 stars`}
+              >
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`w-4 h-4 ${
+                      star <= Math.round(payload.averageRating)
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'fill-[#F2E8D2] text-[#CBB894]'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="font-semibold text-[#650108]">
+                {payload.averageRating.toFixed(1)} out of 5
+              </span>
+              <span aria-hidden="true" className="text-[#C9B38D]">
+                ·
+              </span>
+              <span>
+                {payload.fiveStarPercent}% five-star feedback across {payload.totalCount} verified case reviews
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3">
+            {/* Segmented Filter Control */}
+            <div
+              role="group"
+              aria-label="Filter customer reviews by rating"
+              className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#DFCFB0]/75"
+            >
+              {(
+                [
+                  { id: 'all', label: 'All reviews' },
+                  { id: '5', label: '5 Stars' },
+                  { id: '4', label: '4+ Stars' },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setRatingFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    ratingFilter === tab.id
+                      ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
+                      : 'text-[#6B4C4E] hover:text-[#650108]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Prev / Next Carousel Buttons */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-[#6B4C4E] tabular-nums mr-1">
+                {safeIndex + 1} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={handlePrev}
+                disabled={maxIndex === 0}
+                aria-label="Previous customer reviews"
+                className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={maxIndex === 0}
+                aria-label="Next customer reviews"
+                className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Carousel Slide Viewport */}
+        {visibleReviews.length === 0 ? (
+          <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-8 text-center text-sm text-[#6B4C4E]">
+            No customer reviews match this rating filter yet.
+          </div>
+        ) : (
+          <div
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Verified customer reviews"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200"
+          >
+            {visibleReviews.map((review) => (
+              <article
+                key={review.id}
+                className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#650108]/35 hover:shadow-md"
+              >
+                <div className="space-y-4">
+                  {/* Rating + Date */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div
+                      className="inline-flex items-center gap-0.5"
+                      aria-label={`${review.rating} out of 5 stars`}
+                    >
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`w-4 h-4 ${
+                            star <= review.rating
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'fill-[#F2E8D2] text-[#CBB894]'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <time
+                      dateTime={review.createdAt}
+                      className="text-xs text-[#8E6F70] tabular-nums"
+                    >
+                      {formatShortDate(review.createdAt)}
+                    </time>
+                  </div>
+
+                  {/* Quote */}
+                  <p className="text-[14px] text-[#2B1416] leading-relaxed">
+                    &ldquo;{review.comment}&rdquo;
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Reviewer Attribution (Zero-Pill Unboxed Metadata) */}
+                  <div>
+                    <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#650108]">
+                      <span>{review.authorName}</span>
+                      {review.verifiedPurchase && (
+                        <CheckCircle2
+                          className="w-3.5 h-3.5 text-emerald-700 shrink-0"
+                          aria-label="Verified Buyer"
+                        />
+                      )}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#6B4C4E]">
+                      <span>{review.city}</span>
+                      <span aria-hidden="true" className="text-[#C9B38D]">
+                        ·
+                      </span>
+                      <span className="text-[#2B1416] font-medium">{review.deviceModel}</span>
+                      {review.verifiedPurchase && (
+                        <>
+                          <span aria-hidden="true" className="text-[#C9B38D]">
+                            ·
+                          </span>
+                          <span>Verified buyer</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Purchased Case Link */}
+                  <button
+                    type="button"
+                    onClick={() => onSelectProduct(review.productId)}
+                    className="w-full pt-4 border-t border-[#EDE2C9] flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
+                  >
+                    <ReviewThumbnail src={review.productImage} alt={review.productTitle} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108] group-hover:underline underline-offset-2">
+                        {review.productTitle}
+                      </div>
+                      <div className="text-xs font-medium text-[#6B4C4E] tabular-nums mt-0.5">
+                        {formatTaka(review.productPrice)} · View case
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {/* Carousel Pagination Bars */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 pt-1">
+            {Array.from({ length: totalPages }).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setActiveIndex(idx)}
+                aria-label={`Show review slide ${idx + 1}`}
+                aria-current={idx === safeIndex ? 'true' : undefined}
+                className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === safeIndex
+                    ? 'w-7 bg-[#650108]'
+                    : 'w-2.5 bg-[#CBB894] hover:bg-[#650108]/50'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

@@ -60,8 +60,12 @@ interface StoreDatabase {
   adminAuth: AdminAuthRecord | null;
 }
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const DB_FILE = path.resolve(DATA_DIR, 'store.json');
+const PRIMARY_DATA_DIR = path.resolve(process.cwd(), 'data');
+const PRIMARY_DB_FILE = path.resolve(PRIMARY_DATA_DIR, 'store.json');
+const FALLBACK_DATA_DIR = '/tmp/classy-cases-data';
+const FALLBACK_DB_FILE = path.resolve(FALLBACK_DATA_DIR, 'store.json');
+let activeDataDir = PRIMARY_DATA_DIR;
+let activeDbFile = PRIMARY_DB_FILE;
 const SESSION_SECRET = process.env.SESSION_SECRET?.trim() || crypto.randomBytes(32).toString('hex');
 const pendingPayments = new Map<string, PendingPaymentSession>();
 
@@ -266,16 +270,45 @@ function createInitialData(): StoreDatabase {
 }
 
 function loadDatabase(): StoreDatabase {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  const ensureWritableDir = (dir: string): boolean => {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.accessSync(dir, fs.constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (ensureWritableDir(PRIMARY_DATA_DIR)) {
+    activeDataDir = PRIMARY_DATA_DIR;
+    activeDbFile = PRIMARY_DB_FILE;
+  } else if (ensureWritableDir(FALLBACK_DATA_DIR)) {
+    activeDataDir = FALLBACK_DATA_DIR;
+    activeDbFile = FALLBACK_DB_FILE;
   }
-  if (!fs.existsSync(DB_FILE)) {
+
+  // Read existing bundled seed file even if primary dir is read-only
+  const readCandidate = fs.existsSync(activeDbFile)
+    ? activeDbFile
+    : fs.existsSync(PRIMARY_DB_FILE)
+      ? PRIMARY_DB_FILE
+      : null;
+
+  if (!readCandidate) {
     const initial = createInitialData();
-    fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf8');
+    try {
+      fs.writeFileSync(activeDbFile, JSON.stringify(initial, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('Could not persist initial database file:', err);
+    }
     return initial;
   }
+
   try {
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
+    const raw = fs.readFileSync(readCandidate, 'utf8');
     const parsed = JSON.parse(raw) as StoreDatabase;
     if (!Array.isArray(parsed.expenses)) {
       parsed.expenses = [];
@@ -283,10 +316,21 @@ function loadDatabase(): StoreDatabase {
     if (!Array.isArray(parsed.reviews)) {
       parsed.reviews = [];
     }
+    if (readCandidate !== activeDbFile && !fs.existsSync(activeDbFile)) {
+      try {
+        fs.writeFileSync(activeDbFile, JSON.stringify(parsed, null, 2), 'utf8');
+      } catch {
+        // ignore copy error on read-only environments
+      }
+    }
     return parsed;
   } catch {
     const fallback = createInitialData();
-    fs.writeFileSync(DB_FILE, JSON.stringify(fallback, null, 2), 'utf8');
+    try {
+      fs.writeFileSync(activeDbFile, JSON.stringify(fallback, null, 2), 'utf8');
+    } catch {
+      // ignore write error
+    }
     return fallback;
   }
 }
@@ -294,10 +338,23 @@ function loadDatabase(): StoreDatabase {
 let db: StoreDatabase = loadDatabase();
 
 function saveDatabase(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(activeDataDir)) {
+      fs.mkdirSync(activeDataDir, { recursive: true });
+    }
+    fs.writeFileSync(activeDbFile, JSON.stringify(db, null, 2), 'utf8');
+  } catch {
+    try {
+      if (!fs.existsSync(FALLBACK_DATA_DIR)) {
+        fs.mkdirSync(FALLBACK_DATA_DIR, { recursive: true });
+      }
+      activeDataDir = FALLBACK_DATA_DIR;
+      activeDbFile = FALLBACK_DB_FILE;
+      fs.writeFileSync(activeDbFile, JSON.stringify(db, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Failed to persist store database:', err);
+    }
   }
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
 }
 
 function hashPassword(password: string, salt?: string): { salt: string; passwordHash: string } {
@@ -324,7 +381,7 @@ function createSessionToken(): string {
     JSON.stringify({
       role: 'admin',
       iat: Date.now(),
-      exp: Date.now() + 24 * 60 * 60 * 1000,
+      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
       nonce: crypto.randomBytes(8).toString('hex'),
     })
   ).toString('base64url');
@@ -396,19 +453,111 @@ function verifyCustomerOrderToken(token: string): string | null {
   }
 }
 
+const ADMIN_COOKIE_NAME = 'cc_admin_session';
+const ADMIN_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+
+function parseCookies(req: Request): Record<string, string> {
+  const header = req.headers.cookie;
+  if (!header || typeof header !== 'string') return {};
+  const result: Record<string, string> = {};
+  for (const part of header.split(';')) {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = part.slice(0, eqIdx).trim();
+    const val = part.slice(eqIdx + 1).trim();
+    if (!key) continue;
+    try {
+      result[key] = decodeURIComponent(val);
+    } catch {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
+function isHttpsRequest(req: Request): boolean {
+  if (req.secure) return true;
+  const proto = String(req.headers['x-forwarded-proto'] || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  return proto === 'https';
+}
+
+function setAdminSessionCookie(req: Request, res: Response, token: string): void {
+  const https = isHttpsRequest(req);
+  const parts = [
+    `${ADMIN_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'Path=/',
+    `Max-Age=${ADMIN_COOKIE_MAX_AGE_SECONDS}`,
+    'HttpOnly',
+    https ? 'Secure' : '',
+    https ? 'SameSite=None' : 'SameSite=Lax',
+    https ? 'Partitioned' : '',
+  ].filter(Boolean);
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearAdminSessionCookie(req: Request, res: Response): void {
+  const https = isHttpsRequest(req);
+  const parts = [
+    `${ADMIN_COOKIE_NAME}=`,
+    'Path=/',
+    'Max-Age=0',
+    'HttpOnly',
+    https ? 'Secure' : '',
+    https ? 'SameSite=None' : 'SameSite=Lax',
+    https ? 'Partitioned' : '',
+  ].filter(Boolean);
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
 function extractBearerToken(req: Request): string | null {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) return null;
   return auth.slice(7).trim();
 }
 
+function extractAdminCookieToken(req: Request): string | null {
+  const cookies = parseCookies(req);
+  return cookies[ADMIN_COOKIE_NAME] || null;
+}
+
+function isSameOriginMutation(req: Request): boolean {
+  if (req.headers['x-requested-with'] === 'XMLHttpRequest') return true;
+  const expectedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+  if (!expectedHost) return false;
+  const sourceHeader = req.headers.origin || req.headers.referer;
+  if (!sourceHeader || typeof sourceHeader !== 'string') return false;
+  try {
+    return new URL(sourceHeader).host.toLowerCase() === expectedHost;
+  } catch {
+    return false;
+  }
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  const token = extractBearerToken(req);
-  if (!token || !verifySessionToken(token)) {
-    res.status(401).json({ error: 'Admin authentication required' });
+  const bearerToken = extractBearerToken(req);
+  if (bearerToken && verifySessionToken(bearerToken)) {
+    next();
     return;
   }
-  next();
+
+  const cookieToken = extractAdminCookieToken(req);
+  if (cookieToken && verifySessionToken(cookieToken)) {
+    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
+    if (isMutation && !isSameOriginMutation(req)) {
+      res.status(403).json({ error: 'Cross-origin request blocked' });
+      return;
+    }
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'Admin authentication required' });
 }
 
 function sanitizeSettingsForPublic(settings: StoreSettings) {
@@ -426,6 +575,7 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
     shippingInsideDhaka: settings.shippingInsideDhaka,
     shippingOutsideDhaka: settings.shippingOutsideDhaka,
     freeShippingThreshold: settings.freeShippingThreshold,
+    reviewsEnabled: settings.storefrontConfig?.reviewsEnabled !== false,
     paymentGateways: {
       bkash: { enabled: settings.paymentGateways.bkash.enabled, mode: settings.paymentGateways.bkash.mode },
       nagad: { enabled: settings.paymentGateways.nagad.enabled, mode: settings.paymentGateways.nagad.mode },
@@ -645,13 +795,25 @@ function computeDashboardAnalytics(): DashboardAnalytics {
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '8mb' }));
 
-  const isSafeImageSource = (val: unknown): val is string =>
-    typeof val === 'string' &&
-    (val.startsWith('/src/assets/') ||
-      val.startsWith('https://') ||
-      /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(val));
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true });
+  });
+
+  const isSafeImageSource = (val: unknown): val is string => {
+    if (typeof val !== 'string') return false;
+    const trimmed = val.trim();
+    return (
+      trimmed.startsWith('/src/assets/') ||
+      trimmed.startsWith('/assets/') ||
+      /^https:\/\//i.test(trimmed) ||
+      /^data:image\/(png|jpeg|jpg|webp|gif|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
+        trimmed
+      )
+    );
+  };
 
   function buildSimulatedReviews(product: Product): ProductReview[] {
     const models =
@@ -705,6 +867,89 @@ async function startServer() {
       settings: sanitizeSettingsForPublic(db.settings),
       categories: db.categories.filter((c) => c.active !== false),
       products: db.products.filter((p) => p.active !== false),
+    });
+  });
+
+  app.get('/api/reviews', (_req, res) => {
+    const activeProducts = db.products.filter((p) => p.active !== false);
+    const productMap = new Map(activeProducts.map((p) => [p.id, p]));
+    const fallbackProduct = activeProducts[0];
+
+    const cities = ['Dhaka', 'Chattogram', 'Sylhet', 'Rajshahi', 'Khulna', 'Cumilla', 'Gazipur', 'Narayanganj'];
+
+    const userStorefrontReviews = (db.reviews || [])
+      .map((rev, idx) => {
+        const prod = productMap.get(rev.productId) || fallbackProduct;
+        if (!prod) return null;
+        return {
+          id: rev.id,
+          productId: prod.id,
+          productTitle: prod.title,
+          productImage: prod.image,
+          productPrice: prod.price,
+          authorName: rev.authorName,
+          city: cities[idx % cities.length],
+          deviceModel: rev.deviceModel || prod.brandModels[0] || 'Standard Fit',
+          rating: rev.rating,
+          comment: rev.comment,
+          verifiedPurchase: rev.verifiedPurchase,
+          createdAt: rev.createdAt,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+    const showcaseReviews = activeProducts.slice(0, 6).flatMap((prod, pIdx) => {
+      const sim = buildSimulatedReviews(prod);
+      const first = sim[0];
+      const second = sim[1];
+      const rows = [
+        first
+          ? {
+              id: `storefront-${first.id}`,
+              productId: prod.id,
+              productTitle: prod.title,
+              productImage: prod.image,
+              productPrice: prod.price,
+              authorName: first.authorName,
+              city: cities[pIdx % cities.length],
+              deviceModel: first.deviceModel,
+              rating: first.rating,
+              comment: first.comment,
+              verifiedPurchase: true,
+              createdAt: first.createdAt,
+            }
+          : null,
+        second && pIdx < 3
+          ? {
+              id: `storefront-${second.id}`,
+              productId: prod.id,
+              productTitle: prod.title,
+              productImage: prod.image,
+              productPrice: prod.price,
+              authorName: second.authorName,
+              city: cities[(pIdx + 3) % cities.length],
+              deviceModel: second.deviceModel,
+              rating: second.rating,
+              comment: second.comment,
+              verifiedPurchase: true,
+              createdAt: second.createdAt,
+            }
+          : null,
+      ];
+      return rows.filter((item): item is NonNullable<typeof item> => Boolean(item));
+    });
+
+    const combined = [...userStorefrontReviews, ...showcaseReviews].slice(0, 12);
+    const totalCount = combined.length;
+    const sum = combined.reduce((acc, r) => acc + r.rating, 0);
+    const averageRating = totalCount > 0 ? Number((sum / totalCount).toFixed(1)) : 5.0;
+    const fiveStarCount = combined.filter((r) => r.rating >= 5).length;
+
+    res.json({
+      reviews: combined,
+      averageRating,
+      totalCount,
+      fiveStarPercent: totalCount > 0 ? Math.round((fiveStarCount / totalCount) * 100) : 100,
     });
   });
 
@@ -1060,9 +1305,21 @@ async function startServer() {
   app.get('/api/admin/auth/status', (req, res) => {
     const envPasscode = process.env.ADMIN_PASSCODE?.trim();
     const needsSetup = !envPasscode && !db.adminAuth;
-    const token = extractBearerToken(req);
-    const authenticated = Boolean(token && verifySessionToken(token));
-    res.json({ needsSetup, authenticated });
+    const bearerToken = extractBearerToken(req);
+    const cookieToken = extractAdminCookieToken(req);
+    const hasValidSession = Boolean(
+      (bearerToken && verifySessionToken(bearerToken)) ||
+        (cookieToken && verifySessionToken(cookieToken))
+    );
+
+    if (hasValidSession) {
+      const refreshedToken = createSessionToken();
+      setAdminSessionCookie(req, res, refreshedToken);
+      res.json({ needsSetup, authenticated: true, token: refreshedToken });
+      return;
+    }
+
+    res.json({ needsSetup, authenticated: false });
   });
 
   app.post('/api/admin/auth/setup', (req, res) => {
@@ -1084,6 +1341,7 @@ async function startServer() {
     };
     saveDatabase();
     const token = createSessionToken();
+    setAdminSessionCookie(req, res, token);
     res.json({ token });
   });
 
@@ -1096,7 +1354,9 @@ async function startServer() {
         res.status(401).json({ error: 'Invalid admin password' });
         return;
       }
-      res.json({ token: createSessionToken() });
+      const token = createSessionToken();
+      setAdminSessionCookie(req, res, token);
+      res.json({ token });
       return;
     }
 
@@ -1110,7 +1370,14 @@ async function startServer() {
       return;
     }
 
-    res.json({ token: createSessionToken() });
+    const token = createSessionToken();
+    setAdminSessionCookie(req, res, token);
+    res.json({ token });
+  });
+
+  app.post('/api/admin/auth/logout', (req, res) => {
+    clearAdminSessionCookie(req, res);
+    res.json({ ok: true });
   });
 
   // Protected Admin Routes
@@ -1409,7 +1676,12 @@ async function startServer() {
     }
 
     const rawImage = typeof body.image === 'string' ? body.image.trim() : '';
-    const safeCatImage = rawImage && isSafeImageSource(rawImage) ? rawImage : '';
+    if (rawImage && !isSafeImageSource(rawImage)) {
+      res.status(400).json({
+        error: 'Category image must be an HTTPS image URL or PNG/JPG/WEBP/GIF/AVIF/ICO upload.',
+      });
+      return;
+    }
 
     const category: Category = {
       id: `cat-${crypto.randomUUID().slice(0, 6)}`,
@@ -1423,7 +1695,7 @@ async function startServer() {
       googleCategory: typeof body.googleCategory === 'string' ? body.googleCategory.trim() : '',
       seoTitle: typeof body.seoTitle === 'string' ? body.seoTitle.trim() : '',
       seoDescription: typeof body.seoDescription === 'string' ? body.seoDescription.trim() : '',
-      image: safeCatImage,
+      image: rawImage,
       shippingClass: typeof body.shippingClass === 'string' ? body.shippingClass.trim() : 'No class',
     };
     db.categories.push(category);
@@ -1471,7 +1743,13 @@ async function startServer() {
     if (typeof body.shippingClass === 'string') category.shippingClass = body.shippingClass.trim();
     if (body.image !== undefined) {
       const rawImage = typeof body.image === 'string' ? body.image.trim() : '';
-      category.image = rawImage && isSafeImageSource(rawImage) ? rawImage : '';
+      if (rawImage && !isSafeImageSource(rawImage)) {
+        res.status(400).json({
+          error: 'Category image must be an HTTPS image URL or PNG/JPG/WEBP/GIF/AVIF/ICO upload.',
+        });
+        return;
+      }
+      category.image = rawImage;
     }
     saveDatabase();
     res.json({ category });
@@ -1739,7 +2017,10 @@ async function startServer() {
   });
 
   // Vite Dev Middleware or Static Production Build
-  const isProd = process.env.NODE_ENV === 'production';
+  const distDir = path.resolve(process.cwd(), 'dist');
+  const isProd =
+    process.env.NODE_ENV === 'production' ||
+    (Boolean(process.env.K_SERVICE) && fs.existsSync(path.join(distDir, 'index.html')));
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -1748,7 +2029,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
@@ -1761,4 +2041,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Server startup failed:', err);
+  process.exit(1);
+});

@@ -20,16 +20,16 @@ export function PhoneCaseCard({
   const [imageError, setImageError] = useState(false);
 
   return (
-    <article className="border border-neutral-200 rounded-xl bg-white p-2.5 sm:p-3 flex flex-col justify-between transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md">
+    <article className="border border-[#DFCFB0] rounded-xl bg-[#FFFDF8] p-2.5 sm:p-3 flex flex-col justify-between transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-[#650108]/40">
       <div>
         <div
           onClick={() => onSelectProduct(product)}
-          className="relative aspect-square rounded-lg overflow-hidden bg-neutral-100 mb-2.5 sm:mb-3 cursor-pointer group"
+          className="relative aspect-square rounded-lg overflow-hidden bg-white border border-[#EDE2C9] mb-2.5 sm:mb-3 cursor-pointer group"
         >
           {imageError ? (
-            <div className="w-full h-full bg-gradient-to-br from-neutral-100 to-neutral-200 flex flex-col items-center justify-center p-3 text-center">
-              <Smartphone className="w-7 h-7 text-neutral-400 mb-1.5" />
-              <span className="text-[11px] font-medium text-neutral-600 line-clamp-2">{product.title}</span>
+            <div className="w-full h-full bg-gradient-to-br from-[#FAF4E6] to-[#F2E8D2] flex flex-col items-center justify-center p-3 text-center">
+              <Smartphone className="w-7 h-7 text-[#650108]/50 mb-1.5" />
+              <span className="text-[11px] font-medium text-[#6B4C4E] line-clamp-2">{product.title}</span>
             </div>
           ) : (
             <img
@@ -48,30 +48,30 @@ export function PhoneCaseCard({
               onToggleWishlist(product.id);
             }}
             aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-            className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/95 border border-neutral-200 flex items-center justify-center shadow-xs hover:bg-white transition-colors"
+            className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
           >
-            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-red-500 text-red-500' : 'text-neutral-700'}`} />
+            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'}`} />
           </button>
         </div>
 
         <h3
           onClick={() => onSelectProduct(product)}
-          className="text-[13px] sm:text-sm font-semibold text-neutral-900 leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:underline"
+          className="text-[13px] sm:text-sm font-semibold text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108] hover:underline"
         >
           {product.title}
         </h3>
 
         <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <span className="text-sm sm:text-[15px] font-bold text-neutral-900 tabular-nums">
+          <span className="text-sm sm:text-[15px] font-bold text-[#650108] tabular-nums">
             {formatTaka(product.price)}
           </span>
           {product.originalPrice > product.price && (
-            <span className="text-xs sm:text-[13px] text-neutral-400 line-through tabular-nums">
+            <span className="text-xs sm:text-[13px] text-[#9B7E7F] line-through tabular-nums">
               {formatTaka(product.originalPrice)}
             </span>
           )}
           {product.discountPercent > 0 && (
-            <span className="bg-[#D91E18] text-white text-[11px] font-semibold px-1.5 py-0.5 rounded tabular-nums">
+            <span className="bg-[#650108] text-[#F2E8D2] text-[11px] font-semibold px-1.5 py-0.5 rounded tabular-nums">
               -{product.discountPercent}%
             </span>
           )}
@@ -81,7 +81,7 @@ export function PhoneCaseCard({
       <button
         type="button"
         onClick={() => onAddToCart(product)}
-        className="mt-3 w-full py-2.5 px-3 rounded-lg border border-neutral-300 bg-white text-xs sm:text-[13px] font-semibold text-neutral-900 flex items-center justify-center gap-1.5 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 transition-colors whitespace-nowrap"
+        className="mt-3 w-full py-2.5 px-3 rounded-lg border border-[#650108]/35 bg-[#FFFDF8] text-xs sm:text-[13px] font-semibold text-[#650108] flex items-center justify-center gap-1.5 hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap"
       >
         <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
         <span>Add to Cart</span>
@@ -123,11 +123,11 @@ export function PhoneCaseGrid({
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="border border-neutral-200 rounded-xl p-2.5 sm:p-3 animate-pulse">
-            <div className="aspect-square rounded-lg bg-neutral-100 mb-3" />
-            <div className="h-4 bg-neutral-100 rounded w-4/5 mb-2" />
-            <div className="h-4 bg-neutral-100 rounded w-2/5 mb-4" />
-            <div className="h-9 bg-neutral-100 rounded-lg" />
+          <div key={i} className="border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl p-2.5 sm:p-3 animate-pulse">
+            <div className="aspect-square rounded-lg bg-[#EADEC2]/70 mb-3" />
+            <div className="h-4 bg-[#EADEC2]/70 rounded w-4/5 mb-2" />
+            <div className="h-4 bg-[#EADEC2]/70 rounded w-2/5 mb-4" />
+            <div className="h-9 bg-[#EADEC2]/70 rounded-lg" />
           </div>
         ))}
       </div>
@@ -137,8 +137,8 @@ export function PhoneCaseGrid({
   if (products.length === 0) {
     const trimmedQuery = searchQuery.trim();
     return (
-      <div className="border border-neutral-200 rounded-2xl py-14 text-center bg-neutral-50 px-4">
-        <p className="text-sm font-medium text-neutral-700">
+      <div className="border border-[#DFCFB0] rounded-2xl py-14 text-center bg-[#FAF4E6] px-4">
+        <p className="text-sm font-medium text-[#2B1416]">
           {trimmedQuery
             ? `No phone cases matched "${trimmedQuery}".`
             : 'No phone cases matched your filter.'}
@@ -146,7 +146,7 @@ export function PhoneCaseGrid({
         <button
           type="button"
           onClick={onResetFilters}
-          className="mt-3 px-4 py-2 rounded-lg bg-neutral-900 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
+          className="mt-3 px-4 py-2 rounded-lg bg-[#650108] text-[#F2E8D2] text-xs font-semibold hover:bg-[#4D0106] transition-colors"
         >
           Show All Cases
         </button>
@@ -176,7 +176,7 @@ export function PhoneCaseGrid({
               type="button"
               onClick={() => onPageChange(Math.max(0, currentPage - 1))}
               aria-label="Previous products"
-              className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-neutral-950/90 text-white shadow-lg items-center justify-center hover:bg-neutral-950 transition-colors"
+              className="hidden lg:flex absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#650108]/90 text-[#F2E8D2] shadow-lg items-center justify-center hover:bg-[#650108] transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -185,7 +185,7 @@ export function PhoneCaseGrid({
             type="button"
             onClick={() => onPageChange((currentPage + 1) % totalPages)}
             aria-label="Next products"
-            className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-neutral-950/90 text-white shadow-lg items-center justify-center hover:bg-neutral-950 transition-colors"
+            className="hidden lg:flex absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#650108]/90 text-[#F2E8D2] shadow-lg items-center justify-center hover:bg-[#650108] transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -195,7 +195,7 @@ export function PhoneCaseGrid({
               type="button"
               onClick={() => onPageChange((currentPage - 1 + totalPages) % totalPages)}
               aria-label="Previous page"
-              className="lg:hidden w-8 h-8 rounded-full border border-neutral-300 flex items-center justify-center text-neutral-700 hover:bg-neutral-100"
+              className="lg:hidden w-8 h-8 rounded-full border border-[#C9B38D] flex items-center justify-center text-[#650108] hover:bg-[#FAF4E6]"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -208,7 +208,7 @@ export function PhoneCaseGrid({
                   onClick={() => onPageChange(idx)}
                   aria-label={`Page ${idx + 1}`}
                   className={`h-1.5 rounded-full transition-all ${
-                    idx === currentPage ? 'w-5 bg-neutral-950' : 'w-1.5 bg-neutral-300 hover:bg-neutral-400'
+                    idx === currentPage ? 'w-5 bg-[#650108]' : 'w-1.5 bg-[#CBB894] hover:bg-[#650108]/50'
                   }`}
                 />
               ))}
@@ -218,7 +218,7 @@ export function PhoneCaseGrid({
               type="button"
               onClick={() => onPageChange((currentPage + 1) % totalPages)}
               aria-label="Next page"
-              className="lg:hidden w-8 h-8 rounded-full border border-neutral-300 flex items-center justify-center text-neutral-700 hover:bg-neutral-100"
+              className="lg:hidden w-8 h-8 rounded-full border border-[#C9B38D] flex items-center justify-center text-[#650108] hover:bg-[#FAF4E6]"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

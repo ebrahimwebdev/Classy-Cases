@@ -18,8 +18,8 @@ function DrawerThumb({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return (
-      <div className="w-16 h-16 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center shrink-0">
-        <Smartphone className="w-5 h-5 text-neutral-400" />
+      <div className="w-16 h-16 rounded-xl bg-white border border-[#EDE2C9] flex items-center justify-center shrink-0">
+        <Smartphone className="w-5 h-5 text-[#8E6F70]" />
       </div>
     );
   }
@@ -29,7 +29,7 @@ function DrawerThumb({ src, alt }: { src: string; alt: string }) {
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
-      className="w-16 h-16 rounded-xl object-cover border border-neutral-200 shrink-0"
+      className="w-16 h-16 rounded-xl object-cover border border-[#EDE2C9] bg-white shrink-0"
     />
   );
 }
@@ -94,17 +94,17 @@ export function CartDrawer({
     >
       <div className="fixed inset-0" onClick={closeDrawer} aria-hidden="true" />
 
-      <aside className="relative z-10 bg-white w-full max-w-[440px] h-full flex flex-col shadow-2xl">
-        {/* Header matching screenshot */}
-        <div className="px-5 sm:px-6 py-4 border-b border-neutral-200 flex items-center justify-between gap-3">
-          <h2 className="text-lg sm:text-xl font-medium text-neutral-950 tracking-tight">
+      <aside className="relative z-10 bg-[#FAF4E6] w-full max-w-[440px] h-full flex flex-col shadow-2xl border-l border-[#DFCFB0]">
+        {/* Header */}
+        <div className="px-5 sm:px-6 py-4 border-b border-[#DFCFB0] flex items-center justify-between gap-3">
+          <h2 className="text-lg sm:text-xl font-bold text-[#650108] tracking-tight">
             Shopping cart
           </h2>
           <button
             type="button"
             onClick={closeDrawer}
             aria-label="Close shopping cart"
-            className="p-1.5 rounded-lg text-neutral-700 hover:text-neutral-950 hover:bg-neutral-100 transition-colors"
+            className="p-1.5 rounded-lg text-[#650108] hover:bg-[#F2E8D2] transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -114,19 +114,19 @@ export function CartDrawer({
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
           {items.length === 0 ? (
             <div className="text-center py-16 space-y-4">
-              <div className="w-14 h-14 rounded-full bg-neutral-100 flex items-center justify-center mx-auto">
-                <ShoppingBag className="w-7 h-7 text-neutral-400" />
+              <div className="w-14 h-14 rounded-full bg-[#FFFDF8] border border-[#DFCFB0] flex items-center justify-center mx-auto">
+                <ShoppingBag className="w-7 h-7 text-[#650108]" />
               </div>
               <div>
-                <p className="text-base font-semibold text-neutral-900">Your shopping cart is empty</p>
-                <p className="text-sm text-neutral-500 mt-1">
+                <p className="text-base font-semibold text-[#650108]">Your shopping cart is empty</p>
+                <p className="text-sm text-[#6B4C4E] mt-1">
                   Add phone cases from the storefront to see them here.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeDrawer}
-                className="px-5 py-2.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+                className="px-5 py-2.5 rounded-xl bg-[#650108] text-[#F2E8D2] text-sm font-semibold hover:bg-[#4D0106] transition-colors"
               >
                 Continue Shopping
               </button>
@@ -137,31 +137,31 @@ export function CartDrawer({
               return (
                 <div
                   key={`${item.productId}-${item.model}`}
-                  className="rounded-2xl border border-neutral-200 bg-white p-3.5 sm:p-4 space-y-3"
+                  className="rounded-2xl border border-[#DFCFB0] bg-[#FFFDF8] p-3.5 sm:p-4 space-y-3"
                 >
                   {/* Top Product Row */}
                   <div className="flex items-start gap-3.5">
                     <DrawerThumb src={item.image} alt={item.title} />
-                    <p className="text-sm sm:text-[15px] font-semibold text-neutral-950 leading-snug line-clamp-2 flex-1 pt-0.5">
+                    <p className="text-sm sm:text-[15px] font-semibold text-[#2B1416] leading-snug line-clamp-2 flex-1 pt-0.5">
                       {item.title}
                     </p>
                   </div>
 
-                  {/* Inner Gray Variant + Stepper Panel */}
-                  <div className="bg-neutral-50 rounded-xl p-3.5 space-y-3.5">
+                  {/* Inner Cream Variant + Stepper Panel */}
+                  <div className="bg-[#F2E8D2]/55 border border-[#EDE2C9] rounded-xl p-3.5 space-y-3.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 space-y-2">
-                        <div className="text-[13px] text-neutral-500 truncate">
-                          SKU: <span className="font-mono">{item.sku || 'Standard'}</span>
+                        <div className="text-[13px] text-[#6B4C4E] truncate">
+                          SKU: <span className="font-mono text-[#2B1416]">{item.sku || 'Standard'}</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {optionTags.map((tag) => (
                             <span
                               key={`${tag.name}-${tag.value}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-neutral-200 bg-white text-xs text-neutral-500"
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-[#DFCFB0] bg-[#FFFDF8] text-xs text-[#6B4C4E]"
                             >
                               <span>{tag.name}:</span>
-                              <strong className="font-semibold text-neutral-900">{tag.value}</strong>
+                              <strong className="font-semibold text-[#650108]">{tag.value}</strong>
                             </span>
                           ))}
                         </div>
@@ -176,7 +176,7 @@ export function CartDrawer({
                               onEditItem(item.productId);
                             }}
                             aria-label={`Edit ${item.title}`}
-                            className="w-9 h-9 rounded-xl border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center transition-colors"
+                            className="w-9 h-9 rounded-xl border border-[#DFCFB0] bg-[#FFFDF8] hover:bg-[#F2E8D2] text-[#650108] flex items-center justify-center transition-colors"
                           >
                             <SquarePen className="w-4 h-4" />
                           </button>
@@ -185,7 +185,7 @@ export function CartDrawer({
                           type="button"
                           onClick={() => removeItem(item.productId, item.model)}
                           aria-label={`Remove ${item.title}`}
-                          className="w-9 h-9 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors"
+                          className="w-9 h-9 rounded-xl border border-[#650108]/20 bg-[#650108]/5 hover:bg-[#650108]/12 text-[#650108] flex items-center justify-center transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -195,33 +195,33 @@ export function CartDrawer({
                     {/* Unit price + stepper + line total */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm text-neutral-500 tabular-nums">
+                        <span className="text-sm text-[#6B4C4E] tabular-nums">
                           {formatTaka(item.price)}
                         </span>
-                        <div className="inline-flex items-center border border-neutral-200 bg-white rounded-xl h-9">
+                        <div className="inline-flex items-center border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl h-9">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.productId, item.model, -1)}
                             aria-label="Decrease quantity"
-                            className="px-2.5 h-full flex items-center justify-center text-neutral-700 hover:text-neutral-950"
+                            className="px-2.5 h-full flex items-center justify-center text-[#650108] hover:bg-[#F2E8D2]/60 rounded-l-xl transition-colors"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
-                          <span className="px-2 text-sm font-medium text-neutral-950 tabular-nums">
+                          <span className="px-2 text-sm font-semibold text-[#2B1416] tabular-nums">
                             {item.quantity}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.productId, item.model, 1)}
                             aria-label="Increase quantity"
-                            className="px-2.5 h-full flex items-center justify-center text-neutral-700 hover:text-neutral-950"
+                            className="px-2.5 h-full flex items-center justify-center text-[#650108] hover:bg-[#F2E8D2]/60 rounded-r-xl transition-colors"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      <span className="text-[15px] font-bold text-neutral-950 tabular-nums">
+                      <span className="text-[15px] font-bold text-[#650108] tabular-nums">
                         {formatTaka(item.price * item.quantity)}
                       </span>
                     </div>

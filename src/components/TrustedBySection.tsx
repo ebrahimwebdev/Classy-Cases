@@ -129,6 +129,40 @@ const PARTNER_TESTIMONIALS: PartnerTestimonial[] = [
 
 export function TrustedBySection() {
   const repeatedLogos = [...PARTNER_LOGOS, ...PARTNER_LOGOS];
+  const trackRef = React.useRef<HTMLDivElement>(null);
+  const offsetRef = React.useRef(0);
+  const draggingRef = React.useRef(false);
+  const dragStartXRef = React.useRef(0);
+  const dragStartOffsetRef = React.useRef(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  React.useEffect(() => {
+    let rafId = 0;
+    let lastTime = performance.now();
+    const speedPxPerSec = 42;
+
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+      lastTime = now;
+
+      const track = trackRef.current;
+      if (track) {
+        const halfWidth = track.scrollWidth / 2;
+        if (halfWidth > 0) {
+          if (!draggingRef.current) {
+            offsetRef.current += speedPxPerSec * dt;
+          }
+          offsetRef.current = ((offsetRef.current % halfWidth) + halfWidth) % halfWidth;
+          track.style.transform = `translate3d(-${offsetRef.current.toFixed(2)}px, 0, 0)`;
+        }
+      }
+
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, []);
 
   return (
     <section
@@ -157,8 +191,32 @@ export function TrustedBySection() {
           </div>
         </div>
 
-        {/* Continuous Marquee Strip */}
-        <div className="relative overflow-hidden border border-[#DFCFB0] bg-[#FFFDF8] rounded-2xl py-5 marquee-container">
+        {/* Continuous Marquee Strip (auto-slides + drag-to-slide on desktop & mobile) */}
+        <div
+          onPointerDown={(e) => {
+            draggingRef.current = true;
+            setIsDragging(true);
+            dragStartXRef.current = e.clientX;
+            dragStartOffsetRef.current = offsetRef.current;
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (!draggingRef.current) return;
+            const deltaX = dragStartXRef.current - e.clientX;
+            offsetRef.current = dragStartOffsetRef.current + deltaX;
+          }}
+          onPointerUp={() => {
+            draggingRef.current = false;
+            setIsDragging(false);
+          }}
+          onPointerCancel={() => {
+            draggingRef.current = false;
+            setIsDragging(false);
+          }}
+          className={`relative overflow-hidden border border-[#DFCFB0] bg-[#FFFDF8] rounded-2xl py-5 marquee-container select-none touch-pan-y ${
+            isDragging ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-y-0 left-0 w-10 sm:w-16 bg-gradient-to-r from-[#FFFDF8] to-transparent z-10"
@@ -168,7 +226,7 @@ export function TrustedBySection() {
             className="pointer-events-none absolute inset-y-0 right-0 w-10 sm:w-16 bg-gradient-to-l from-[#FFFDF8] to-transparent z-10"
           />
 
-          <div className="flex w-max animate-marquee items-center">
+          <div ref={trackRef} className="flex w-max items-center will-change-transform">
             {repeatedLogos.map((partner, idx) => (
               <div
                 key={`${partner.id}-${idx}`}

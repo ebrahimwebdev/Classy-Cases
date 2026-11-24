@@ -70,10 +70,15 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
   const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [ratingFilter, setRatingFilter] = useState<'all' | '5' | '4'>('all');
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [visibleCount, setVisibleCount] = useState(3);
-  const [isPaused, setIsPaused] = useState(false);
-  const touchStartX = useRef<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef(0);
+  const nudgeRemainingRef = useRef(0);
+  const draggingRef = useRef(false);
+  const dragMovedRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartOffsetRef = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,21 +98,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const updateVisibleCount = () => {
-      if (window.innerWidth < 640) {
-        setVisibleCount(1);
-      } else if (window.innerWidth < 1024) {
-        setVisibleCount(2);
-      } else {
-        setVisibleCount(3);
-      }
-    };
-    updateVisibleCount();
-    window.addEventListener('resize', updateVisibleCount);
-    return () => window.removeEventListener('resize', updateVisibleCount);
-  }, []);
-
   const filteredReviews = useMemo(() => {
     const list = payload?.reviews || [];
     if (ratingFilter === '5') return list.filter((r) => r.rating === 5);
@@ -115,31 +105,84 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     return list;
   }, [payload?.reviews, ratingFilter]);
 
-  const maxIndex = Math.max(0, filteredReviews.length - visibleCount);
-  const safeIndex = Math.min(activeIndex, maxIndex);
-  const totalPages = Math.max(1, maxIndex + 1);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [ratingFilter, visibleCount]);
-
-  useEffect(() => {
-    if (isPaused || maxIndex <= 0) return;
-    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-      return;
+  const baseLoopSet = useMemo(() => {
+    if (filteredReviews.length <= 1) return filteredReviews;
+    const minItems = 8;
+    const copies = Math.ceil(minItems / filteredReviews.length);
+    const expanded: StorefrontReviewItem[] = [];
+    for (let i = 0; i < copies; i += 1) {
+      expanded.push(...filteredReviews);
     }
-    const timer = window.setInterval(() => {
-      setActiveIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
-    }, 3800);
-    return () => window.clearInterval(timer);
-  }, [isPaused, maxIndex]);
+    return expanded;
+  }, [filteredReviews]);
+
+  const repeatedReviews = useMemo(() => {
+    if (baseLoopSet.length <= 1) return baseLoopSet;
+    return [...baseLoopSet, ...baseLoopSet];
+  }, [baseLoopSet]);
+
+  const shouldSlide = filteredReviews.length > 1;
+
+  useEffect(() => {
+    offsetRef.current = 0;
+    nudgeRemainingRef.current = 0;
+    if (trackRef.current) {
+      trackRef.current.style.transform = 'translate3d(0px, 0, 0)';
+    }
+  }, [ratingFilter, filteredReviews.length]);
+
+  useEffect(() => {
+    if (!shouldSlide) return;
+
+    let rafId = 0;
+    let lastTime = performance.now();
+    const speedPxPerSec = 36;
+
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
+      lastTime = now;
+
+      const track = trackRef.current;
+      if (track) {
+        const halfWidth = track.scrollWidth / 2;
+        if (halfWidth > 0) {
+          if (!draggingRef.current) {
+            offsetRef.current += speedPxPerSec * dt;
+
+            if (Math.abs(nudgeRemainingRef.current) > 0.5) {
+              const step = nudgeRemainingRef.current * Math.min(1, dt * 10);
+              offsetRef.current += step;
+              nudgeRemainingRef.current -= step;
+            } else {
+              nudgeRemainingRef.current = 0;
+            }
+          }
+
+          offsetRef.current = ((offsetRef.current % halfWidth) + halfWidth) % halfWidth;
+          track.style.transform = `translate3d(-${offsetRef.current.toFixed(2)}px, 0, 0)`;
+        }
+      }
+
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(rafId);
+  }, [shouldSlide, repeatedReviews.length]);
+
+  function getCardStepWidth(): number {
+    const firstCard = trackRef.current?.firstElementChild as HTMLElement | null;
+    return firstCard ? firstCard.getBoundingClientRect().width : 360;
+  }
 
   function handlePrev() {
-    setActiveIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+    if (!shouldSlide) return;
+    nudgeRemainingRef.current -= getCardStepWidth();
   }
 
   function handleNext() {
-    setActiveIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+    if (!shouldSlide) return;
+    nudgeRemainingRef.current += getCardStepWidth();
   }
 
   if (loading) {
@@ -167,27 +210,16 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     return null;
   }
 
-  const cardWidth =
-    visibleCount === 1
-      ? '100%'
-      : visibleCount === 2
-        ? 'calc((100% - 20px) / 2)'
-        : 'calc((100% - 40px) / 3)';
-
   return (
     <section
       aria-labelledby="customer-reviews-heading"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocusCapture={() => setIsPaused(true)}
-      onBlurCapture={() => setIsPaused(false)}
       onKeyDown={(e) => {
         if (e.key === 'ArrowLeft') handlePrev();
         if (e.key === 'ArrowRight') handleNext();
       }}
-      className="border-t border-[#DFCFB0] bg-[#EAE0C8]/65"
+      className="border-t border-[#DFCFB0] bg-[#EAE0C8]/65 py-12 sm:py-16 space-y-7"
     >
-      <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-12 sm:py-16 space-y-7">
+      <div className="max-w-[1180px] mx-auto px-4 sm:px-8">
         {/* Section Header + Controls */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
           <div className="space-y-2">
@@ -254,16 +286,13 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
               ))}
             </div>
 
-            {/* Prev / Next Carousel Buttons */}
+            {/* Prev / Next Nudge Buttons */}
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-[#6B4C4E] tabular-nums mr-1">
-                {safeIndex + 1} / {totalPages}
-              </span>
               <button
                 type="button"
                 onClick={handlePrev}
-                disabled={maxIndex === 0}
-                aria-label="Previous customer reviews"
+                disabled={!shouldSlide}
+                aria-label="Scroll reviews left"
                 className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -271,8 +300,8 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={maxIndex === 0}
-                aria-label="Next customer reviews"
+                disabled={!shouldSlide}
+                aria-label="Scroll reviews right"
                 className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -280,151 +309,162 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Carousel Slide Viewport */}
-        {filteredReviews.length === 0 ? (
+      {/* Full-Width Continuous Marquee Slide Viewport */}
+      {filteredReviews.length === 0 ? (
+        <div className="max-w-[1180px] mx-auto px-4 sm:px-8">
           <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-8 text-center text-sm text-[#6B4C4E]">
             No customer reviews match this rating filter yet.
           </div>
-        ) : (
+        </div>
+      ) : (
+        <div className={shouldSlide ? 'w-full' : 'max-w-[1180px] mx-auto px-4 sm:px-8'}>
           <div
             role="region"
             aria-roledescription="carousel"
             aria-label="Verified customer reviews"
-            onTouchStart={(e) => {
-              touchStartX.current = e.touches[0]?.clientX ?? null;
-              setIsPaused(true);
+            onPointerDown={(e) => {
+              if (!shouldSlide) return;
+              if ((e.target as HTMLElement).closest('button')) return;
+              draggingRef.current = true;
+              dragMovedRef.current = false;
+              setIsDragging(true);
+              dragStartXRef.current = e.clientX;
+              dragStartOffsetRef.current = offsetRef.current;
+              nudgeRemainingRef.current = 0;
+              e.currentTarget.setPointerCapture(e.pointerId);
             }}
-            onTouchEnd={(e) => {
-              const startX = touchStartX.current;
-              const endX = e.changedTouches[0]?.clientX ?? null;
-              touchStartX.current = null;
-              setIsPaused(false);
-              if (startX === null || endX === null || maxIndex === 0) return;
-              const delta = startX - endX;
-              if (Math.abs(delta) > 40) {
-                if (delta > 0) handleNext();
-                else handlePrev();
+            onPointerMove={(e) => {
+              if (!draggingRef.current) return;
+              const deltaX = dragStartXRef.current - e.clientX;
+              if (Math.abs(deltaX) > 4) {
+                dragMovedRef.current = true;
               }
+              offsetRef.current = dragStartOffsetRef.current + deltaX;
             }}
-            className="overflow-hidden py-1 -my-1"
+            onPointerUp={() => {
+              draggingRef.current = false;
+              setIsDragging(false);
+            }}
+            onPointerCancel={() => {
+              draggingRef.current = false;
+              setIsDragging(false);
+            }}
+            style={
+              shouldSlide
+                ? {
+                    maskImage:
+                      'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.45) clamp(12px, 2.5vw, 32px), black clamp(32px, 6vw, 80px), black calc(100% - clamp(32px, 6vw, 80px)), rgba(0, 0, 0, 0.45) calc(100% - clamp(12px, 2.5vw, 32px)), transparent 100%)',
+                    WebkitMaskImage:
+                      'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.45) clamp(12px, 2.5vw, 32px), black clamp(32px, 6vw, 80px), black calc(100% - clamp(32px, 6vw, 80px)), rgba(0, 0, 0, 0.45) calc(100% - clamp(12px, 2.5vw, 32px)), transparent 100%)',
+                  }
+                : undefined
+            }
+            className={`relative overflow-hidden py-1 -my-1 select-none touch-pan-y ${
+              shouldSlide ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
+            }`}
           >
-            <div
-              style={{
-                transform: `translate3d(calc(-${safeIndex} * ((100% + 20px) / ${visibleCount})), 0, 0)`,
-              }}
-              className="flex gap-5 will-change-transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-            >
-              {filteredReviews.map((review) => (
-                <article
-                  key={review.id}
-                  style={{ width: cardWidth }}
-                  className="shrink-0 bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#650108]/35 hover:shadow-md"
+            <div ref={trackRef} className="flex w-max items-stretch will-change-transform">
+              {repeatedReviews.map((review, idx) => (
+                <div
+                  key={`${review.id}-loop-${idx}`}
+                  className={`shrink-0 pr-5 ${
+                    shouldSlide
+                      ? 'w-[300px] sm:w-[348px] lg:w-[384px]'
+                      : 'w-full max-w-[384px]'
+                  }`}
                 >
-                <div className="space-y-4">
-                  {/* Rating + Date */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div
-                      className="inline-flex items-center gap-0.5"
-                      aria-label={`${review.rating} out of 5 stars`}
-                    >
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          className={`w-4 h-4 ${
-                            star <= review.rating
-                              ? 'fill-amber-400 text-amber-400'
-                              : 'fill-[#F2E8D2] text-[#CBB894]'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <time
-                      dateTime={review.createdAt}
-                      className="text-xs text-[#8E6F70] tabular-nums"
-                    >
-                      {formatShortDate(review.createdAt)}
-                    </time>
-                  </div>
+                  <article className="h-full bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#650108]/35 hover:shadow-md">
+                    <div className="space-y-4">
+                      {/* Rating + Date */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div
+                          className="inline-flex items-center gap-0.5"
+                          aria-label={`${review.rating} out of 5 stars`}
+                        >
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-4 h-4 ${
+                                star <= review.rating
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'fill-[#F2E8D2] text-[#CBB894]'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <time
+                          dateTime={review.createdAt}
+                          className="text-xs text-[#8E6F70] tabular-nums"
+                        >
+                          {formatShortDate(review.createdAt)}
+                        </time>
+                      </div>
 
-                  {/* Quote */}
-                  <p className="text-[14px] text-[#2B1416] leading-relaxed">
-                    &ldquo;{review.comment}&rdquo;
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Reviewer Attribution (Zero-Pill Unboxed Metadata) */}
-                  <div>
-                    <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#650108]">
-                      <span>{review.authorName}</span>
-                      {review.verifiedPurchase && (
-                        <CheckCircle2
-                          className="w-3.5 h-3.5 text-emerald-700 shrink-0"
-                          aria-label="Verified Buyer"
-                        />
-                      )}
+                      {/* Quote */}
+                      <p className="text-[14px] text-[#2B1416] leading-relaxed">
+                        &ldquo;{review.comment}&rdquo;
+                      </p>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#6B4C4E]">
-                      <span>{review.city}</span>
-                      <span aria-hidden="true" className="text-[#C9B38D]">
-                        ·
-                      </span>
-                      <span className="text-[#2B1416] font-medium">{review.deviceModel}</span>
-                      {review.verifiedPurchase && (
-                        <>
+
+                    <div className="space-y-4">
+                      {/* Reviewer Attribution (Zero-Pill Unboxed Metadata) */}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-[13px] font-bold text-[#650108]">
+                          <span>{review.authorName}</span>
+                          {review.verifiedPurchase && (
+                            <CheckCircle2
+                              className="w-3.5 h-3.5 text-emerald-700 shrink-0"
+                              aria-label="Verified Buyer"
+                            />
+                          )}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#6B4C4E]">
+                          <span>{review.city}</span>
                           <span aria-hidden="true" className="text-[#C9B38D]">
                             ·
                           </span>
-                          <span>Verified buyer</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                          <span className="text-[#2B1416] font-medium">{review.deviceModel}</span>
+                          {review.verifiedPurchase && (
+                            <>
+                              <span aria-hidden="true" className="text-[#C9B38D]">
+                                ·
+                              </span>
+                              <span>Verified buyer</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
 
-                  {/* Purchased Case Link */}
-                  <button
-                    type="button"
-                    onClick={() => onSelectProduct(review.productId)}
-                    className="w-full pt-4 border-t border-[#EDE2C9] flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
-                  >
-                    <ReviewThumbnail src={review.productImage} alt={review.productTitle} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108]">
-                        {review.productTitle}
-                      </div>
-                      <div className="text-xs font-medium text-[#6B4C4E] tabular-nums mt-0.5">
-                        {formatTaka(review.productPrice)} · View case
-                      </div>
+                      {/* Purchased Case Link */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!dragMovedRef.current) {
+                            onSelectProduct(review.productId);
+                          }
+                        }}
+                        className="w-full pt-4 border-t border-[#EDE2C9] flex items-center gap-3 text-left group cursor-pointer focus:outline-none"
+                      >
+                        <ReviewThumbnail src={review.productImage} alt={review.productTitle} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108]">
+                            {review.productTitle}
+                          </div>
+                          <div className="text-xs font-medium text-[#6B4C4E] tabular-nums mt-0.5">
+                            {formatTaka(review.productPrice)} · View case
+                          </div>
+                        </div>
+                      </button>
                     </div>
-                  </button>
+                  </article>
                 </div>
-                </article>
               ))}
             </div>
           </div>
-        )}
-
-        {/* Carousel Pagination Bars */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-1">
-            {Array.from({ length: totalPages }).map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setActiveIndex(idx)}
-                aria-label={`Show review slide ${idx + 1}`}
-                aria-current={idx === safeIndex ? 'true' : undefined}
-                className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                  idx === safeIndex
-                    ? 'w-7 bg-[#650108]'
-                    : 'w-2.5 bg-[#CBB894] hover:bg-[#650108]/50'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

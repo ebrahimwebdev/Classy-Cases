@@ -20,6 +20,27 @@ import type {
   StoreSettings,
   Subscriber,
 } from './src/types.ts';
+import { isSqlConfigured } from './src/db/index.ts';
+import {
+  deleteCategoryFromSql,
+  deleteExpenseFromSql,
+  deleteProductFromSql,
+  insertCouponToSql,
+  insertExpenseToSql,
+  insertOrderToSql,
+  insertReviewToSql,
+  insertSubscriberToSql,
+  loadOrSeedStoreFromSql,
+  replaceProductsInSql,
+  saveStoreConfigToSql,
+  updateOrderInSql,
+  upsertCategoryToSql,
+  upsertProductToSql,
+  type StoreSnapshot,
+} from './src/db/storeRepo.ts';
+import { getOrCreateUser, getUserByUid } from './src/db/users.ts';
+import { adminAuth } from './src/lib/firebase-admin.ts';
+import { optionalAuth, type AuthRequest } from './src/middleware/auth.ts';
 
 dotenv.config();
 
@@ -48,7 +69,7 @@ interface PendingPaymentSession {
   createdAt: number;
 }
 
-interface StoreDatabase {
+interface StoreDatabase extends StoreSnapshot {
   settings: StoreSettings;
   categories: Category[];
   products: Product[];
@@ -58,6 +79,7 @@ interface StoreDatabase {
   expenses: Expense[];
   reviews: ProductReview[];
   adminAuth: AdminAuthRecord | null;
+  adminOwnerUid?: string | null;
   sessionSecret?: string;
   catalogModified?: boolean;
 }
@@ -337,17 +359,66 @@ function loadDatabase(): StoreDatabase {
   }
 }
 
-let db: StoreDatabase = loadDatabase();
+let db: StoreDatabase = createInitialData();
+let storeLoaded = false;
+let storeInitPromise: Promise<void> | null = null;
 
-const SESSION_SECRET = (() => {
+function getSessionSecret(): string {
   const envSecret = process.env.SESSION_SECRET?.trim();
   if (envSecret) return envSecret;
   if (!db.sessionSecret) {
     db.sessionSecret = crypto.randomBytes(32).toString('hex');
-    saveDatabase();
   }
   return db.sessionSecret;
-})();
+}
+
+async function ensureStoreLoaded(): Promise<void> {
+  if (storeLoaded) return;
+  if (storeInitPromise) {
+    await storeInitPromise;
+    return;
+  }
+
+  storeInitPromise = (async () => {
+    const diskSnapshot = loadDatabase();
+    if (!isSqlConfigured()) {
+      db = diskSnapshot;
+      if (!process.env.SESSION_SECRET?.trim() && !db.sessionSecret) {
+        db.sessionSecret = crypto.randomBytes(32).toString('hex');
+        saveDatabase();
+      }
+      storeLoaded = true;
+      return;
+    }
+
+    const sqlSnapshot = await loadOrSeedStoreFromSql(() => {
+      if (!process.env.SESSION_SECRET?.trim() && !diskSnapshot.sessionSecret) {
+        diskSnapshot.sessionSecret = crypto.randomBytes(32).toString('hex');
+      }
+      return diskSnapshot;
+    });
+
+    db = {
+      ...sqlSnapshot,
+      expenses: Array.isArray(sqlSnapshot.expenses) ? sqlSnapshot.expenses : [],
+      reviews: Array.isArray(sqlSnapshot.reviews) ? sqlSnapshot.reviews : [],
+      adminOwnerUid: sqlSnapshot.adminOwnerUid ?? null,
+    };
+
+    if (!process.env.SESSION_SECRET?.trim() && !db.sessionSecret) {
+      db.sessionSecret = crypto.randomBytes(32).toString('hex');
+      await saveStoreConfigToSql({ sessionSecret: db.sessionSecret });
+    }
+
+    storeLoaded = true;
+  })();
+
+  try {
+    await storeInitPromise;
+  } finally {
+    storeInitPromise = null;
+  }
+}
 
 function saveDatabase(): void {
   try {
@@ -397,7 +468,7 @@ function createSessionToken(): string {
       nonce: crypto.randomBytes(8).toString('hex'),
     })
   ).toString('base64url');
-  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const sig = crypto.createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
@@ -405,7 +476,7 @@ function verifySessionToken(token: string): boolean {
   const parts = token.split('.');
   if (parts.length !== 2) return false;
   const [payload, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const expectedSig = crypto.createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
   const b1 = Buffer.from(sig);
   const b2 = Buffer.from(expectedSig);
   if (b1.length !== b2.length || !crypto.timingSafeEqual(b1, b2)) return false;
@@ -431,7 +502,7 @@ function createCustomerOrderToken(phone: string): string {
       exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
     })
   ).toString('base64url');
-  const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const sig = crypto.createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
   return `${payload}.${sig}`;
 }
 
@@ -440,7 +511,7 @@ function verifyCustomerOrderToken(token: string): string | null {
   const parts = token.split('.');
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('base64url');
+  const expectedSig = crypto.createHmac('sha256', getSessionSecret()).update(payload).digest('base64url');
   const b1 = Buffer.from(sig);
   const b2 = Buffer.from(expectedSig);
   if (b1.length !== b2.length || !crypto.timingSafeEqual(b1, b2)) return null;
@@ -551,11 +622,28 @@ function isSameOriginMutation(req: Request): boolean {
   }
 }
 
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const bearerToken = extractBearerToken(req);
-  if (bearerToken && verifySessionToken(bearerToken)) {
-    next();
-    return;
+  if (bearerToken) {
+    if (verifySessionToken(bearerToken)) {
+      next();
+      return;
+    }
+    if (bearerToken.split('.').length === 3) {
+      try {
+        const decoded = await adminAuth.verifyIdToken(bearerToken);
+        const existingUser = isSqlConfigured() ? await getUserByUid(decoded.uid) : null;
+        if (
+          existingUser?.role === 'admin' ||
+          (db.adminOwnerUid && db.adminOwnerUid === decoded.uid)
+        ) {
+          next();
+          return;
+        }
+      } catch {
+        // Fall through to cookie / 401
+      }
+    }
   }
 
   const cookieToken = extractAdminCookieToken(req);
@@ -657,7 +745,7 @@ function buildOrderCalculation(
   return { orderItems, subtotal, discountAmount, appliedCoupon, shippingFee, total };
 }
 
-function finalizeOrder(params: {
+async function finalizeOrder(params: {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
@@ -674,16 +762,19 @@ function finalizeOrder(params: {
   transactionId: string;
   source: 'Web' | 'POS';
   channel: string;
-}): Order {
+  userId?: number;
+}): Promise<Order> {
   const num = db.settings.nextOrderNumber;
   db.settings.nextOrderNumber += 1;
   const orderNumber = `${db.settings.orderPrefix}${num}`;
   const now = new Date().toISOString();
 
+  const updatedProducts: Product[] = [];
   for (const item of params.items) {
     const product = db.products.find((p) => p.id === item.productId);
     if (product) {
       product.stock = Math.max(0, product.stock - item.quantity);
+      updatedProducts.push(product);
     }
   }
 
@@ -711,6 +802,9 @@ function finalizeOrder(params: {
     updatedAt: now,
   };
 
+  if (isSqlConfigured()) {
+    await insertOrderToSql(order, db.settings, updatedProducts, params.userId);
+  }
   db.orders.unshift(order);
   saveDatabase();
   return order;
@@ -812,6 +906,16 @@ async function startServer() {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.use('/api', async (_req, res, next) => {
+    try {
+      await ensureStoreLoaded();
+      next();
+    } catch (err) {
+      console.error('Failed to initialize Cloud SQL store:', err);
+      res.status(503).json({ error: 'Database temporarily unavailable. Please try again shortly.' });
+    }
   });
 
   const isSafeImageSource = (val: unknown): val is string => {
@@ -977,7 +1081,7 @@ async function startServer() {
     });
   });
 
-  app.post('/api/products/:id/reviews', (req, res) => {
+  app.post('/api/products/:id/reviews', async (req, res) => {
     const product = db.products.find((p) => p.id === req.params.id);
     if (!product) {
       res.status(404).json({ error: 'Product not found' });
@@ -1016,9 +1120,16 @@ async function startServer() {
       createdAt: new Date().toISOString(),
     };
 
-    db.reviews.unshift(review);
-    saveDatabase();
-    res.status(201).json({ review });
+    try {
+      if (isSqlConfigured()) {
+        await insertReviewToSql(review);
+      }
+      db.reviews.unshift(review);
+      saveDatabase();
+      res.status(201).json({ review });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save review' });
+    }
   });
 
   app.post('/api/coupons/validate', (req, res) => {
@@ -1031,21 +1142,29 @@ async function startServer() {
     res.json({ code: coupon.code, discountPercent: coupon.discountPercent });
   });
 
-  app.post('/api/newsletter', (req, res) => {
+  app.post('/api/newsletter', async (req, res) => {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       res.status(400).json({ error: 'Please enter a valid email address' });
       return;
     }
-    if (!db.subscribers.some((s) => s.email === email)) {
-      db.subscribers.unshift({
-        id: `sub-${crypto.randomUUID().slice(0, 8)}`,
-        email,
-        subscribedAt: new Date().toISOString(),
-      });
-      saveDatabase();
+    try {
+      if (!db.subscribers.some((s) => s.email === email)) {
+        const sub: Subscriber = {
+          id: `sub-${crypto.randomUUID().slice(0, 8)}`,
+          email,
+          subscribedAt: new Date().toISOString(),
+        };
+        if (isSqlConfigured()) {
+          await insertSubscriberToSql(sub);
+        }
+        db.subscribers.unshift(sub);
+        saveDatabase();
+      }
+      res.json({ ok: true, message: 'Subscribed to Classy Cases updates' });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Subscription failed' });
     }
-    res.json({ ok: true, message: 'Subscribed to Classy Cases updates' });
   });
 
   app.get('/api/orders/track', (req, res) => {
@@ -1128,7 +1247,7 @@ async function startServer() {
   });
 
   // Checkout & Online Payment Gateway Routes
-  app.post('/api/checkout/initiate', (req, res) => {
+  app.post('/api/checkout/initiate', optionalAuth, async (req: AuthRequest, res) => {
     try {
       const {
         customerName,
@@ -1169,7 +1288,7 @@ async function startServer() {
       const calc = buildOrderCalculation(items, area, couponCode);
 
       if (paymentMethod === 'cod') {
-        const order = finalizeOrder({
+        const order = await finalizeOrder({
           customerName: customerName.trim(),
           customerPhone: customerPhone.trim(),
           customerEmail: typeof customerEmail === 'string' ? customerEmail.trim() : '',
@@ -1186,6 +1305,7 @@ async function startServer() {
           transactionId: `COD-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
           source: source === 'POS' ? 'POS' : 'Web',
           channel: 'Direct Storefront',
+          userId: req.dbUserId,
         });
         res.json({
           status: 'completed',
@@ -1235,7 +1355,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/payments/verify', (req, res) => {
+  app.post('/api/payments/verify', optionalAuth, async (req: AuthRequest, res) => {
     const { paymentSessionId, accountNumber, pinOrOtp, cardNumber } = req.body || {};
     if (typeof paymentSessionId !== 'string') {
       res.status(400).json({ error: 'Invalid payment session' });
@@ -1271,30 +1391,35 @@ async function startServer() {
       session.paymentMethod === 'bkash' ? 'BKS' : session.paymentMethod === 'nagad' ? 'NGD' : 'SSL';
     const transactionId = `${prefix}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 
-    const order = finalizeOrder({
-      customerName: session.customerName,
-      customerPhone: session.customerPhone,
-      customerEmail: session.customerEmail,
-      deliveryAddress: session.deliveryAddress,
-      deliveryArea: session.deliveryArea,
-      items: session.items,
-      subtotal: session.subtotal,
-      shippingFee: session.shippingFee,
-      discountAmount: session.discountAmount,
-      couponCode: session.couponCode,
-      total: session.total,
-      paymentMethod: session.paymentMethod,
-      paymentStatus: 'paid',
-      transactionId,
-      source: session.source,
-      channel: session.channel,
-    });
+    try {
+      const order = await finalizeOrder({
+        customerName: session.customerName,
+        customerPhone: session.customerPhone,
+        customerEmail: session.customerEmail,
+        deliveryAddress: session.deliveryAddress,
+        deliveryArea: session.deliveryArea,
+        items: session.items,
+        subtotal: session.subtotal,
+        shippingFee: session.shippingFee,
+        discountAmount: session.discountAmount,
+        couponCode: session.couponCode,
+        total: session.total,
+        paymentMethod: session.paymentMethod,
+        paymentStatus: 'paid',
+        transactionId,
+        source: session.source,
+        channel: session.channel,
+        userId: req.dbUserId,
+      });
 
-    res.json({
-      status: 'paid',
-      order,
-      customerOrderToken: createCustomerOrderToken(order.customerPhone),
-    });
+      res.json({
+        status: 'paid',
+        order,
+        customerOrderToken: createCustomerOrderToken(order.customerPhone),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Payment confirmation failed' });
+    }
   });
 
   // Admin Auth Routes
@@ -1318,7 +1443,7 @@ async function startServer() {
     res.json({ needsSetup, authenticated: false });
   });
 
-  app.post('/api/admin/auth/setup', (req, res) => {
+  app.post('/api/admin/auth/setup', async (req, res) => {
     const envPasscode = process.env.ADMIN_PASSCODE?.trim();
     if (envPasscode || db.adminAuth) {
       res.status(409).json({ error: 'Admin password is already configured' });
@@ -1329,16 +1454,70 @@ async function startServer() {
       res.status(400).json({ error: 'Password must be at least 6 characters' });
       return;
     }
-    const hashed = hashPassword(password);
-    db.adminAuth = {
-      salt: hashed.salt,
-      passwordHash: hashed.passwordHash,
-      claimedAt: new Date().toISOString(),
-    };
-    saveDatabase();
-    const token = createSessionToken();
-    setAdminSessionCookie(req, res, token);
-    res.json({ token });
+    try {
+      const hashed = hashPassword(password);
+      db.adminAuth = {
+        salt: hashed.salt,
+        passwordHash: hashed.passwordHash,
+        claimedAt: new Date().toISOString(),
+      };
+      if (isSqlConfigured()) {
+        await saveStoreConfigToSql({ adminAuth: db.adminAuth });
+      }
+      saveDatabase();
+      const token = createSessionToken();
+      setAdminSessionCookie(req, res, token);
+      res.json({ token });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Admin setup failed' });
+    }
+  });
+
+  app.post('/api/admin/auth/firebase', async (req, res) => {
+    const bearer = extractBearerToken(req);
+    const idToken = bearer || (typeof req.body?.idToken === 'string' ? req.body.idToken.trim() : '');
+    if (!idToken) {
+      res.status(401).json({ error: 'Google sign-in token is required' });
+      return;
+    }
+
+    try {
+      const decoded = await adminAuth.verifyIdToken(idToken);
+      const email = (decoded.email || '').trim().toLowerCase();
+      const existingUser = isSqlConfigured() ? await getUserByUid(decoded.uid) : null;
+      const storeOwnerEmail = (db.settings.email || '').trim().toLowerCase();
+
+      const isAuthorized =
+        existingUser?.role === 'admin' ||
+        (db.adminOwnerUid && db.adminOwnerUid === decoded.uid) ||
+        (!db.adminOwnerUid && (!db.adminAuth || (email && storeOwnerEmail && email === storeOwnerEmail)));
+
+      if (!isAuthorized) {
+        res.status(403).json({
+          error: 'This Google account does not have store admin access. Sign in with the store owner Google account or admin password.',
+        });
+        return;
+      }
+
+      if (!db.adminOwnerUid) {
+        db.adminOwnerUid = decoded.uid;
+        if (isSqlConfigured()) {
+          await saveStoreConfigToSql({ adminOwnerUid: decoded.uid });
+        }
+        saveDatabase();
+      }
+
+      if (isSqlConfigured()) {
+        await getOrCreateUser(decoded.uid, decoded.email || '', 'admin');
+      }
+
+      const token = createSessionToken();
+      setAdminSessionCookie(req, res, token);
+      res.json({ token, user: { uid: decoded.uid, email: decoded.email || '' } });
+    } catch (err) {
+      console.error('Firebase admin auth failed:', err);
+      res.status(401).json({ error: 'Google sign-in verification failed. Please try again.' });
+    }
   });
 
   app.post('/api/admin/auth/login', (req, res) => {
@@ -1391,7 +1570,7 @@ async function startServer() {
     });
   });
 
-  app.post('/api/admin/products/sync', requireAdmin, (req, res) => {
+  app.post('/api/admin/products/sync', requireAdmin, async (req, res) => {
     const incoming = req.body?.products;
     if (!Array.isArray(incoming)) {
       res.status(400).json({ error: 'Invalid products payload' });
@@ -1423,13 +1602,20 @@ async function startServer() {
         };
       });
 
-    db.products = sanitized;
-    db.catalogModified = true;
-    saveDatabase();
-    res.json({ products: db.products, catalogModified: true });
+    try {
+      if (isSqlConfigured()) {
+        await replaceProductsInSql(sanitized);
+      }
+      db.products = sanitized;
+      db.catalogModified = true;
+      saveDatabase();
+      res.json({ products: db.products, catalogModified: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to sync products' });
+    }
   });
 
-  app.post('/api/admin/products', requireAdmin, (req, res) => {
+  app.post('/api/admin/products', requireAdmin, async (req, res) => {
     const body = req.body || {};
     const {
       title,
@@ -1557,13 +1743,21 @@ async function startServer() {
       featured: Boolean(featured),
       createdAt: new Date().toISOString(),
     };
-    db.products.unshift(product);
-    db.catalogModified = true;
-    saveDatabase();
-    res.status(201).json({ product });
+    try {
+      if (isSqlConfigured()) {
+        await upsertProductToSql(product, 0);
+        await saveStoreConfigToSql({ catalogModified: true });
+      }
+      db.products.unshift(product);
+      db.catalogModified = true;
+      saveDatabase();
+      res.status(201).json({ product });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create product' });
+    }
   });
 
-  app.put('/api/admin/products/:id', requireAdmin, (req, res) => {
+  app.put('/api/admin/products/:id', requireAdmin, async (req, res) => {
     const product = db.products.find((p) => p.id === req.params.id);
     if (!product) {
       res.status(404).json({ error: 'Product not found' });
@@ -1683,24 +1877,40 @@ async function startServer() {
     if (typeof active === 'boolean') product.active = active;
     if (typeof featured === 'boolean') product.featured = featured;
 
-    db.catalogModified = true;
-    saveDatabase();
-    res.json({ product });
+    try {
+      if (isSqlConfigured()) {
+        await upsertProductToSql(product);
+        await saveStoreConfigToSql({ catalogModified: true });
+      }
+      db.catalogModified = true;
+      saveDatabase();
+      res.json({ product });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update product' });
+    }
   });
 
-  app.delete('/api/admin/products/:id', requireAdmin, (req, res) => {
+  app.delete('/api/admin/products/:id', requireAdmin, async (req, res) => {
     const idx = db.products.findIndex((p) => p.id === req.params.id);
     if (idx === -1) {
       res.status(404).json({ error: 'Product not found' });
       return;
     }
-    db.products.splice(idx, 1);
-    db.catalogModified = true;
-    saveDatabase();
-    res.json({ ok: true });
+    try {
+      if (isSqlConfigured()) {
+        await deleteProductFromSql(req.params.id);
+        await saveStoreConfigToSql({ catalogModified: true });
+      }
+      db.products.splice(idx, 1);
+      db.catalogModified = true;
+      saveDatabase();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete product' });
+    }
   });
 
-  app.post('/api/admin/categories', requireAdmin, (req, res) => {
+  app.post('/api/admin/categories', requireAdmin, async (req, res) => {
     const body = req.body || {};
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (name.length < 1) {
@@ -1745,12 +1955,19 @@ async function startServer() {
       image: rawImage,
       shippingClass: typeof body.shippingClass === 'string' ? body.shippingClass.trim() : 'No class',
     };
-    db.categories.push(category);
-    saveDatabase();
-    res.status(201).json({ category });
+    try {
+      if (isSqlConfigured()) {
+        await upsertCategoryToSql(category, db.categories.length);
+      }
+      db.categories.push(category);
+      saveDatabase();
+      res.status(201).json({ category });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create category' });
+    }
   });
 
-  app.put('/api/admin/categories/:id', requireAdmin, (req, res) => {
+  app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
     const category = db.categories.find((c) => c.id === req.params.id);
     if (!category) {
       res.status(404).json({ error: 'Category not found' });
@@ -1798,22 +2015,36 @@ async function startServer() {
       }
       category.image = rawImage;
     }
-    saveDatabase();
-    res.json({ category });
+    try {
+      if (isSqlConfigured()) {
+        await upsertCategoryToSql(category);
+      }
+      saveDatabase();
+      res.json({ category });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update category' });
+    }
   });
 
-  app.delete('/api/admin/categories/:id', requireAdmin, (req, res) => {
+  app.delete('/api/admin/categories/:id', requireAdmin, async (req, res) => {
     const idx = db.categories.findIndex((c) => c.id === req.params.id);
     if (idx === -1) {
       res.status(404).json({ error: 'Category not found' });
       return;
     }
-    db.categories.splice(idx, 1);
-    saveDatabase();
-    res.json({ ok: true });
+    try {
+      if (isSqlConfigured()) {
+        await deleteCategoryFromSql(req.params.id);
+      }
+      db.categories.splice(idx, 1);
+      saveDatabase();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete category' });
+    }
   });
 
-  app.patch('/api/admin/orders/:id', requireAdmin, (req, res) => {
+  app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     const order = db.orders.find((o) => o.id === req.params.id);
     if (!order) {
       res.status(404).json({ error: 'Order not found' });
@@ -1831,15 +2062,22 @@ async function startServer() {
       order.paymentStatus = paymentStatus;
     }
     order.updatedAt = new Date().toISOString();
-    saveDatabase();
-    res.json({ order });
+    try {
+      if (isSqlConfigured()) {
+        await updateOrderInSql(order);
+      }
+      saveDatabase();
+      res.json({ order });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update order' });
+    }
   });
 
-  app.post('/api/admin/pos-order', requireAdmin, (req, res) => {
+  app.post('/api/admin/pos-order', requireAdmin, async (req, res) => {
     try {
       const { customerName, customerPhone, items, paymentMethod = 'cod' } = req.body || {};
       const calc = buildOrderCalculation(items, 'inside_dhaka');
-      const order = finalizeOrder({
+      const order = await finalizeOrder({
         customerName: typeof customerName === 'string' && customerName.trim() ? customerName.trim() : 'Walk-in Customer',
         customerPhone: typeof customerPhone === 'string' && customerPhone.trim() ? customerPhone.trim() : '01700000000',
         customerEmail: '',
@@ -1862,7 +2100,7 @@ async function startServer() {
     }
   });
 
-  app.put('/api/admin/settings', requireAdmin, (req, res) => {
+  app.put('/api/admin/settings', requireAdmin, async (req, res) => {
     const body = req.body || {};
     const s = db.settings;
     const isSafeBrandAsset = (val: unknown): val is string =>
@@ -2000,11 +2238,18 @@ async function startServer() {
         supportAccessEnabled: Boolean(sys.supportAccessEnabled),
       };
     }
-    saveDatabase();
-    res.json({ settings: s });
+    try {
+      if (isSqlConfigured()) {
+        await saveStoreConfigToSql({ settings: s });
+      }
+      saveDatabase();
+      res.json({ settings: s });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save settings' });
+    }
   });
 
-  app.post('/api/admin/coupons', requireAdmin, (req, res) => {
+  app.post('/api/admin/coupons', requireAdmin, async (req, res) => {
     const code = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
     const discountPercent = Number(req.body?.discountPercent);
     if (!code || !Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent > 90) {
@@ -2021,12 +2266,19 @@ async function startServer() {
       discountPercent,
       active: true,
     };
-    db.coupons.unshift(coupon);
-    saveDatabase();
-    res.status(201).json({ coupon });
+    try {
+      if (isSqlConfigured()) {
+        await insertCouponToSql(coupon);
+      }
+      db.coupons.unshift(coupon);
+      saveDatabase();
+      res.status(201).json({ coupon });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create coupon' });
+    }
   });
 
-  app.post('/api/admin/expenses', requireAdmin, (req, res) => {
+  app.post('/api/admin/expenses', requireAdmin, async (req, res) => {
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : '';
     const category = typeof req.body?.category === 'string' && req.body.category.trim() ? req.body.category.trim() : 'Operations';
     const amount = Number(req.body?.amount);
@@ -2047,20 +2299,34 @@ async function startServer() {
       note,
       createdAt: new Date().toISOString(),
     };
-    db.expenses.unshift(expense);
-    saveDatabase();
-    res.status(201).json({ expense });
+    try {
+      if (isSqlConfigured()) {
+        await insertExpenseToSql(expense);
+      }
+      db.expenses.unshift(expense);
+      saveDatabase();
+      res.status(201).json({ expense });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save expense' });
+    }
   });
 
-  app.delete('/api/admin/expenses/:id', requireAdmin, (req, res) => {
+  app.delete('/api/admin/expenses/:id', requireAdmin, async (req, res) => {
     const idx = db.expenses.findIndex((e) => e.id === req.params.id);
     if (idx === -1) {
       res.status(404).json({ error: 'Expense not found' });
       return;
     }
-    db.expenses.splice(idx, 1);
-    saveDatabase();
-    res.json({ ok: true });
+    try {
+      if (isSqlConfigured()) {
+        await deleteExpenseFromSql(req.params.id);
+      }
+      db.expenses.splice(idx, 1);
+      saveDatabase();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete expense' });
+    }
   });
 
   // Vite Dev Middleware or Static Production Build

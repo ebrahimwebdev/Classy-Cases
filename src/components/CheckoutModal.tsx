@@ -21,6 +21,7 @@ import {
   User,
 } from 'lucide-react';
 import { useCart, type CartEntry, type CartOptionTag } from '../context/CartContext';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { formatTaka } from '../models/phoneCase';
 import type { Order, PaymentMethod, Product } from '../types';
 
@@ -141,6 +142,7 @@ export function CheckoutModal({
   onEditItem,
 }: CheckoutModalProps) {
   const { updateQuantity, removeItem } = useCart();
+  const { idToken } = useFirebaseAuth();
 
   const [step, setStep] = useState<'details' | 'gateway' | 'receipt'>('details');
   const [customerName, setCustomerName] = useState('');
@@ -265,9 +267,13 @@ export function CheckoutModal({
     setError('');
     setLoading(true);
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (idToken) {
+        headers.Authorization = `Bearer ${idToken}`;
+      }
       const res = await fetch('/api/checkout/initiate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           customerName,
           customerPhone,
@@ -310,9 +316,13 @@ export function CheckoutModal({
     setError('');
     setLoading(true);
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (idToken) {
+        headers.Authorization = `Bearer ${idToken}`;
+      }
       const res = await fetch('/api/payments/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           paymentSessionId,
           accountNumber: walletNumber,

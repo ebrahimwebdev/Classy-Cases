@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { Storefront } from './components/Storefront';
 import { CartProvider } from './context/CartContext';
+import { FirebaseAuthProvider } from './context/FirebaseAuthContext';
 
 export default function App() {
   const [view, setView] = useState<'storefront' | 'admin'>(() => {
@@ -33,16 +34,18 @@ export default function App() {
   }
 
   return (
-    <CartProvider>
-      {view === 'admin' ? (
-        <AdminDashboard
-          adminToken={adminToken}
-          onAdminTokenChange={setAdminToken}
-          onBackToStore={openStorefront}
-        />
-      ) : (
-        <Storefront onOpenAdmin={openAdmin} />
-      )}
-    </CartProvider>
+    <FirebaseAuthProvider>
+      <CartProvider>
+        {view === 'admin' ? (
+          <AdminDashboard
+            adminToken={adminToken}
+            onAdminTokenChange={setAdminToken}
+            onBackToStore={openStorefront}
+          />
+        ) : (
+          <Storefront onOpenAdmin={openAdmin} />
+        )}
+      </CartProvider>
+    </FirebaseAuthProvider>
   );
 }

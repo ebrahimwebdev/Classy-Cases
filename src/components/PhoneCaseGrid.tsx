@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Heart, ShoppingBag, Smartphone } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Heart, ShoppingBag, Smartphone } from 'lucide-react';
 import { formatTaka, type PhoneCaseProduct } from '../models/phoneCase';
 
 interface PhoneCaseCardProps {
   product: PhoneCaseProduct;
   isWishlisted: boolean;
   onSelectProduct: (product: PhoneCaseProduct) => void;
+  onQuickView?: (product: PhoneCaseProduct) => void;
   onToggleWishlist: (productId: string) => void;
   onAddToCart: (product: PhoneCaseProduct) => void;
 }
@@ -14,6 +15,7 @@ export function PhoneCaseCard({
   product,
   isWishlisted,
   onSelectProduct,
+  onQuickView,
   onToggleWishlist,
   onAddToCart,
 }: PhoneCaseCardProps) {
@@ -41,17 +43,35 @@ export function PhoneCaseCard({
             />
           )}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleWishlist(product.id);
-            }}
-            aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-            className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
-          >
-            <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'}`} />
-          </button>
+          <div className="absolute top-2 right-2 flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleWishlist(product.id);
+              }}
+              title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
+            >
+              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'}`} />
+            </button>
+
+            {onQuickView && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickView(product);
+                }}
+                title="Quick View"
+                aria-label={`Quick view ${product.title}`}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] text-[#650108] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
+              >
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <h3
@@ -100,6 +120,7 @@ interface PhoneCaseGridProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   onSelectProduct: (product: PhoneCaseProduct) => void;
+  onQuickView?: (product: PhoneCaseProduct) => void;
   onToggleWishlist: (productId: string) => void;
   onAddToCart: (product: PhoneCaseProduct) => void;
   onResetFilters: () => void;
@@ -115,6 +136,7 @@ export function PhoneCaseGrid({
   totalPages,
   onPageChange,
   onSelectProduct,
+  onQuickView,
   onToggleWishlist,
   onAddToCart,
   onResetFilters,
@@ -163,6 +185,7 @@ export function PhoneCaseGrid({
             product={product}
             isWishlisted={wishlist.includes(product.id)}
             onSelectProduct={onSelectProduct}
+            onQuickView={onQuickView}
             onToggleWishlist={onToggleWishlist}
             onAddToCart={onAddToCart}
           />

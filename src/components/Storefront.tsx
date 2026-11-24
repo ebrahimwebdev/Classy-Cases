@@ -24,7 +24,6 @@ import {
   type PhoneCaseProduct,
 } from '../models/phoneCase';
 import type { Category, OrderItem, Product } from '../types';
-import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogos';
 import { CartDrawer } from './CartDrawer';
 import { CheckoutModal } from './CheckoutModal';
 import {
@@ -34,8 +33,10 @@ import {
 } from './MyOrdersSection';
 import { PhoneCaseGrid } from './PhoneCaseGrid';
 import { ProductDetailView } from './ProductDetailView';
+import { ProductQuickViewModal } from './ProductQuickViewModal';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
+import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
 import { TrustedBySection } from './TrustedBySection';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { applyDocumentFavicon } from '../utils/branding';
@@ -119,6 +120,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
   // Active sub-views
   const [activeProduct, setActiveProduct] = useState<PhoneCaseProduct | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<PhoneCaseProduct | null>(null);
   const [myOrdersOpen, setMyOrdersOpen] = useState(false);
   const [hasSavedOrders, setHasSavedOrders] = useState(() => getSavedCustomerOrderTokens().length > 0);
 
@@ -332,9 +334,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
                 aria-label="Open menu"
-                className="md:hidden p-2 -ml-2 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors shrink-0 cursor-pointer"
+                className="md:hidden w-8 h-8 -ml-1.5 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors shrink-0 inline-flex items-center justify-center cursor-pointer"
               >
-                <Menu className="w-5 h-5 stroke-[2]" />
+                <Menu className="w-[18px] h-[18px] stroke-[1.75]" />
               </button>
 
               <button
@@ -381,27 +383,27 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               }}
               onSelectCategory={handleQuickSelectCategory}
               suggestions={searchSuggestions}
-              placeholder="Search by case name, category, or phone model..."
+              placeholder="Search products by name, description, or model..."
             />
           </div>
 
           {/* Zone 3: Utility Actions + Admin Portal */}
-          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
             <button
               type="button"
               onClick={openMyOrders}
               title="My Orders & Tracking"
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors relative inline-flex items-center gap-1.5 text-[13px] font-semibold ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-auto lg:px-2.5 rounded-lg transition-colors relative inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold cursor-pointer ${
                 myOrdersOpen
                   ? 'bg-[#650108] text-[#F2E8D2]'
                   : 'text-[#650108] hover:bg-[#650108]/10'
               }`}
               aria-label="My Orders"
             >
-              <Package className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.75]" />
+              <Package className="w-[18px] h-[18px] stroke-[1.75] shrink-0" />
               <span className="hidden lg:inline">My Orders</span>
               {hasSavedOrders && !myOrdersOpen && (
-                <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                <span className="absolute top-1 right-1 lg:static w-2 h-2 rounded-full bg-emerald-600" />
               )}
             </button>
 
@@ -409,12 +411,16 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               type="button"
               onClick={() => setWishlistOpen(true)}
               title="My Favorites"
-              className="p-2 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors relative cursor-pointer"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors relative inline-flex items-center justify-center cursor-pointer"
               aria-label="Open My Favorites"
             >
-              <Heart className={`w-5 h-5 stroke-[1.75] ${wishlistProducts.length > 0 ? 'fill-[#650108] text-[#650108]' : ''}`} />
+              <Heart
+                className={`w-[18px] h-[18px] stroke-[1.75] shrink-0 ${
+                  wishlistProducts.length > 0 ? 'fill-[#650108] text-[#650108]' : ''
+                }`}
+              />
               {wishlistProducts.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#650108] text-[#F2E8D2] text-[10px] font-bold flex items-center justify-center tabular-nums">
+                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
                   {wishlistProducts.length}
                 </span>
               )}
@@ -424,12 +430,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               type="button"
               onClick={openDrawer}
               title="Shopping Bag"
-              className="p-2 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors relative"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg text-[#650108] hover:bg-[#650108]/10 transition-colors relative inline-flex items-center justify-center cursor-pointer"
               aria-label="Open shopping bag"
             >
-              <ShoppingBag className="w-5 h-5 stroke-[1.75]" />
+              <ShoppingBag className="w-[18px] h-[18px] stroke-[1.75] shrink-0" />
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#650108] text-[#F2E8D2] text-[10px] font-bold flex items-center justify-center tabular-nums">
+                <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
                   {cartCount}
                 </span>
               )}
@@ -438,9 +444,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="ml-0.5 sm:ml-1 inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg border border-[#650108]/35 text-[13px] font-semibold text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap shrink-0"
+              title="Store Admin"
+              aria-label="Open Store Admin"
+              className="ml-1 w-8 h-8 sm:w-auto sm:h-9 sm:px-3 rounded-lg border border-[#650108]/35 text-[13px] font-semibold text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <LayoutDashboard className="w-3.5 h-3.5" />
+              <LayoutDashboard className="w-[17px] h-[17px] stroke-[1.75] shrink-0" />
               <span className="hidden sm:inline">Admin</span>
             </button>
           </div>
@@ -464,7 +472,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             }}
             onSelectCategory={handleQuickSelectCategory}
             suggestions={searchSuggestions}
-            placeholder="Search by case name or category..."
+            placeholder="Search by name or description..."
             compact
           />
         </div>
@@ -598,59 +606,24 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           />
         ) : (
           <>
-            {/* Featured Categories */}
-            <section className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-8 sm:pt-10 pb-6 sm:pb-8">
-              <h2 className="text-lg sm:text-2xl font-bold text-[#650108] text-center mb-5 sm:mb-7 tracking-tight">
-                Featured Categories
-              </h2>
-
-              <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center gap-3 sm:gap-5 max-w-md sm:max-w-none mx-auto">
-                {categories
-                  .filter((c) => c.featured !== false)
-                  .map((cat) => {
-                    const isActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedCategory(isActive ? 'All' : cat.name);
-                          setCarouselPage(0);
-                          document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
-                        }}
-                        className="group flex flex-col items-center focus:outline-none w-full sm:w-auto"
-                      >
-                        <div
-                          className={`w-full aspect-square max-w-[112px] sm:w-32 sm:h-32 sm:max-w-none rounded-2xl border bg-[#FFFDF8] flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
-                            isActive ? 'border-[#650108] ring-2 ring-[#650108]' : 'border-[#DFCFB0] group-hover:border-[#650108]/50'
-                          }`}
-                        >
-                          {cat.image && !failedCatImages[cat.id] ? (
-                            <img
-                              key={cat.image}
-                              src={cat.image}
-                              alt={cat.name}
-                              referrerPolicy="no-referrer"
-                              onError={() =>
-                                setFailedCatImages((prev) => ({ ...prev, [cat.id]: true }))
-                              }
-                              className="w-20 h-20 sm:w-24 sm:h-24 object-contain rounded-xl"
-                            />
-                          ) : (
-                            <div className="scale-[0.78] sm:scale-100">
-                              {cat.brandKey === 'motorola' && <MotorolaLogo />}
-                              {cat.brandKey === 'vivo' && <VivoLogo />}
-                              {cat.brandKey === 'xiaomi' && <XiaomiLogo />}
-                              {cat.brandKey === 'custom' && <CustomBrandLogo name={cat.name} />}
-                            </div>
-                          )}
-                        </div>
-                        <span className="mt-2 sm:mt-2.5 text-[13px] font-semibold text-[#650108]">{cat.name}</span>
-                      </button>
-                    );
-                  })}
-              </div>
-            </section>
+            {/* Featured Categories (collapsed during active top search so filtered results appear right away) */}
+            {searchQuery.trim() === '' && (
+              <FeaturedCategoriesSlider
+                categories={categories}
+                selectedCategory={selectedCategory}
+                failedCatImages={failedCatImages}
+                onImageError={(catId) =>
+                  setFailedCatImages((prev) => ({ ...prev, [catId]: true }))
+                }
+                onSelectCategory={(categoryName) => {
+                  setSelectedCategory(categoryName);
+                  setCarouselPage(0);
+                  document
+                    .getElementById('new-arrivals-section')
+                    ?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              />
+            )}
 
             {/* New Arrivals / Catalog Grid */}
             <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-6 pb-16">
@@ -767,7 +740,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     type="search"
                     value={searchQuery}
                     onChange={(e) => handleSearchChange(e.target.value)}
-                    placeholder="Filter by product name or category..."
+                    placeholder="Filter by product name, description, or category..."
                     aria-label="Filter catalog products in real time"
                     className="w-full pl-9 pr-8 py-2 text-xs bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl text-[#2B1416] placeholder:text-[#8E6F70] focus:outline-none focus:border-[#650108] transition-colors [&::-webkit-search-cancel-button]:hidden"
                   />
@@ -797,6 +770,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   setActiveProduct(product);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
+                onQuickView={(product) => setQuickViewProduct(product)}
                 onToggleWishlist={toggleWishlist}
                 onAddToCart={(product) => addToCart(product)}
                 onResetFilters={() => {
@@ -1063,6 +1037,25 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             setActiveProduct(found);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
+        }}
+      />
+
+      <ProductQuickViewModal
+        product={quickViewProduct}
+        isWishlisted={quickViewProduct ? wishlist.includes(quickViewProduct.id) : false}
+        takePreOrders={settings?.takePreOrders}
+        shippingInsideDhaka={settings?.shippingInsideDhaka}
+        shippingOutsideDhaka={settings?.shippingOutsideDhaka}
+        onClose={() => setQuickViewProduct(null)}
+        onAddToCart={(product, model, qty, meta) => {
+          addToCart(product, model, qty, meta);
+          setQuickViewProduct(null);
+        }}
+        onToggleWishlist={toggleWishlist}
+        onOpenFullDetails={(product) => {
+          setQuickViewProduct(null);
+          setActiveProduct(product);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
 

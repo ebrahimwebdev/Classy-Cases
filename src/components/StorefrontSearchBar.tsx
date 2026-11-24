@@ -20,7 +20,7 @@ export function StorefrontSearchBar({
   onSelectProduct,
   onSelectCategory,
   suggestions,
-  placeholder = 'Search by case name, category, or phone model...',
+  placeholder = 'Search cases by name, description, or model...',
   compact = false,
 }: StorefrontSearchBarProps) {
   const [focused, setFocused] = useState(false);
@@ -101,7 +101,7 @@ export function StorefrontSearchBar({
             setFocused(true);
           }}
           placeholder={placeholder}
-          aria-label="Search phone cases by name, category, or model"
+          aria-label="Search products by name, description, category, or model"
           aria-expanded={showSuggestions}
           aria-autocomplete="list"
           className="flex-1 min-w-0 bg-transparent px-3 py-1.5 text-sm text-[#2B1416] placeholder:text-[#8E6F70] focus:outline-none [&::-webkit-search-cancel-button]:hidden"
@@ -187,6 +187,7 @@ export function StorefrontSearchBar({
                         {suggestion.kind === 'Product' && suggestion.category && (
                           <span className="text-[11px] text-[#6B4C4E] block truncate tabular-nums">
                             {suggestion.category} · {formatTaka(suggestion.price ?? 0)}
+                            {suggestion.descriptionSnippet ? ` — ${suggestion.descriptionSnippet}` : ''}
                           </span>
                         )}
                       </span>

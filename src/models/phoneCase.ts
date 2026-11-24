@@ -36,6 +36,11 @@ export function normalizePhoneCaseProduct(raw: Product): PhoneCaseProduct {
   };
 }
 
+function stripHtmlTags(input?: string): string {
+  if (!input) return '';
+  return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 export function matchesPhoneCaseSearch(product: PhoneCaseProduct, query: string): boolean {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
@@ -43,6 +48,8 @@ export function matchesPhoneCaseSearch(product: PhoneCaseProduct, query: string)
   const tokens = normalized.split(/\s+/).filter(Boolean);
   const haystack = [
     product.title,
+    stripHtmlTags(product.shortDescription),
+    stripHtmlTags(product.description),
     product.category,
     product.brand || '',
     ...(product.alsoShowIn || []),
@@ -62,6 +69,7 @@ export interface SearchSuggestion {
   image?: string;
   price?: number;
   category?: string;
+  descriptionSnippet?: string;
 }
 
 export function extractSearchSuggestions(
@@ -73,20 +81,11 @@ export function extractSearchSuggestions(
   const seen = new Set<string>();
   const suggestions: SearchSuggestion[] = [];
 
-  for (const product of products) {
-    const brand = product.category.trim();
-    if (brand && !seen.has(`brand:${brand.toLowerCase()}`)) {
-      if (!q || brand.toLowerCase().includes(q)) {
-        seen.add(`brand:${brand.toLowerCase()}`);
-        suggestions.push({ label: brand, kind: 'Brand' });
-      }
-    }
-  }
-
   if (q) {
     for (const product of products) {
       if (matchesPhoneCaseSearch(product, q) && !seen.has(`product:${product.id}`)) {
         seen.add(`product:${product.id}`);
+        const cleanDesc = stripHtmlTags(product.shortDescription || product.description);
         suggestions.push({
           label: product.title,
           kind: 'Product',
@@ -94,7 +93,18 @@ export function extractSearchSuggestions(
           image: product.image,
           price: product.price,
           category: product.category,
+          descriptionSnippet: cleanDesc ? cleanDesc.slice(0, 80) : undefined,
         });
+      }
+    }
+  }
+
+  for (const product of products) {
+    const brand = product.category.trim();
+    if (brand && !seen.has(`brand:${brand.toLowerCase()}`)) {
+      if (!q || brand.toLowerCase().includes(q)) {
+        seen.add(`brand:${brand.toLowerCase()}`);
+        suggestions.push({ label: brand, kind: 'Brand' });
       }
     }
   }

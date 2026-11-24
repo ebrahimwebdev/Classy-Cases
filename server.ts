@@ -796,7 +796,7 @@ function computeDashboardAnalytics(): DashboardAnalytics {
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(express.json({ limit: '8mb' }));
+  app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -1824,7 +1824,7 @@ async function startServer() {
         val.trim().startsWith('/src/assets/') ||
         val.trim().startsWith('/assets/') ||
         val.trim().startsWith('https://') ||
-        /^data:image\/(png|jpeg|jpg|webp|gif|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
+        /^data:image\/(png|jpeg|jpg|webp|gif|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
           val.trim()
         ));
 

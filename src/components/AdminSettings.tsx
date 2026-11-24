@@ -139,27 +139,66 @@ export function AdminSettings({
     await persistSettings(form);
   }
 
-  function handleBrandFileChange(field: 'logoUrl' | 'faviconUrl', file: File | undefined) {
+  async function handleBrandFileChange(field: 'logoUrl' | 'faviconUrl', file: File | undefined) {
     if (!file) return;
     setErrorBanner('');
-    if (file.size > 2 * 1024 * 1024) {
-      setErrorBanner('Image must be smaller than 2 MB.');
+    const lowerName = file.name.toLowerCase();
+    const isIco = lowerName.endsWith('.ico') || file.type.includes('icon');
+    if ((!file.type.startsWith('image/') && !isIco) || file.type === 'image/svg+xml' || lowerName.endsWith('.svg')) {
+      setErrorBanner('Please upload a PNG, JPG, WEBP, GIF, AVIF, BMP, or ICO image.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return;
-      const nextForm: StoreSettings = { ...form, [field]: reader.result };
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorBanner('Image size must be under 10 MB.');
+      return;
+    }
+    try {
+      const rawDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Could not read the selected image file.'));
+        };
+        reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+        reader.readAsDataURL(file);
+      });
+
+      let finalDataUrl = rawDataUrl;
+      const smallDirectTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon']);
+      if (file.size > 350 * 1024 || (!smallDirectTypes.has(file.type.toLowerCase()) && !isIco)) {
+        finalDataUrl = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = field === 'faviconUrl' ? 256 : 640;
+            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+            const width = Math.max(1, Math.round((img.width || maxDim) * scale));
+            const height = Math.max(1, Math.round((img.height || maxDim) * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(rawDataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/png');
+            resolve(compressed.length < rawDataUrl.length || !smallDirectTypes.has(file.type.toLowerCase()) ? compressed : rawDataUrl);
+          };
+          img.onerror = () => resolve(rawDataUrl);
+          img.src = rawDataUrl;
+        });
+      }
+
+      const nextForm: StoreSettings = { ...form, [field]: finalDataUrl };
       setForm(nextForm);
       void persistSettings(
         nextForm,
         field === 'logoUrl' ? 'Site logo updated and synced.' : 'Favicon updated and synced.'
       );
-    };
-    reader.onerror = () => {
+    } catch {
       setErrorBanner('Could not read the selected image file.');
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   function handleResetBrandAsset(field: 'logoUrl' | 'faviconUrl') {
@@ -548,10 +587,10 @@ export function AdminSettings({
                         <input
                           ref={logoInputRef}
                           type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
                           className="hidden"
                           onChange={(e) => {
-                            handleBrandFileChange('logoUrl', e.target.files?.[0]);
+                            void handleBrandFileChange('logoUrl', e.target.files?.[0]);
                             e.target.value = '';
                           }}
                         />
@@ -619,10 +658,10 @@ export function AdminSettings({
                         <input
                           ref={faviconInputRef}
                           type="file"
-                          accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,.ico"
+                          accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon,.ico"
                           className="hidden"
                           onChange={(e) => {
-                            handleBrandFileChange('faviconUrl', e.target.files?.[0]);
+                            void handleBrandFileChange('faviconUrl', e.target.files?.[0]);
                             e.target.value = '';
                           }}
                         />

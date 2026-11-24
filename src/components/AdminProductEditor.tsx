@@ -259,6 +259,7 @@ export function AdminProductEditor({
   const [addingCategory, setAddingCategory] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState('');
   const [formError, setFormError] = useState('');
+  const [processingImages, setProcessingImages] = useState(0);
 
   const mainFileRef = useRef<HTMLInputElement>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
@@ -278,23 +279,75 @@ export function AdminProductEditor({
     setSku(`${prefix}-${randomCode}`);
   }
 
-  function handleFileRead(file: File, onLoaded: (dataUrl: string) => void) {
-    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
-      setFormError('Please upload a PNG, JPG, or WEBP image.');
+  async function optimizeProductImage(file: File): Promise<string> {
+    const rawDataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') resolve(reader.result);
+        else reject(new Error('Could not read the selected image file.'));
+      };
+      reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+      reader.readAsDataURL(file);
+    });
+
+    const lowerType = file.type.toLowerCase();
+    const directTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+    if (file.size <= 450 * 1024 && directTypes.has(lowerType)) {
+      return rawDataUrl;
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1400;
+        const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+        const width = Math.max(1, Math.round((img.width || maxDim) * scale));
+        const height = Math.max(1, Math.round((img.height || maxDim) * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(rawDataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const outputType = lowerType === 'image/png' ? 'image/webp' : 'image/jpeg';
+        const compressed = canvas.toDataURL(outputType, 0.86);
+        const fallback = compressed.startsWith(`data:${outputType}`)
+          ? compressed
+          : canvas.toDataURL('image/jpeg', 0.86);
+        resolve(fallback.length < rawDataUrl.length || !directTypes.has(lowerType) ? fallback : rawDataUrl);
+      };
+      img.onerror = () => reject(new Error('Unsupported or corrupted image file. Please choose a PNG, JPG, or WEBP file.'));
+      img.src = rawDataUrl;
+    });
+  }
+
+  async function handleFileRead(file: File, onLoaded: (dataUrl: string) => void) {
+    const lowerName = file.name.toLowerCase();
+    if (
+      !file.type.startsWith('image/') ||
+      file.type === 'image/svg+xml' ||
+      lowerName.endsWith('.svg')
+    ) {
+      setFormError('Please upload a PNG, JPG, WEBP, GIF, AVIF, or BMP image.');
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setFormError('Image size must be under 3 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setFormError('Image size must be under 10 MB.');
       return;
     }
     setFormError('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onLoaded(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    setProcessingImages((c) => c + 1);
+    try {
+      const optimized = await optimizeProductImage(file);
+      onLoaded(optimized);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to process selected image.');
+    } finally {
+      setProcessingImages((c) => Math.max(0, c - 1));
+    }
   }
 
   function rebuildVariants(nextOptions: ProductVariantOption[]) {
@@ -391,6 +444,10 @@ export function AdminProductEditor({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError('');
+    if (processingImages > 0) {
+      setFormError('Please wait a moment for image upload to finish.');
+      return;
+    }
     if (name.trim().length < 2) {
       setFormError('Please enter a product name.');
       return;
@@ -452,7 +509,7 @@ export function AdminProductEditor({
     await onSave(payload);
   }
 
-  const canSubmit = name.trim().length >= 2 && !saving;
+  const canSubmit = name.trim().length >= 2 && !saving && processingImages === 0;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 pb-12">
@@ -1365,11 +1422,11 @@ export function AdminProductEditor({
                 <input
                   ref={mainFileRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) handleFileRead(file, setMainImage);
+                    if (file) void handleFileRead(file, setMainImage);
                     e.target.value = '';
                   }}
                 />
@@ -1406,14 +1463,14 @@ export function AdminProductEditor({
                     onDrop={(e) => {
                       e.preventDefault();
                       const file = e.dataTransfer.files?.[0];
-                      if (file) handleFileRead(file, setMainImage);
+                      if (file) void handleFileRead(file, setMainImage);
                     }}
                     className="border-2 border-dashed border-slate-200 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
                   >
                     <ImageIcon className="w-6 h-6 text-slate-400 mx-auto mb-2" />
                     <p className="text-xs font-semibold text-slate-700">Add main photo</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Drag &amp; drop or click to upload
+                      Drag &amp; drop or click to upload (under 10 MB)
                     </p>
                   </div>
                 )}
@@ -1428,7 +1485,7 @@ export function AdminProductEditor({
                 <input
                   ref={galleryFileRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp"
                   multiple
                   className="hidden"
                   onChange={(e) => {
@@ -1437,7 +1494,7 @@ export function AdminProductEditor({
                       Math.max(0, 4 - galleryImages.length)
                     );
                     files.forEach((f) =>
-                      handleFileRead(f, (url) =>
+                      void handleFileRead(f, (url) =>
                         setGalleryImages((prev) =>
                           prev.length < 4 ? [...prev, url] : prev
                         )
@@ -1497,7 +1554,7 @@ export function AdminProductEditor({
                     <ImageIcon className="w-6 h-6 text-slate-400 mx-auto mb-2" />
                     <p className="text-xs font-semibold text-slate-700">Add to gallery</p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Drag &amp; drop or click to upload
+                      Drag &amp; drop or click to upload (under 10 MB)
                     </p>
                   </div>
                 )}

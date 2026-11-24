@@ -181,12 +181,15 @@ export function StorefrontSearchBar({
                         <Smartphone className="w-3.5 h-3.5 text-[#650108] shrink-0" />
                       )}
                       <span className="min-w-0">
-                        <span className="font-semibold text-[#2B1416] block truncate">
+                        <span className="font-medium text-[#2B1416] block truncate">
                           {suggestion.label}
                         </span>
                         {suggestion.kind === 'Product' && suggestion.category && (
-                          <span className="text-[11px] text-[#6B4C4E] block truncate tabular-nums">
-                            {suggestion.category} · {formatTaka(suggestion.price ?? 0)}
+                          <span className="text-[11px] font-normal text-[#6B4C4E] block truncate tabular-nums">
+                            {suggestion.category} ·{' '}
+                            <span className="font-bold text-[#650108]">
+                              {formatTaka(suggestion.price ?? 0)}
+                            </span>
                             {suggestion.descriptionSnippet ? ` — ${suggestion.descriptionSnippet}` : ''}
                           </span>
                         )}

@@ -375,7 +375,7 @@ export function CheckoutModal({
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#650108] tracking-tight">
+          <h1 className="font-brand text-2xl sm:text-3xl font-semibold text-[#650108] tracking-tight">
             Checkout
           </h1>
         </div>
@@ -454,7 +454,7 @@ export function CheckoutModal({
                 <span className="w-6 h-6 rounded-full bg-[#650108] text-[#F2E8D2] text-xs font-bold flex items-center justify-center shrink-0">
                   1
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-[#650108]">
+                <h2 className="font-brand text-lg font-semibold text-[#650108]">
                   Contact &amp; address
                 </h2>
               </div>
@@ -605,7 +605,7 @@ export function CheckoutModal({
                 <span className="w-6 h-6 rounded-full bg-[#650108] text-[#F2E8D2] text-xs font-bold flex items-center justify-center shrink-0">
                   2
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-[#650108]">
+                <h2 className="font-brand text-lg font-semibold text-[#650108]">
                   Delivery Zone
                 </h2>
               </div>
@@ -671,7 +671,7 @@ export function CheckoutModal({
                 <span className="w-6 h-6 rounded-full bg-[#650108] text-[#F2E8D2] text-xs font-bold flex items-center justify-center shrink-0">
                   3
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-[#650108]">
+                <h2 className="font-brand text-lg font-semibold text-[#650108]">
                   Payment method
                 </h2>
               </div>
@@ -813,7 +813,7 @@ export function CheckoutModal({
             <div className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] p-5 sm:p-6 space-y-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base sm:text-lg font-bold text-[#650108]">Your order</h2>
+                  <h2 className="font-brand text-lg font-semibold text-[#650108]">Your order</h2>
                   <span className="w-6 h-6 rounded-full bg-[#F2E8D2] text-[#650108] text-xs font-semibold flex items-center justify-center tabular-nums">
                     {totalUnits}
                   </span>
@@ -854,7 +854,7 @@ export function CheckoutModal({
                       >
                         <div className="flex items-center gap-3">
                           <CheckoutThumb src={item.image} alt={item.title} />
-                          <p className="text-sm font-semibold text-[#2B1416] line-clamp-2 leading-snug flex-1">
+                          <p className="text-sm font-medium text-[#2B1416] line-clamp-2 leading-snug flex-1">
                             {item.title}
                           </p>
                         </div>
@@ -906,7 +906,7 @@ export function CheckoutModal({
 
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2.5">
-                              <span className="text-sm text-[#6B4C4E] tabular-nums">
+                              <span className="text-sm font-bold text-[#6B4C4E] tabular-nums">
                                 {formatTaka(item.price)}
                               </span>
                               <div className="inline-flex items-center border border-[#DFCFB0] bg-[#FAF4E6] rounded-xl h-8">
@@ -961,7 +961,7 @@ export function CheckoutModal({
 
             {/* Order summary card */}
             <div className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] p-5 sm:p-6 space-y-4">
-              <h2 className="text-base sm:text-lg font-bold text-[#650108]">Order summary</h2>
+              <h2 className="font-brand text-lg font-semibold text-[#650108]">Order summary</h2>
 
               {/* Coupon Toggle */}
               <div className="space-y-2.5">
@@ -1274,7 +1274,7 @@ export function CheckoutModal({
             <CheckCircle2 className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-[#650108]">
+            <h2 className="font-brand text-xl sm:text-2xl font-semibold text-[#650108]">
               Order #{completedOrder.orderNumber} Confirmed
             </h2>
             <p className="text-sm text-[#6B4C4E] mt-1.5">
@@ -1295,7 +1295,7 @@ export function CheckoutModal({
             </div>
             <div className="flex justify-between">
               <span className="text-[#6B4C4E]">Payment Method</span>
-              <span className="uppercase font-medium text-[#2B1416]">
+              <span className="uppercase tracking-[1.5px] font-medium text-[#2B1416]">
                 {completedOrder.paymentMethod}
               </span>
             </div>

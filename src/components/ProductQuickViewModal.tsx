@@ -294,7 +294,7 @@ export function ProductQuickViewModal({
               <div>
                 <h2
                   id="quick-view-title"
-                  className="text-xl sm:text-2xl font-bold text-[#2B1416] leading-snug tracking-tight"
+                  className="text-xl sm:text-2xl font-medium text-[#2B1416] leading-snug tracking-tight"
                 >
                   {product.title}
                 </h2>
@@ -332,7 +332,7 @@ export function ProductQuickViewModal({
                   {optionGroups.map((group) => (
                     <div key={group.name} className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-[#2B1416] uppercase tracking-wider">
+                        <span className="font-semibold text-[#2B1416] uppercase tracking-[1.6px]">
                           {group.name}
                         </span>
                         {selectedOptions[group.name] && (
@@ -424,7 +424,7 @@ export function ProductQuickViewModal({
               {/* Detailed Specifications Table */}
               <div className="border border-[#DFCFB0] rounded-xl bg-[#FAF4E6]/65 overflow-hidden">
                 <div className="px-4 py-2.5 bg-[#FAF4E6] border-b border-[#DFCFB0] flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#650108]">
+                  <h3 className="text-xs font-semibold uppercase tracking-[1.6px] text-[#650108]">
                     Detailed Specifications
                   </h3>
                   <button

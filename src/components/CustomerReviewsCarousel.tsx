@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Package,
   Star,
 } from 'lucide-react';
@@ -69,12 +67,10 @@ function formatShortDate(iso: string): string {
 export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCarouselProps) {
   const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [ratingFilter, setRatingFilter] = useState<'all' | '5' | '4'>('all');
   const [isDragging, setIsDragging] = useState(false);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef(0);
-  const nudgeRemainingRef = useRef(0);
   const draggingRef = useRef(false);
   const dragMovedRef = useRef(false);
   const dragStartXRef = useRef(0);
@@ -98,12 +94,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     return () => controller.abort();
   }, []);
 
-  const filteredReviews = useMemo(() => {
-    const list = payload?.reviews || [];
-    if (ratingFilter === '5') return list.filter((r) => r.rating === 5);
-    if (ratingFilter === '4') return list.filter((r) => r.rating >= 4);
-    return list;
-  }, [payload?.reviews, ratingFilter]);
+  const filteredReviews = useMemo(() => payload?.reviews || [], [payload?.reviews]);
 
   const baseLoopSet = useMemo(() => {
     if (filteredReviews.length <= 1) return filteredReviews;
@@ -125,11 +116,10 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
 
   useEffect(() => {
     offsetRef.current = 0;
-    nudgeRemainingRef.current = 0;
     if (trackRef.current) {
       trackRef.current.style.transform = 'translate3d(0px, 0, 0)';
     }
-  }, [ratingFilter, filteredReviews.length]);
+  }, [filteredReviews.length]);
 
   useEffect(() => {
     if (!shouldSlide) return;
@@ -148,14 +138,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
         if (halfWidth > 0) {
           if (!draggingRef.current) {
             offsetRef.current += speedPxPerSec * dt;
-
-            if (Math.abs(nudgeRemainingRef.current) > 0.5) {
-              const step = nudgeRemainingRef.current * Math.min(1, dt * 10);
-              offsetRef.current += step;
-              nudgeRemainingRef.current -= step;
-            } else {
-              nudgeRemainingRef.current = 0;
-            }
           }
 
           offsetRef.current = ((offsetRef.current % halfWidth) + halfWidth) % halfWidth;
@@ -169,21 +151,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     rafId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(rafId);
   }, [shouldSlide, repeatedReviews.length]);
-
-  function getCardStepWidth(): number {
-    const firstCard = trackRef.current?.firstElementChild as HTMLElement | null;
-    return firstCard ? firstCard.getBoundingClientRect().width : 360;
-  }
-
-  function handlePrev() {
-    if (!shouldSlide) return;
-    nudgeRemainingRef.current -= getCardStepWidth();
-  }
-
-  function handleNext() {
-    if (!shouldSlide) return;
-    nudgeRemainingRef.current += getCardStepWidth();
-  }
 
   if (loading) {
     return (
@@ -213,10 +180,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
   return (
     <section
       aria-labelledby="customer-reviews-heading"
-      onKeyDown={(e) => {
-        if (e.key === 'ArrowLeft') handlePrev();
-        if (e.key === 'ArrowRight') handleNext();
-      }}
       className="border-t border-[#DFCFB0] bg-[#EAE0C8]/65 py-12 sm:py-16 space-y-7"
     >
       <div className="max-w-[1180px] mx-auto px-4 sm:px-8">
@@ -225,7 +188,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
           <div className="space-y-2">
             <h2
               id="customer-reviews-heading"
-              className="text-xl sm:text-2xl font-bold text-[#650108] tracking-tight [text-wrap:balance]"
+              className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight [text-wrap:balance]"
             >
               Customer Reviews
             </h2>
@@ -256,58 +219,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
               </span>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3">
-            {/* Segmented Filter Control */}
-            <div
-              role="group"
-              aria-label="Filter customer reviews by rating"
-              className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#DFCFB0]/75"
-            >
-              {(
-                [
-                  { id: 'all', label: 'All reviews' },
-                  { id: '5', label: '5 Stars' },
-                  { id: '4', label: '4+ Stars' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setRatingFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    ratingFilter === tab.id
-                      ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
-                      : 'text-[#6B4C4E] hover:text-[#650108]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Prev / Next Nudge Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handlePrev}
-                disabled={!shouldSlide}
-                aria-label="Scroll reviews left"
-                className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={!shouldSlide}
-                aria-label="Scroll reviews right"
-                className="w-10 h-10 rounded-xl border border-[#C9B38D] bg-[#FFFDF8] text-[#650108] flex items-center justify-center hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -332,7 +243,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
               setIsDragging(true);
               dragStartXRef.current = e.clientX;
               dragStartOffsetRef.current = offsetRef.current;
-              nudgeRemainingRef.current = 0;
               e.currentTarget.setPointerCapture(e.pointerId);
             }}
             onPointerMove={(e) => {
@@ -351,16 +261,6 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
               draggingRef.current = false;
               setIsDragging(false);
             }}
-            style={
-              shouldSlide
-                ? {
-                    maskImage:
-                      'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.45) clamp(12px, 2.5vw, 32px), black clamp(32px, 6vw, 80px), black calc(100% - clamp(32px, 6vw, 80px)), rgba(0, 0, 0, 0.45) calc(100% - clamp(12px, 2.5vw, 32px)), transparent 100%)',
-                    WebkitMaskImage:
-                      'linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.45) clamp(12px, 2.5vw, 32px), black clamp(32px, 6vw, 80px), black calc(100% - clamp(32px, 6vw, 80px)), rgba(0, 0, 0, 0.45) calc(100% - clamp(12px, 2.5vw, 32px)), transparent 100%)',
-                  }
-                : undefined
-            }
             className={`relative overflow-hidden py-1 -my-1 select-none touch-pan-y ${
               shouldSlide ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
             }`}
@@ -449,11 +349,11 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
                       >
                         <ReviewThumbnail src={review.productImage} alt={review.productTitle} />
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108]">
+                          <div className="text-xs font-medium text-[#2B1416] truncate group-hover:text-[#650108]">
                             {review.productTitle}
                           </div>
-                          <div className="text-xs font-medium text-[#6B4C4E] tabular-nums mt-0.5">
-                            {formatTaka(review.productPrice)} · View case
+                          <div className="text-xs font-normal text-[#6B4C4E] tabular-nums mt-0.5">
+                            <span className="font-bold text-[#650108]">{formatTaka(review.productPrice)}</span> · View case
                           </div>
                         </div>
                       </button>

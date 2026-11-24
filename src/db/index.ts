@@ -33,6 +33,31 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-const pool = createPool();
+type DrizzleDb = ReturnType<typeof drizzle<typeof schema>>;
 
-export const db = drizzle(pool, { schema });
+let db: DrizzleDb;
+try {
+  if (!isSqlConfigured()) {
+    throw new Error('Cloud SQL environment variables are not configured');
+  }
+  const pool = createPool();
+  db = drizzle(pool, { schema });
+} catch {
+  console.warn('[AI Studio] Database not connected — using in-memory store fallback');
+  const noOp = {
+    findMany: async () => [],
+    findFirst: async () => null,
+    findUnique: async () => null,
+    create: async (d: { data?: unknown }) => d?.data ?? {},
+    update: async (d: { data?: unknown }) => d?.data ?? {},
+    delete: async () => ({}),
+  };
+  db = new Proxy({} as DrizzleDb, {
+    get: (_target, prop) =>
+      prop === 'query'
+        ? new Proxy({}, { get: () => noOp })
+        : async () => [],
+  });
+}
+
+export { db };

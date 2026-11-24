@@ -16,6 +16,7 @@ import {
 import type { AddCartItemMeta } from '../context/CartContext';
 import { formatTaka, type PhoneCaseProduct } from '../models/phoneCase';
 import { PhoneCaseCard } from './PhoneCaseGrid';
+import { MobileHorizontalTrack, MOBILE_SLIDE_CARD_CLASS } from './MobileHorizontalTrack';
 import { Reviews } from './Reviews';
 
 interface ProductDetailViewProps {
@@ -240,7 +241,7 @@ export function ProductDetailView({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#6B4C4E] hover:text-[#650108] transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#6B4C4E] hover:text-[#650108] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to {product.category} &amp; All Cases</span>
@@ -314,15 +315,15 @@ export function ProductDetailView({
           {/* Right: Title, Price, Variants, Actions, Help Card */}
           <div className="lg:col-span-6 space-y-5 bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-5 sm:p-7 shadow-xs">
             <div>
-              <span className="inline-block px-2.5 py-1 rounded-md bg-[#F2E8D2] text-[#650108] text-xs font-bold uppercase tracking-wider">
+              <span className="inline-block px-2.5 py-1 rounded-md bg-[#F2E8D2] text-[#650108] text-[11px] font-semibold uppercase tracking-[1.6px]">
                 {product.category}
               </span>
-              <h1 className="text-2xl sm:text-[28px] font-bold text-[#2B1416] leading-snug mt-3">
+              <h1 className="text-2xl sm:text-[28px] font-medium text-[#2B1416] leading-snug mt-3">
                 {product.title}
               </h1>
 
               <div className="flex items-center gap-3 mt-4 flex-wrap">
-                <span className="text-3xl font-black text-[#650108] tabular-nums">
+                <span className="text-3xl font-bold text-[#650108] tabular-nums">
                   {formatTaka(displayPrice)}
                 </span>
                 {displayOriginalPrice > displayPrice && (
@@ -374,10 +375,10 @@ export function ProductDetailView({
                                   }));
                                   setSelectionError('');
                                 }}
-                                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                                className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                                   isSelected
-                                    ? 'border-[#650108] bg-[#650108] text-[#F2E8D2] font-semibold'
-                                    : 'border-[#DFCFB0] bg-[#FAF4E6] text-[#2B1416] font-medium hover:border-[#650108]'
+                                    ? 'border-[#650108] bg-[#650108] text-[#F2E8D2]'
+                                    : 'border-[#DFCFB0] bg-[#FAF4E6] text-[#2B1416] hover:border-[#650108]'
                                 }`}
                               >
                                 {val}
@@ -615,21 +616,22 @@ export function ProductDetailView({
         {/* "You may also like" 4-Card Section */}
         {relatedProducts.length > 0 && (
           <section className="pt-4 space-y-7">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#650108] text-center tracking-tight">
+            <h2 className="font-brand text-2xl sm:text-3xl font-semibold text-[#650108] text-center tracking-tight">
               You may also like
             </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+            <MobileHorizontalTrack className="sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-5 sm:overflow-visible sm:pb-0">
               {relatedProducts.map((rel) => (
                 <PhoneCaseCard
                   key={rel.id}
                   product={rel}
                   isWishlisted={wishlist.includes(rel.id)}
+                  className={MOBILE_SLIDE_CARD_CLASS}
                   onSelectProduct={onSelectProduct}
                   onToggleWishlist={onToggleWishlist}
                   onAddToCart={(p) => onAddToCart(p)}
                 />
               ))}
-            </div>
+            </MobileHorizontalTrack>
           </section>
         )}
       </div>

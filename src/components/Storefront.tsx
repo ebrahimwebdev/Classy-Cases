@@ -35,8 +35,11 @@ import { PhoneCaseGrid } from './PhoneCaseGrid';
 import { ProductDetailView } from './ProductDetailView';
 import { ProductQuickViewModal } from './ProductQuickViewModal';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
+import { CatalogShowcaseSections } from './CatalogShowcaseSections';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
+import { HeroBanner } from './HeroBanner';
+import { TrustHighlights } from './TrustHighlights';
 import { TrustedBySection } from './TrustedBySection';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { applyDocumentFavicon } from '../utils/branding';
@@ -192,15 +195,31 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function applyCategorySelection(nextCategory: string) {
+    setSelectedCategory(nextCategory);
+    setCarouselPage(0);
+  }
+
+  function resetAllFilters() {
+    setSelectedCategory('All');
+    setSearchQuery('');
+    setViewAll(false);
+    setCarouselPage(0);
+  }
+
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    const filtered = products.filter((p) => {
       const matchesCategory =
         selectedCategory === 'All' ||
         p.category.toLowerCase() === selectedCategory.toLowerCase() ||
         (p.alsoShowIn || []).some((c) => c.toLowerCase() === selectedCategory.toLowerCase());
       return matchesCategory && matchesPhoneCaseSearch(p, searchQuery);
     });
+
+    return [...filtered].sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)));
   }, [products, selectedCategory, searchQuery]);
+
+  const hasActiveFilters = selectedCategory !== 'All' || searchQuery.trim() !== '';
 
   const searchSuggestions = useMemo(
     () => extractSearchSuggestions(products, searchQuery, 8),
@@ -221,8 +240,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     setCheckoutOpen(false);
     setActiveProduct(null);
     setMyOrdersOpen(false);
-    setSelectedCategory(categoryName);
-    setCarouselPage(0);
+    applyCategorySelection(categoryName);
     setTimeout(() => {
       document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 30);
@@ -242,7 +260,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const safePage = Math.min(carouselPage, totalPages - 1);
   const displayedProducts =
-    viewAll || selectedCategory !== 'All' || searchQuery.trim() !== ''
+    viewAll || hasActiveFilters
       ? filteredProducts
       : filteredProducts.slice(safePage * pageSize, safePage * pageSize + pageSize);
 
@@ -325,8 +343,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       )}
 
       {/* Top Navigation Header */}
-      <header className="bg-[#FAF4E6] border-b border-[#DFCFB0] relative z-30">
-        <div className="sticky top-0 z-30 bg-[#FAF4E6] border-b border-[#E6D9BE] md:border-b-0">
+      <header className="bg-[#FAF4E6] relative z-30">
+        <div className="sticky top-0 z-30 bg-[#FAF4E6] border-b border-[#E6D9BE]">
           <div className="max-w-[1180px] mx-auto px-4 sm:px-8 min-h-14 sm:min-h-[76px] py-2 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-8">
             {/* Zone 1: Mobile Menu Icon + Brand Wordmark */}
             <div className="flex items-center gap-1.5 sm:gap-0 min-w-0">
@@ -345,12 +363,10 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   setCheckoutOpen(false);
                   setActiveProduct(null);
                   setMyOrdersOpen(false);
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                  setViewAll(false);
+                  resetAllFilters();
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="font-brand text-xl sm:text-[26px] font-black tracking-tight text-[#650108] whitespace-nowrap shrink-0 cursor-pointer flex items-center"
+                className="font-brand text-xl sm:text-[26px] font-semibold tracking-tight text-[#650108] whitespace-nowrap shrink-0 cursor-pointer flex items-center"
               >
                 {settings?.logoUrl && !logoImgFailed ? (
                   <img
@@ -393,7 +409,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               type="button"
               onClick={openMyOrders}
               title="My Orders & Tracking"
-              className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-auto lg:px-2.5 rounded-lg transition-colors relative inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold cursor-pointer ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-auto lg:px-2.5 rounded-lg transition-colors relative inline-flex items-center justify-center gap-1.5 text-[13px] font-medium cursor-pointer ${
                 myOrdersOpen
                   ? 'bg-[#650108] text-[#F2E8D2]'
                   : 'text-[#650108] hover:bg-[#650108]/10'
@@ -456,7 +472,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         </div>
 
         {/* Mobile search row */}
-        <div className="md:hidden px-4 pt-2.5 pb-3.5 bg-[#FAF4E6]">
+        <div className="md:hidden px-4 pt-2.5 pb-3.5 bg-[#FAF4E6] border-b border-[#E6D9BE]">
           <StorefrontSearchBar
             value={searchQuery}
             onChange={handleSearchChange}
@@ -476,50 +492,6 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             compact
           />
         </div>
-
-        {/* Solid Maroon Category Strip */}
-        <nav className="bg-[#650108] text-[#F2E8D2] border-t border-[#4D0106]">
-          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 h-11 flex items-center justify-start sm:justify-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar">
-            <button
-              type="button"
-              onClick={() => {
-                setCheckoutOpen(false);
-                setActiveProduct(null);
-                setMyOrdersOpen(false);
-                setSelectedCategory('All');
-                setCarouselPage(0);
-              }}
-              className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
-                selectedCategory === 'All' && !myOrdersOpen && !checkoutOpen ? 'text-[#FFFFFF] font-semibold' : 'text-[#F2E8D2]/80 hover:text-white'
-              }`}
-            >
-              All categories
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  setCheckoutOpen(false);
-                  setActiveProduct(null);
-                  setMyOrdersOpen(false);
-                  setSelectedCategory(cat.name);
-                  setCarouselPage(0);
-                  setTimeout(() => {
-                    document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }, 30);
-                }}
-                className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
-                  !myOrdersOpen && !checkoutOpen && selectedCategory.toLowerCase() === cat.name.toLowerCase()
-                    ? 'text-[#FFFFFF] font-semibold'
-                    : 'text-[#F2E8D2]/80 hover:text-white'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </nav>
       </header>
 
       {/* Main Content */}
@@ -606,6 +578,30 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           />
         ) : (
           <>
+            {/* Premium Hero Banner & Trust Section (collapsed during active top search so filtered results appear right away) */}
+            {searchQuery.trim() === '' && (
+              <>
+                <HeroBanner
+                  products={products}
+                  onShopNow={(categoryName) => {
+                    applyCategorySelection(categoryName || 'All');
+                    document
+                      .getElementById('new-arrivals-section')
+                      ?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  onInspectProduct={(product) => {
+                    setActiveProduct(product);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                />
+                <TrustHighlights
+                  shippingInsideDhaka={settings?.shippingInsideDhaka}
+                  shippingOutsideDhaka={settings?.shippingOutsideDhaka}
+                  freeShippingThreshold={settings?.freeShippingThreshold}
+                />
+              </>
+            )}
+
             {/* Featured Categories (collapsed during active top search so filtered results appear right away) */}
             {searchQuery.trim() === '' && (
               <FeaturedCategoriesSlider
@@ -616,8 +612,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   setFailedCatImages((prev) => ({ ...prev, [catId]: true }))
                 }
                 onSelectCategory={(categoryName) => {
-                  setSelectedCategory(categoryName);
-                  setCarouselPage(0);
+                  applyCategorySelection(categoryName);
                   document
                     .getElementById('new-arrivals-section')
                     ?.scrollIntoView({ behavior: 'smooth' });
@@ -625,23 +620,47 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               />
             )}
 
-            {/* New Arrivals / Catalog Grid */}
-            <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-6 pb-16">
+            {/* Bestselling & Brand-Tabbed Phone Cases Showcase Rows */}
+            {searchQuery.trim() === '' && (
+              <CatalogShowcaseSections
+                products={products}
+                categories={categories}
+                wishlist={wishlist}
+                loading={loading}
+                onSelectProduct={(product) => {
+                  setActiveProduct(product);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onQuickView={(product) => setQuickViewProduct(product)}
+                onToggleWishlist={toggleWishlist}
+                onAddToCart={(product) => addToCart(product)}
+                onViewAll={(categoryName) => {
+                  applyCategorySelection(categoryName || 'All');
+                  setViewAll(true);
+                  document
+                    .getElementById('new-arrivals-section')
+                    ?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              />
+            )}
+
+            {/* Explore More Products / Full Filterable Catalog */}
+            <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-8 pb-16">
               <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-[#650108] tracking-tight">
+                  <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
                     {searchQuery.trim() !== ''
                       ? selectedCategory === 'All'
                         ? `Results for "${searchQuery.trim()}"`
                         : `${selectedCategory} Cases matching "${searchQuery.trim()}"`
                       : selectedCategory === 'All'
-                        ? 'New Arrivals'
+                        ? 'Explore More Products'
                         : `${selectedCategory} Cases`}
                   </h2>
-                  <div className="flex items-center gap-3 mt-1.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                     <div className="w-10 h-[3px] bg-[#650108]" />
-                    {(searchQuery.trim() !== '' || selectedCategory !== 'All') && (
-                      <span className="text-xs text-[#6B4C4E] tabular-nums">
+                    {hasActiveFilters && (
+                      <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
                         {filteredProducts.length} {filteredProducts.length === 1 ? 'case' : 'cases'} found
                       </span>
                     )}
@@ -652,106 +671,29 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   {selectedCategory !== 'All' && searchQuery.trim() !== '' && (
                     <button
                       type="button"
-                      onClick={() => setSelectedCategory('All')}
-                      className="text-[13px] font-medium text-[#650108]/80 hover:text-[#650108] underline underline-offset-4 whitespace-nowrap cursor-pointer"
+                      onClick={() => applyCategorySelection('All')}
+                      className="text-[13px] font-semibold text-[#650108]/80 hover:text-[#650108] underline underline-offset-4 whitespace-nowrap cursor-pointer"
                     >
                       Search all brands
                     </button>
                   )}
-                  {(selectedCategory !== 'All' || searchQuery.trim() !== '') && (
+                  {hasActiveFilters && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedCategory('All');
-                        setSearchQuery('');
-                        setViewAll(false);
-                      }}
-                      className="text-[13px] font-medium text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
+                      onClick={resetAllFilters}
+                      className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
                     >
-                      Reset filter
+                      Reset filters
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setViewAll((v) => !v)}
-                    className="text-xs font-semibold tracking-wider uppercase text-[#650108] underline underline-offset-4 inline-flex items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
-                  >
-                    <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Real-time Name & Category Filter Toolbar */}
-              <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div
-                  role="tablist"
-                  aria-label="Filter products by category"
-                  className="inline-flex items-center gap-1 p-1 rounded-xl bg-[#E4D5B7] overflow-x-auto no-scrollbar max-w-full"
-                >
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={selectedCategory === 'All'}
-                    onClick={() => {
-                      setSelectedCategory('All');
-                      setCarouselPage(0);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                      selectedCategory === 'All'
-                        ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
-                        : 'text-[#5A2D30] hover:text-[#650108]'
-                    }`}
-                  >
-                    All ({products.length})
-                  </button>
-                  {categories.map((cat) => {
-                    const catActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
-                    const catCount = products.filter(
-                      (p) =>
-                        p.category.toLowerCase() === cat.name.toLowerCase() ||
-                        (p.alsoShowIn || []).some((c) => c.toLowerCase() === cat.name.toLowerCase())
-                    ).length;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        role="tab"
-                        aria-selected={catActive}
-                        onClick={() => {
-                          setSelectedCategory(catActive ? 'All' : cat.name);
-                          setCarouselPage(0);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors tabular-nums cursor-pointer ${
-                          catActive
-                            ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
-                            : 'text-[#5A2D30] hover:text-[#650108]'
-                        }`}
-                      >
-                        {cat.name} ({catCount})
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-[#650108]/50 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    onChange={(e) => handleSearchChange(e.target.value)}
-                    placeholder="Filter by product name, description, or category..."
-                    aria-label="Filter catalog products in real time"
-                    className="w-full pl-9 pr-8 py-2 text-xs bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl text-[#2B1416] placeholder:text-[#8E6F70] focus:outline-none focus:border-[#650108] transition-colors [&::-webkit-search-cancel-button]:hidden"
-                  />
-                  {searchQuery.trim() !== '' && (
+                  {!hasActiveFilters && (
                     <button
                       type="button"
-                      onClick={() => handleSearchChange('')}
-                      aria-label="Clear filter"
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8E6F70] hover:text-[#650108] cursor-pointer"
+                      onClick={() => setViewAll((v) => !v)}
+                      className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] underline underline-offset-4 items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -759,10 +701,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
               <PhoneCaseGrid
                 products={displayedProducts}
+                mobileProducts={filteredProducts}
                 loading={loading}
                 wishlist={wishlist}
                 searchQuery={searchQuery}
-                showCarouselControls={!viewAll && selectedCategory === 'All' && searchQuery.trim() === ''}
+                showCarouselControls={!viewAll && !hasActiveFilters}
                 currentPage={safePage}
                 totalPages={totalPages}
                 onPageChange={setCarouselPage}
@@ -773,11 +716,21 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 onQuickView={(product) => setQuickViewProduct(product)}
                 onToggleWishlist={toggleWishlist}
                 onAddToCart={(product) => addToCart(product)}
-                onResetFilters={() => {
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                }}
+                onResetFilters={resetAllFilters}
               />
+
+              {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setViewAll(true)}
+                    className="px-6 py-3 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
+                  >
+                    <span>Explore More Products</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </section>
 
             {/* Customer Reviews Carousel */}
@@ -804,7 +757,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           {/* Column 1 */}
           <div className="space-y-3">
-            <div className="font-brand text-2xl font-black text-[#F2E8D2]">
+            <div className="font-brand text-2xl font-semibold text-[#F2E8D2]">
               {settings?.logoUrl && !logoImgFailed ? (
                 <img
                   src={settings.logoUrl}
@@ -844,7 +797,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
           {/* Column 2: Help */}
           <div>
-            <h3 className="text-base font-semibold text-[#F2E8D2] mb-3.5">Help</h3>
+            <h3 className="font-brand text-lg font-semibold text-[#F2E8D2] mb-3.5">Help</h3>
             <ul className="space-y-2.5 text-[13px] sm:text-sm text-[#F2E8D2]/80">
               <li>
                 <button type="button" onClick={openMyOrders} className="hover:text-white font-medium text-[#F2E8D2]">
@@ -860,7 +813,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       content: `Inside Dhaka delivery is ৳${settings?.shippingInsideDhaka ?? 60} (24–48 hours). Outside Dhaka courier delivery is ৳${settings?.shippingOutsideDhaka ?? 120} (2–4 business days). Free shipping on orders over ৳${settings?.freeShippingThreshold ?? 1500}.`,
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   Shipping
                 </button>
@@ -875,7 +828,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         '7-day hassle-free exchange if the case does not fit your phone model or arrives damaged. Contact us with your Order Number to arrange a replacement.',
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   Returns & Exchanges
                 </button>
@@ -889,7 +842,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       content: `Phone: ${settings?.phone || '01799576210'} | Email: ${settings?.email || 'mdebrahim.contact@gmail.com'} | Address: ${settings?.address || 'Tilapara, Ekuria, Dhaka Jute Mills'}`,
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   Contact Us
                 </button>
@@ -904,7 +857,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         'We accept bKash, Nagad, Visa/Mastercard (SSLCommerz), and Cash on Delivery nationwide. Every order receives an instant tracking number.',
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   FAQs
                 </button>
@@ -914,7 +867,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
           {/* Column 3: Company */}
           <div>
-            <h3 className="text-base font-semibold text-[#F2E8D2] mb-3.5">Company</h3>
+            <h3 className="font-brand text-lg font-semibold text-[#F2E8D2] mb-3.5">Company</h3>
             <ul className="space-y-2.5 text-[13px] sm:text-sm text-[#F2E8D2]/80">
               <li>
                 <button
@@ -927,7 +880,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         'Premium phone cases, made to fit "Your Perfect Case". Everyday protection. Effortless style.',
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   About Us
                 </button>
@@ -942,7 +895,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         'Your phone number, delivery address, and payment verification details are encrypted and used strictly for order fulfillment and courier tracking.',
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   Privacy Policy
                 </button>
@@ -957,7 +910,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         'All prices are in Bangladeshi Taka (৳). Online payments via bKash, Nagad, and Card are verified instantly prior to dispatch.',
                     })
                   }
-                  className="hover:text-white"
+                  className="hover:text-white font-medium"
                 >
                   Terms & Conditions
                 </button>
@@ -972,8 +925,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
           {/* Column 4: Newsletter */}
           <div>
-            <h3 className="text-base font-semibold text-[#F2E8D2] mb-2.5">Newsletter</h3>
-            <p className="text-[13px] sm:text-sm text-[#F2E8D2]/80 leading-relaxed mb-3.5">
+            <h3 className="font-brand text-lg font-semibold text-[#F2E8D2] mb-2.5">Newsletter</h3>
+            <p className="text-[13px] sm:text-sm font-normal text-[#F2E8D2]/80 leading-relaxed mb-3.5">
               Subscribe for new arrivals, offers and updates. No spam — unsubscribe any time.
             </p>
             <form
@@ -990,7 +943,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               />
               <button
                 type="submit"
-                className="px-3.5 py-2 rounded-md bg-[#650108] text-[#F2E8D2] text-[13px] font-medium inline-flex items-center gap-1 hover:bg-[#4A0106] whitespace-nowrap shrink-0"
+                className="px-3.5 py-2 rounded-md bg-[#650108] text-[#F2E8D2] text-[13px] font-semibold inline-flex items-center gap-1 hover:bg-[#4A0106] whitespace-nowrap shrink-0"
               >
                 <span>Subscribe</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1086,7 +1039,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   setViewAll(false);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="font-brand text-2xl font-black tracking-tight text-[#650108] text-left"
+                className="font-brand text-2xl font-semibold tracking-tight text-[#650108] text-left"
               >
                 {settings?.logoUrl && !logoImgFailed ? (
                   <img
@@ -1287,7 +1240,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <div className="px-6 py-4 border-b border-[#DFCFB0] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Heart className="w-5 h-5 fill-[#650108] text-[#650108]" />
-                <h2 className="text-base font-bold text-[#650108]">
+                <h2 className="font-brand text-lg font-semibold text-[#650108]">
                   My Favorites ({wishlistProducts.length})
                 </h2>
               </div>
@@ -1366,7 +1319,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                           setActiveProduct(p);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="text-left text-sm font-semibold text-[#2B1416] line-clamp-2 hover:text-[#650108] cursor-pointer"
+                        className="text-left text-sm font-medium text-[#2B1416] line-clamp-2 hover:text-[#650108] cursor-pointer"
                       >
                         {p.title}
                       </button>
@@ -1423,7 +1376,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#FAF4E6] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[#DFCFB0] space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-[#650108]">{infoModal.title}</h3>
+              <h3 className="font-brand text-xl font-semibold text-[#650108]">{infoModal.title}</h3>
               <button
                 type="button"
                 onClick={() => setInfoModal(null)}

@@ -141,7 +141,7 @@ export function Reviews({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h4 className="text-base font-bold text-[#650108]">Customer Reviews &amp; Ratings</h4>
+          <h4 className="font-brand text-lg font-semibold text-[#650108]">Customer Reviews &amp; Ratings</h4>
           <p className="text-[13px] text-[#6B4C4E] mt-0.5">
             Feedback from phone case buyers across Bangladesh
           </p>
@@ -264,7 +264,7 @@ export function Reviews({
           {/* Rating Summary & Breakdown */}
           <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl p-4 grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
             <div className="sm:col-span-4 text-center sm:text-left sm:border-r sm:border-[#EDE2C9] sm:pr-4">
-              <div className="text-3xl font-black text-[#650108] tabular-nums leading-none">
+              <div className="text-3xl font-bold text-[#650108] tabular-nums leading-none">
                 {data.averageRating.toFixed(1)}
               </div>
               <div className="mt-1.5">

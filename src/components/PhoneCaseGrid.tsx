@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, Heart, ShoppingBag, Smartphone } from 'lucide-react';
 import { formatTaka, type PhoneCaseProduct } from '../models/phoneCase';
+import { MobileHorizontalTrack, MOBILE_SLIDE_CARD_CLASS } from './MobileHorizontalTrack';
 
 interface PhoneCaseCardProps {
   product: PhoneCaseProduct;
   isWishlisted: boolean;
+  className?: string;
   onSelectProduct: (product: PhoneCaseProduct) => void;
   onQuickView?: (product: PhoneCaseProduct) => void;
   onToggleWishlist: (productId: string) => void;
@@ -14,6 +16,7 @@ interface PhoneCaseCardProps {
 export function PhoneCaseCard({
   product,
   isWishlisted,
+  className = '',
   onSelectProduct,
   onQuickView,
   onToggleWishlist,
@@ -22,7 +25,9 @@ export function PhoneCaseCard({
   const [imageError, setImageError] = useState(false);
 
   return (
-    <article className="border border-[#DFCFB0] rounded-xl bg-[#FFFDF8] p-2.5 sm:p-3 flex flex-col justify-between transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-[#650108]/40">
+    <article
+      className={`min-w-0 border border-[#DFCFB0] rounded-xl bg-[#FFFDF8] p-2.5 sm:p-3 flex flex-col justify-between transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:border-[#650108]/40 ${className}`}
+    >
       <div>
         <div
           onClick={() => onSelectProduct(product)}
@@ -37,6 +42,7 @@ export function PhoneCaseCard({
             <img
               src={product.image}
               alt={product.title}
+              draggable={false}
               referrerPolicy="no-referrer"
               onError={() => setImageError(true)}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
@@ -76,7 +82,7 @@ export function PhoneCaseCard({
 
         <h3
           onClick={() => onSelectProduct(product)}
-          className="text-[13px] sm:text-sm font-semibold text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
+          className="text-[13px] sm:text-sm font-medium text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
         >
           {product.title}
         </h3>
@@ -91,8 +97,8 @@ export function PhoneCaseCard({
             </span>
           )}
           {product.discountPercent > 0 && (
-            <span className="bg-[#650108] text-[#F2E8D2] text-[11px] font-semibold px-1.5 py-0.5 rounded tabular-nums">
-              -{product.discountPercent}%
+            <span className="bg-[#650108] text-[#F2E8D2] text-[10px] font-semibold uppercase tracking-[1.5px] px-1.5 py-0.5 rounded tabular-nums">
+              -{product.discountPercent}% OFF
             </span>
           )}
         </div>
@@ -112,6 +118,7 @@ export function PhoneCaseCard({
 
 interface PhoneCaseGridProps {
   products: PhoneCaseProduct[];
+  mobileProducts?: PhoneCaseProduct[];
   loading: boolean;
   wishlist: string[];
   searchQuery?: string;
@@ -128,6 +135,7 @@ interface PhoneCaseGridProps {
 
 export function PhoneCaseGrid({
   products,
+  mobileProducts,
   loading,
   wishlist,
   searchQuery = '',
@@ -141,11 +149,25 @@ export function PhoneCaseGrid({
   onAddToCart,
   onResetFilters,
 }: PhoneCaseGridProps) {
+  const useMobileHorizontalSlider = showCarouselControls;
+  const mobileSliderItems = mobileProducts && mobileProducts.length > 0 ? mobileProducts : products;
+
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div
+        className={
+          useMobileHorizontalSlider
+            ? 'flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 no-scrollbar sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 sm:gap-4 sm:overflow-visible sm:pb-0'
+            : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4'
+        }
+      >
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl p-2.5 sm:p-3 animate-pulse">
+          <div
+            key={i}
+            className={`border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl p-2.5 sm:p-3 animate-pulse ${
+              useMobileHorizontalSlider ? 'w-[calc(50%-6px)] shrink-0 snap-start sm:w-auto' : ''
+            }`}
+          >
             <div className="aspect-square rounded-lg bg-[#EADEC2]/70 mb-3" />
             <div className="h-4 bg-[#EADEC2]/70 rounded w-4/5 mb-2" />
             <div className="h-4 bg-[#EADEC2]/70 rounded w-2/5 mb-4" />
@@ -178,19 +200,52 @@ export function PhoneCaseGrid({
 
   return (
     <div className="relative">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        {products.map((product) => (
-          <PhoneCaseCard
-            key={product.id}
-            product={product}
-            isWishlisted={wishlist.includes(product.id)}
-            onSelectProduct={onSelectProduct}
-            onQuickView={onQuickView}
-            onToggleWishlist={onToggleWishlist}
-            onAddToCart={onAddToCart}
-          />
-        ))}
-      </div>
+      {useMobileHorizontalSlider ? (
+        <>
+          <MobileHorizontalTrack className="sm:hidden">
+            {mobileSliderItems.map((product) => (
+              <PhoneCaseCard
+                key={`mobile-${product.id}`}
+                product={product}
+                isWishlisted={wishlist.includes(product.id)}
+                className={MOBILE_SLIDE_CARD_CLASS}
+                onSelectProduct={onSelectProduct}
+                onQuickView={onQuickView}
+                onToggleWishlist={onToggleWishlist}
+                onAddToCart={onAddToCart}
+              />
+            ))}
+          </MobileHorizontalTrack>
+
+          <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {products.map((product) => (
+              <PhoneCaseCard
+                key={product.id}
+                product={product}
+                isWishlisted={wishlist.includes(product.id)}
+                onSelectProduct={onSelectProduct}
+                onQuickView={onQuickView}
+                onToggleWishlist={onToggleWishlist}
+                onAddToCart={onAddToCart}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          {products.map((product) => (
+            <PhoneCaseCard
+              key={product.id}
+              product={product}
+              isWishlisted={wishlist.includes(product.id)}
+              onSelectProduct={onSelectProduct}
+              onQuickView={onQuickView}
+              onToggleWishlist={onToggleWishlist}
+              onAddToCart={onAddToCart}
+            />
+          ))}
+        </div>
+      )}
 
       {showCarouselControls && totalPages > 1 && (
         <>
@@ -212,40 +267,6 @@ export function PhoneCaseGrid({
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-
-          <div className="flex items-center justify-center gap-3 mt-6">
-            <button
-              type="button"
-              onClick={() => onPageChange((currentPage - 1 + totalPages) % totalPages)}
-              aria-label="Previous page"
-              className="lg:hidden w-8 h-8 rounded-full border border-[#C9B38D] flex items-center justify-center text-[#650108] hover:bg-[#FAF4E6]"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            <div className="flex items-center gap-1.5">
-              {Array.from({ length: totalPages }).map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => onPageChange(idx)}
-                  aria-label={`Page ${idx + 1}`}
-                  className={`h-1.5 rounded-full transition-all ${
-                    idx === currentPage ? 'w-5 bg-[#650108]' : 'w-1.5 bg-[#CBB894] hover:bg-[#650108]/50'
-                  }`}
-                />
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onPageChange((currentPage + 1) % totalPages)}
-              aria-label="Next page"
-              className="lg:hidden w-8 h-8 rounded-full border border-[#C9B38D] flex items-center justify-center text-[#650108] hover:bg-[#FAF4E6]"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
         </>
       )}
     </div>

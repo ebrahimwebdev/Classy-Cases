@@ -97,7 +97,7 @@ export function CartDrawer({
       <aside className="relative z-10 bg-[#FAF4E6] w-full max-w-[440px] h-full flex flex-col shadow-2xl border-l border-[#DFCFB0]">
         {/* Header */}
         <div className="px-5 sm:px-6 py-4 border-b border-[#DFCFB0] flex items-center justify-between gap-3">
-          <h2 className="text-lg sm:text-xl font-bold text-[#650108] tracking-tight">
+          <h2 className="font-brand text-xl font-semibold text-[#650108] tracking-tight">
             Shopping cart
           </h2>
           <button
@@ -142,7 +142,7 @@ export function CartDrawer({
                   {/* Top Product Row */}
                   <div className="flex items-start gap-3.5">
                     <DrawerThumb src={item.image} alt={item.title} />
-                    <p className="text-sm sm:text-[15px] font-semibold text-[#2B1416] leading-snug line-clamp-2 flex-1 pt-0.5">
+                    <p className="text-sm sm:text-[15px] font-medium text-[#2B1416] leading-snug line-clamp-2 flex-1 pt-0.5">
                       {item.title}
                     </p>
                   </div>
@@ -195,7 +195,7 @@ export function CartDrawer({
                     {/* Unit price + stepper + line total */}
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm text-[#6B4C4E] tabular-nums">
+                        <span className="text-sm font-bold text-[#6B4C4E] tabular-nums">
                           {formatTaka(item.price)}
                         </span>
                         <div className="inline-flex items-center border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl h-9">

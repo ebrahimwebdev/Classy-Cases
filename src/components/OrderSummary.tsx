@@ -128,7 +128,7 @@ export function OrderSummary({
             </div>
             <div className="flex items-center justify-between text-[#6B4C4E]">
               <span>Estimated Shipping</span>
-              <span className="font-semibold text-[#2B1416] tabular-nums">
+              <span className="font-bold text-[#2B1416] tabular-nums">
                 {qualifiesForFreeShipping ? 'Free' : formatTaka(estimatedShipping)}
               </span>
             </div>

@@ -415,12 +415,12 @@ export function MyOrdersSection({
           <button
             type="button"
             onClick={onBackToShop}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6B4C4E] hover:text-[#650108] transition-colors mb-2"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#6B4C4E] hover:text-[#650108] transition-colors mb-2"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back to Shop</span>
           </button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#650108] tracking-tight">
+          <h1 className="font-brand text-2xl sm:text-3xl font-semibold text-[#650108] tracking-tight">
             My Orders &amp; Tracking
           </h1>
           <p className="text-xs sm:text-sm text-[#6B4C4E] mt-1">
@@ -487,7 +487,7 @@ export function MyOrdersSection({
         <div className="bg-[#FAF4E6] border border-[#DFCFB0] rounded-2xl p-5 sm:p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="max-w-md">
-              <h2 className="text-base font-bold text-[#650108] flex items-center gap-2">
+              <h2 className="font-brand text-lg font-semibold text-[#650108] flex items-center gap-2">
                 <Truck className="w-4 h-4 text-[#650108]" />
                 <span>Track Your Order</span>
               </h2>
@@ -659,7 +659,7 @@ export function MyOrdersSection({
               <div className="w-12 h-12 rounded-2xl bg-[#F2E8D2] text-[#650108] flex items-center justify-center mx-auto mb-3">
                 <Package className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-[#650108]">No purchases found on this browser yet</h3>
+              <h3 className="font-brand text-lg font-semibold text-[#650108]">No purchases found on this browser yet</h3>
               <p className="text-xs text-[#6B4C4E] max-w-md mx-auto mt-1.5 leading-relaxed">
                 Orders you place automatically appear here with live tracking. You can also track any past order above using your Order Number and Phone Number.
               </p>
@@ -725,7 +725,7 @@ export function MyOrdersSection({
                           }`}
                         >
                           <CreditCard className="w-3 h-3" />
-                          <span className="uppercase">{order.paymentMethod}</span>
+                          <span className="uppercase tracking-[1.5px]">{order.paymentMethod}</span>
                           <span>·</span>
                           <span>{order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}</span>
                         </span>
@@ -789,7 +789,7 @@ export function MyOrdersSection({
                               className="w-14 h-14 rounded-xl object-cover border border-[#EDE2C9] shrink-0 bg-white"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="text-sm font-semibold text-[#2B1416] line-clamp-1">
+                              <div className="text-sm font-medium text-[#2B1416] line-clamp-1">
                                 {item.title}
                               </div>
                               <div className="text-xs text-[#6B4C4E] mt-0.5">
@@ -829,17 +829,17 @@ export function MyOrdersSection({
                             <div className="font-semibold text-[#650108]">Payment Summary</div>
                             <div className="flex justify-between text-[#6B4C4E]">
                               <span>Subtotal</span>
-                              <span className="tabular-nums text-[#2B1416]">{formatTaka(order.subtotal)}</span>
+                              <span className="font-bold tabular-nums text-[#2B1416]">{formatTaka(order.subtotal)}</span>
                             </div>
                             {order.discountAmount > 0 && (
                               <div className="flex justify-between text-emerald-700">
                                 <span>Discount {order.couponCode ? `(${order.couponCode})` : ''}</span>
-                                <span className="tabular-nums">-{formatTaka(order.discountAmount)}</span>
+                                <span className="font-bold tabular-nums">-{formatTaka(order.discountAmount)}</span>
                               </div>
                             )}
                             <div className="flex justify-between text-[#6B4C4E]">
                               <span>Delivery Fee</span>
-                              <span className="tabular-nums text-[#2B1416]">
+                              <span className="font-bold tabular-nums text-[#2B1416]">
                                 {order.shippingFee === 0 ? 'Free' : formatTaka(order.shippingFee)}
                               </span>
                             </div>

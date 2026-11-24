@@ -2,7 +2,7 @@
 
 @theme {
   --font-serif: "Playfair Display", Georgia, serif;
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -14,6 +14,7 @@
 
   body {
     font-family: var(--font-sans);
+    font-weight: 400;
   }
 
   button:not(:disabled),

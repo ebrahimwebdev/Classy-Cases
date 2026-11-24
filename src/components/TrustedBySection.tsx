@@ -175,11 +175,11 @@ export function TrustedBySection() {
           <div className="max-w-xl">
             <h2
               id="trusted-by-heading"
-              className="text-xl sm:text-2xl font-bold text-[#650108] tracking-tight [text-wrap:balance]"
+              className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight [text-wrap:balance]"
             >
               Trusted by Retail Partners, Couriers &amp; Payment Networks
             </h2>
-            <p className="text-[13px] sm:text-sm text-[#6B4C4E] mt-2 leading-relaxed">
+            <p className="text-[13px] sm:text-sm font-normal text-[#6B4C4E] mt-2 leading-relaxed">
               Backed by nationwide express logistics, verified payment gateways, and precision OEM case manufacturing across Bangladesh.
             </p>
           </div>
@@ -217,15 +217,6 @@ export function TrustedBySection() {
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
         >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 left-0 w-10 sm:w-16 bg-gradient-to-r from-[#FFFDF8] to-transparent z-10"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 right-0 w-10 sm:w-16 bg-gradient-to-l from-[#FFFDF8] to-transparent z-10"
-          />
-
           <div ref={trackRef} className="flex w-max items-center will-change-transform">
             {repeatedLogos.map((partner, idx) => (
               <div

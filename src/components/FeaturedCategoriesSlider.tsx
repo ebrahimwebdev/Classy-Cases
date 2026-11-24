@@ -86,7 +86,7 @@ export function FeaturedCategoriesSlider({
   return (
     <section className="pt-8 sm:pt-10 pb-6 sm:pb-8">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-8">
-        <h2 className="text-lg sm:text-2xl font-bold text-[#650108] text-center mb-5 sm:mb-7 tracking-tight">
+        <h2 className="font-brand text-xl sm:text-2xl font-semibold text-[#650108] text-center mb-5 sm:mb-7 tracking-tight">
           Featured Categories
         </h2>
       </div>
@@ -128,7 +128,7 @@ export function FeaturedCategoriesSlider({
                     </div>
                   )}
                 </div>
-                <span className="mt-2 sm:mt-2.5 text-[13px] font-semibold text-[#650108]">
+                <span className="mt-2 sm:mt-2.5 text-[13px] font-medium text-[#650108]">
                   {cat.name}
                 </span>
               </button>
@@ -218,7 +218,7 @@ export function FeaturedCategoriesSlider({
                         </div>
                       )}
                     </div>
-                    <span className="mt-2 sm:mt-2.5 text-[13px] font-semibold text-[#650108] whitespace-nowrap">
+                    <span className="mt-2 sm:mt-2.5 text-[13px] font-medium text-[#650108] whitespace-nowrap">
                       {cat.name}
                     </span>
                   </button>

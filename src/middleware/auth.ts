@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { adminAuth } from '../lib/firebase-admin.ts';
+import { isSqlConfigured } from '../db/index.ts';
 import { getOrCreateUser } from '../db/users.ts';
 
 export interface AuthRequest extends Request {
@@ -28,8 +29,10 @@ export const requireAuth = async (
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
     req.user = decodedToken;
-    const dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '');
-    req.dbUserId = dbUser?.id;
+    if (isSqlConfigured()) {
+      const dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '');
+      req.dbUserId = dbUser?.id;
+    }
     next();
   } catch (error) {
     console.error('Error verifying Firebase ID token:', error);
@@ -49,8 +52,10 @@ export const optionalAuth = async (
       try {
         const decodedToken = await adminAuth.verifyIdToken(token);
         req.user = decodedToken;
-        const dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '');
-        req.dbUserId = dbUser?.id;
+        if (isSqlConfigured()) {
+          const dbUser = await getOrCreateUser(decodedToken.uid, decodedToken.email || '');
+          req.dbUserId = dbUser?.id;
+        }
       } catch {
         // Ignore invalid optional customer token; treat request as guest
       }

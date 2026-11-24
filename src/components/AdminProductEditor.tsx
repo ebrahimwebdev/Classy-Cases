@@ -377,10 +377,15 @@ export function AdminProductEditor({
   async function handleQuickAddCategory() {
     const trimmed = quickCategoryName.trim();
     if (!trimmed || !onCreateCategory) return;
-    await onCreateCategory(trimmed);
-    setMainCategory(trimmed);
-    setQuickCategoryName('');
-    setAddingCategory(false);
+    try {
+      setFormError('');
+      await onCreateCategory(trimmed);
+      setMainCategory(trimmed);
+      setQuickCategoryName('');
+      setAddingCategory(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to create category');
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

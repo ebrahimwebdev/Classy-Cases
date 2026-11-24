@@ -62,6 +62,15 @@ export interface Category {
   slug: string;
   brandKey: 'motorola' | 'vivo' | 'xiaomi' | 'custom';
   featured: boolean;
+  active?: boolean;
+  parentId?: string;
+  description?: string;
+  googleCategory?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  image?: string;
+  shippingClass?: string;
+  isDefault?: boolean;
 }
 
 export interface OrderItem {
@@ -179,6 +188,8 @@ export interface SystemConfigSettings {
 export interface StoreSettings {
   storeName: string;
   tagline: string;
+  logoUrl?: string;
+  faviconUrl?: string;
   orderPrefix: string;
   nextOrderNumber: number;
   takePreOrders: boolean;

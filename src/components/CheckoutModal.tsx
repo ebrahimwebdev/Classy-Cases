@@ -1,17 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ArrowLeft,
+  ArrowRight,
+  Banknote,
+  Check,
   CheckCircle2,
   CreditCard,
-  Lock,
+  Info,
+  Loader2,
+  Mail,
+  MapPin,
+  Minus,
+  Phone,
+  Plus,
   ShieldCheck,
   Smartphone,
-  Truck,
-  X,
-  ArrowRight,
-  Loader2,
+  SquarePen,
+  Tag,
+  Trash2,
+  User,
 } from 'lucide-react';
-import type { Order, PaymentMethod } from '../types';
-import type { CartEntry } from '../context/CartContext';
+import { useCart, type CartEntry, type CartOptionTag } from '../context/CartContext';
+import { formatTaka } from '../models/phoneCase';
+import type { Order, PaymentMethod, Product } from '../types';
+
 export type { CartEntry };
 
 interface PublicSettings {
@@ -32,33 +44,116 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   cart: CartEntry[];
+  products?: Product[];
   settings: PublicSettings;
   initialCoupon?: { code: string; discountPercent: number } | null;
   deliveryArea?: 'inside_dhaka' | 'outside_dhaka';
   onDeliveryAreaChange?: (area: 'inside_dhaka' | 'outside_dhaka') => void;
   onOrderCompleted: (order: Order, customerOrderToken?: string) => void;
   onViewMyOrders?: () => void;
+  onEditCart?: () => void;
+  onEditItem?: (productId: string) => void;
+}
+
+const BANGLADESH_DISTRICTS = [
+  'Dhaka',
+  'Chattogram',
+  'Gazipur',
+  'Narayanganj',
+  'Sylhet',
+  'Rajshahi',
+  'Khulna',
+  'Cumilla',
+  'Rangpur',
+  'Barishal',
+  'Mymensingh',
+  'Bogura',
+  'Tangail',
+  'Narsingdi',
+  'Jashore',
+  "Cox's Bazar",
+  'Brahmanbaria',
+  'Dinajpur',
+  'Faridpur',
+  'Feni',
+  'Kushtia',
+  'Noakhali',
+  'Pabna',
+  'Sirajganj',
+];
+
+function getItemOptionTags(item: CartEntry): CartOptionTag[] {
+  if (item.selectedOptions && item.selectedOptions.length > 0) {
+    return item.selectedOptions;
+  }
+  const parts = item.model
+    .split('/')
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 2) {
+    return [
+      { name: 'Color', value: parts[0] },
+      { name: 'Model', value: parts[1] },
+    ];
+  }
+  if (parts.length > 2) {
+    return parts.map((val, idx) => ({
+      name: idx === 0 ? 'Option 1' : idx === parts.length - 1 ? 'Model' : `Option ${idx + 1}`,
+      value: val,
+    }));
+  }
+  if (!item.model || item.model === 'Standard Fit') return [];
+  return [{ name: 'Model', value: item.model }];
+}
+
+function CheckoutThumb({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div className="w-14 h-14 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center shrink-0">
+        <Smartphone className="w-5 h-5 text-neutral-400" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+      className="w-14 h-14 rounded-xl object-cover border border-neutral-200 shrink-0 bg-neutral-100"
+    />
+  );
 }
 
 export function CheckoutModal({
   isOpen,
   onClose,
   cart,
+  products,
   settings,
   initialCoupon,
   deliveryArea: externalDeliveryArea,
   onDeliveryAreaChange,
   onOrderCompleted,
   onViewMyOrders,
+  onEditCart,
+  onEditItem,
 }: CheckoutModalProps) {
+  const { updateQuantity, removeItem } = useCart();
+
   const [step, setStep] = useState<'details' | 'gateway' | 'receipt'>('details');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [district, setDistrict] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [showNoteInput, setShowNoteInput] = useState(false);
+  const [orderNote, setOrderNote] = useState('');
+
   const [internalDeliveryArea, setInternalDeliveryArea] = useState<'inside_dhaka' | 'outside_dhaka'>(
     externalDeliveryArea || 'inside_dhaka'
   );
-  const [deliveryAddress, setDeliveryAddress] = useState('');
 
   useEffect(() => {
     if (externalDeliveryArea) {
@@ -73,12 +168,13 @@ export function CheckoutModal({
   };
 
   const availableMethods: PaymentMethod[] = [];
+  if (settings.paymentGateways.cod.enabled) availableMethods.push('cod');
   if (settings.paymentGateways.bkash.enabled) availableMethods.push('bkash');
   if (settings.paymentGateways.nagad.enabled) availableMethods.push('nagad');
   if (settings.paymentGateways.card.enabled) availableMethods.push('card');
-  if (settings.paymentGateways.cod.enabled) availableMethods.push('cod');
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(availableMethods[0] || 'bkash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(availableMethods[0] || 'cod');
+  const [couponOpen, setCouponOpen] = useState(Boolean(initialCoupon));
   const [couponInput, setCouponInput] = useState(initialCoupon?.code || '');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(
     initialCoupon || null
@@ -99,8 +195,28 @@ export function CheckoutModal({
   const [error, setError] = useState('');
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
+  useEffect(() => {
+    if (isOpen && cart.length > 0 && step === 'receipt') {
+      setStep('details');
+      setCompletedOrder(null);
+      setError('');
+    }
+  }, [isOpen, cart.length, step]);
+
   if (!isOpen) return null;
 
+  const unavailableIds = new Set<string>();
+  if (products && products.length > 0) {
+    for (const entry of cart) {
+      const match = products.find((p) => p.id === entry.productId && p.active !== false);
+      if (!match || match.stock < entry.quantity) {
+        unavailableIds.add(`${entry.productId}-${entry.model}`);
+      }
+    }
+  }
+  const hasUnavailableItems = unavailableIds.size > 0;
+
+  const totalUnits = cart.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const discountAmount = appliedCoupon ? Math.round((subtotal * appliedCoupon.discountPercent) / 100) : 0;
   const afterDiscount = Math.max(0, subtotal - discountAmount);
@@ -132,8 +248,20 @@ export function CheckoutModal({
     }
   }
 
+  function buildCombinedDeliveryAddress(): string {
+    const parts = [deliveryAddress.trim()];
+    if (district.trim()) {
+      parts.push(district.trim());
+    }
+    if (orderNote.trim()) {
+      parts.push(`Note: ${orderNote.trim()}`);
+    }
+    return parts.filter(Boolean).join(', ');
+  }
+
   async function handleProceedCheckout(e: React.FormEvent) {
     e.preventDefault();
+    if (cart.length === 0 || hasUnavailableItems) return;
     setError('');
     setLoading(true);
     try {
@@ -144,7 +272,7 @@ export function CheckoutModal({
           customerName,
           customerPhone,
           customerEmail,
-          deliveryAddress,
+          deliveryAddress: buildCombinedDeliveryAddress(),
           deliveryArea,
           items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, model: c.model })),
           couponCode: appliedCoupon?.code,
@@ -162,11 +290,13 @@ export function CheckoutModal({
         setCompletedOrder(data.order);
         onOrderCompleted(data.order, data.customerOrderToken);
         setStep('receipt');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (data.status === 'awaiting_payment') {
         setPaymentSessionId(data.paymentSessionId);
         setAuthoritativeTotal(data.amount);
         setWalletNumber(customerPhone);
         setStep('gateway');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch {
       setError('Network error. Please try again.');
@@ -201,6 +331,7 @@ export function CheckoutModal({
       setCompletedOrder(data.order);
       onOrderCompleted(data.order, data.customerOrderToken);
       setStep('receipt');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch {
       setError('Network error during payment verification');
     } finally {
@@ -217,280 +348,690 @@ export function CheckoutModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs overflow-y-auto p-3 sm:p-4">
-      <div className="min-h-full flex items-center justify-center">
-        <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-neutral-200 overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-200 bg-neutral-50">
-            <div className="flex items-center gap-2.5 sm:gap-3">
-              <Lock className="w-4 h-4 text-neutral-700 shrink-0" />
-              <h2 className="text-sm sm:text-base font-semibold text-neutral-900">
-                {step === 'details' && 'Checkout & Online Payment'}
-                {step === 'gateway' && 'Complete Online Payment'}
-                {step === 'receipt' && 'Order Confirmed'}
-              </h2>
-            </div>
+    <section
+      aria-label="Checkout"
+      className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-6 sm:pt-8 pb-16 space-y-6"
+    >
+      {/* Top Header + Step Indicator matching screenshot */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          {step !== 'receipt' && (
             <button
+              type="button"
               onClick={resetAndClose}
-              className="p-1.5 rounded-lg text-neutral-500 hover:text-neutral-900 hover:bg-neutral-200/60 transition-colors"
-              aria-label="Close checkout"
+              aria-label="Back to shop"
+              className="w-9 h-9 rounded-xl border border-neutral-200 bg-white flex items-center justify-center text-neutral-700 hover:bg-neutral-50 transition-colors"
             >
-              <X className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
+          )}
+          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-950 tracking-tight">
+            Checkout
+          </h1>
+        </div>
+
+        {/* 1 Cart -> 2 Checkout -> 3 Done Stepper */}
+        <div className="flex items-center gap-2 sm:gap-3 text-[13px]">
+          <button
+            type="button"
+            onClick={() => {
+              if (onEditCart) onEditCart();
+              else resetAndClose();
+            }}
+            className="inline-flex items-center gap-1.5 text-neutral-700 hover:text-neutral-950 font-medium"
+          >
+            <span className="w-5 h-5 rounded-full border border-neutral-300 bg-white flex items-center justify-center text-neutral-700">
+              <Check className="w-3 h-3 stroke-[2.2]" />
+            </span>
+            <span className="underline underline-offset-4">Cart</span>
+          </button>
+
+          <span className="w-6 h-px bg-neutral-300" aria-hidden="true" />
+
+          <div className="inline-flex items-center gap-1.5">
+            <span
+              className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${
+                step === 'receipt'
+                  ? 'border border-neutral-300 bg-white text-neutral-700'
+                  : 'bg-neutral-950 text-white'
+              }`}
+            >
+              {step === 'receipt' ? <Check className="w-3 h-3 stroke-[2.2]" /> : '2'}
+            </span>
+            <span
+              className={
+                step === 'receipt' ? 'font-medium text-neutral-600' : 'font-semibold text-neutral-950'
+              }
+            >
+              Checkout
+            </span>
           </div>
 
-          {/* Step 1: Customer Details & Payment Method */}
-          {step === 'details' && (
-            <form onSubmit={handleProceedCheckout} className="grid grid-cols-1 md:grid-cols-12">
-              <div className="md:col-span-7 p-4 sm:p-6 space-y-5 border-b md:border-b-0 md:border-r border-neutral-200">
+          <span className="w-6 h-px bg-neutral-300" aria-hidden="true" />
+
+          <div className="inline-flex items-center gap-1.5">
+            <span
+              className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${
+                step === 'receipt'
+                  ? 'bg-neutral-950 text-white'
+                  : 'border border-neutral-200 bg-white text-neutral-400'
+              }`}
+            >
+              3
+            </span>
+            <span
+              className={
+                step === 'receipt' ? 'font-semibold text-neutral-950' : 'font-medium text-neutral-400'
+              }
+            >
+              Done
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Step 1: Two-Column Checkout Form & Order Summary */}
+      {step === 'details' && (
+        <form
+          onSubmit={handleProceedCheckout}
+          className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+        >
+          {/* Left Column: 3 Step Cards */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* Step 1: Contact & address */}
+            <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-neutral-950 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  1
+                </span>
+                <h2 className="text-base sm:text-lg font-bold text-neutral-950">
+                  Contact &amp; address
+                </h2>
+              </div>
+
+              <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-neutral-900 mb-3">Delivery Information</h3>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-neutral-600 mb-1">Full Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          placeholder="Md Ibrahim"
-                          className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-neutral-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-neutral-600 mb-1">Phone Number *</label>
-                        <input
-                          type="tel"
-                          required
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          placeholder="017XXXXXXXX"
-                          className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-neutral-900"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Email (for receipt)</label>
-                      <input
-                        type="email"
-                        value={customerEmail}
-                        onChange={(e) => setCustomerEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-neutral-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Delivery Zone *</label>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => setDeliveryArea('inside_dhaka')}
-                          className={`px-3 py-2 rounded-lg border text-left text-xs transition-colors ${
-                            deliveryArea === 'inside_dhaka'
-                              ? 'border-neutral-900 bg-neutral-900 text-white'
-                              : 'border-neutral-300 text-neutral-700 hover:border-neutral-400'
-                          }`}
-                        >
-                          <div className="font-semibold">Inside Dhaka</div>
-                          <div className="opacity-80 tabular-nums">৳{settings.shippingInsideDhaka}</div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeliveryArea('outside_dhaka')}
-                          className={`px-3 py-2 rounded-lg border text-left text-xs transition-colors ${
-                            deliveryArea === 'outside_dhaka'
-                              ? 'border-neutral-900 bg-neutral-900 text-white'
-                              : 'border-neutral-300 text-neutral-700 hover:border-neutral-400'
-                          }`}
-                        >
-                          <div className="font-semibold">Outside Dhaka</div>
-                          <div className="opacity-80 tabular-nums">৳{settings.shippingOutsideDhaka}</div>
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-600 mb-1">Full Address *</label>
-                      <textarea
-                        required
-                        rows={2}
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        placeholder="House, Road, Area, District..."
-                        className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-neutral-900"
-                      />
-                    </div>
+                  <label className="block text-[13px] font-semibold text-neutral-900 mb-1.5">
+                    Full name
+                  </label>
+                  <div className="relative">
+                    <User className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Your full name"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950 placeholder:text-neutral-400"
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold text-neutral-900 mb-2.5">Select Payment Method</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {settings.paymentGateways.bkash.enabled && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('bkash')}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === 'bkash'
-                          ? 'border-[#E2136E] bg-[#E2136E]/5 ring-1 ring-[#E2136E]'
-                          : 'border-neutral-200 hover:border-neutral-300'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-[#E2136E] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                        bK
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-neutral-900">bKash</div>
-                        <div className="text-[11px] text-neutral-500">Mobile Wallet</div>
-                      </div>
-                    </button>
-                  )}
+                  <label className="block text-[13px] font-semibold text-neutral-900 mb-1.5">
+                    Address
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="House, road, area, thana"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950 placeholder:text-neutral-400"
+                    />
+                  </div>
+                </div>
 
-                  {settings.paymentGateways.nagad.enabled && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('nagad')}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === 'nagad'
-                          ? 'border-[#F7941D] bg-[#F7941D]/5 ring-1 ring-[#F7941D]'
-                          : 'border-neutral-200 hover:border-neutral-300'
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-900 mb-1.5">
+                    District
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select
+                      required
+                      value={district}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDistrict(val);
+                        if (val === 'Dhaka') {
+                          setDeliveryArea('inside_dhaka');
+                        } else if (val) {
+                          setDeliveryArea('outside_dhaka');
+                        }
+                      }}
+                      className={`w-full pl-10 pr-8 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950 ${
+                        district ? 'text-neutral-900' : 'text-neutral-400'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-[#ED1C24] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                        N
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-neutral-900">Nagad</div>
-                        <div className="text-[11px] text-neutral-500">Mobile Wallet</div>
-                      </div>
-                    </button>
-                  )}
+                      <option value="">Select your district</option>
+                      {BANGLADESH_DISTRICTS.map((dist) => (
+                        <option key={dist} value={dist} className="text-neutral-900">
+                          {dist}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-                  {settings.paymentGateways.card.enabled && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('card')}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === 'card'
-                          ? 'border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-600'
-                          : 'border-neutral-200 hover:border-neutral-300'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0">
-                        <CreditCard className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-neutral-900">Card / SSL</div>
-                        <div className="text-[11px] text-neutral-500">Visa, Mastercard</div>
-                      </div>
-                    </button>
-                  )}
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-900 mb-1.5">
+                    Phone number
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="tel"
+                      required
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      placeholder="01XXXXXXXXX"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950 placeholder:text-neutral-400"
+                    />
+                  </div>
+                </div>
 
-                  {settings.paymentGateways.cod.enabled && (
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-900 mb-1.5">
+                    Email <span className="font-normal text-neutral-500">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="email"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950 placeholder:text-neutral-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  {!showNoteInput ? (
                     <button
                       type="button"
-                      onClick={() => setPaymentMethod('cod')}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === 'cod'
-                          ? 'border-neutral-900 bg-neutral-100 ring-1 ring-neutral-900'
-                          : 'border-neutral-200 hover:border-neutral-300'
-                      }`}
+                      onClick={() => setShowNoteInput(true)}
+                      className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-neutral-900 hover:opacity-75"
                     >
-                      <div className="w-8 h-8 rounded-lg bg-neutral-800 text-white flex items-center justify-center shrink-0">
-                        <Truck className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-neutral-900">Cash on Delivery</div>
-                        <div className="text-[11px] text-neutral-500">Pay at doorstep</div>
-                      </div>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="underline underline-offset-4">Add a note</span>
                     </button>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[13px] font-semibold text-neutral-900">
+                          Order note <span className="font-normal text-neutral-500">(optional)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNoteInput(false);
+                            setOrderNote('');
+                          }}
+                          className="text-xs text-neutral-500 hover:text-neutral-900"
+                        >
+                          Remove note
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={orderNote}
+                        onChange={(e) => setOrderNote(e.target.value)}
+                        placeholder="Delivery instructions or landmark near your address..."
+                        className="w-full px-3.5 py-2.5 text-sm border border-neutral-200 rounded-xl bg-white focus:outline-none focus:border-neutral-950"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
+            </div>
 
-              {error && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-                  {error}
+            {/* Step 2: Delivery Zone (replacing Delivery option per user request) */}
+            <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-neutral-950 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  2
+                </span>
+                <h2 className="text-base sm:text-lg font-bold text-neutral-950">
+                  Delivery Zone
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryArea('inside_dhaka')}
+                  className={`px-4 py-3.5 rounded-xl border text-left transition-all ${
+                    deliveryArea === 'inside_dhaka'
+                      ? 'border-neutral-950 bg-neutral-950 text-white shadow-xs'
+                      : 'border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">Inside Dhaka</span>
+                    <span className="text-sm font-bold tabular-nums">
+                      {settings.freeShippingThreshold > 0 && afterDiscount >= settings.freeShippingThreshold
+                        ? 'Free'
+                        : formatTaka(settings.shippingInsideDhaka)}
+                    </span>
+                  </div>
+                  <div
+                    className={`text-xs mt-1 ${
+                      deliveryArea === 'inside_dhaka' ? 'text-neutral-300' : 'text-neutral-500'
+                    }`}
+                  >
+                    Express 24–48 hours doorstep delivery
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeliveryArea('outside_dhaka')}
+                  className={`px-4 py-3.5 rounded-xl border text-left transition-all ${
+                    deliveryArea === 'outside_dhaka'
+                      ? 'border-neutral-950 bg-neutral-950 text-white shadow-xs'
+                      : 'border-neutral-200 bg-white text-neutral-800 hover:border-neutral-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">Outside Dhaka</span>
+                    <span className="text-sm font-bold tabular-nums">
+                      {settings.freeShippingThreshold > 0 && afterDiscount >= settings.freeShippingThreshold
+                        ? 'Free'
+                        : formatTaka(settings.shippingOutsideDhaka)}
+                    </span>
+                  </div>
+                  <div
+                    className={`text-xs mt-1 ${
+                      deliveryArea === 'outside_dhaka' ? 'text-neutral-300' : 'text-neutral-500'
+                    }`}
+                  >
+                    Nationwide courier (2–4 business days)
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Payment method */}
+            <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="w-6 h-6 rounded-full bg-neutral-950 text-white text-xs font-bold flex items-center justify-center shrink-0">
+                  3
+                </span>
+                <h2 className="text-base sm:text-lg font-bold text-neutral-950">
+                  Payment method
+                </h2>
+              </div>
+
+              <div className="space-y-2.5">
+                {settings.paymentGateways.cod.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('cod')}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border text-left transition-all ${
+                      paymentMethod === 'cod'
+                        ? 'border-neutral-950 ring-1 ring-neutral-950 bg-white'
+                        : 'border-neutral-200 hover:border-neutral-400 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                          paymentMethod === 'cod' ? 'border-neutral-950' : 'border-neutral-300'
+                        }`}
+                      >
+                        {paymentMethod === 'cod' && (
+                          <span className="w-2 h-2 rounded-full bg-neutral-950" />
+                        )}
+                      </span>
+                      <Banknote className="w-5 h-5 text-neutral-700 shrink-0" />
+                      <span className="text-sm font-semibold text-neutral-950">
+                        Cash on delivery
+                      </span>
+                    </div>
+                    <span className="text-xs text-neutral-500 shrink-0">Pay at doorstep</span>
+                  </button>
+                )}
+
+                {settings.paymentGateways.bkash.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('bkash')}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border text-left transition-all ${
+                      paymentMethod === 'bkash'
+                        ? 'border-neutral-950 ring-1 ring-neutral-950 bg-white'
+                        : 'border-neutral-200 hover:border-neutral-400 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                          paymentMethod === 'bkash' ? 'border-neutral-950' : 'border-neutral-300'
+                        }`}
+                      >
+                        {paymentMethod === 'bkash' && (
+                          <span className="w-2 h-2 rounded-full bg-neutral-950" />
+                        )}
+                      </span>
+                      <span className="w-7 h-7 rounded-lg bg-[#E2136E] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                        bK
+                      </span>
+                      <span className="text-sm font-semibold text-neutral-950">bKash</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 shrink-0">Mobile Wallet</span>
+                  </button>
+                )}
+
+                {settings.paymentGateways.nagad.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('nagad')}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border text-left transition-all ${
+                      paymentMethod === 'nagad'
+                        ? 'border-neutral-950 ring-1 ring-neutral-950 bg-white'
+                        : 'border-neutral-200 hover:border-neutral-400 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                          paymentMethod === 'nagad' ? 'border-neutral-950' : 'border-neutral-300'
+                        }`}
+                      >
+                        {paymentMethod === 'nagad' && (
+                          <span className="w-2 h-2 rounded-full bg-neutral-950" />
+                        )}
+                      </span>
+                      <span className="w-7 h-7 rounded-lg bg-[#ED1C24] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                        N
+                      </span>
+                      <span className="text-sm font-semibold text-neutral-950">Nagad</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 shrink-0">Mobile Wallet</span>
+                  </button>
+                )}
+
+                {settings.paymentGateways.card.enabled && (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('card')}
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border text-left transition-all ${
+                      paymentMethod === 'card'
+                        ? 'border-neutral-950 ring-1 ring-neutral-950 bg-white'
+                        : 'border-neutral-200 hover:border-neutral-400 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                          paymentMethod === 'card' ? 'border-neutral-950' : 'border-neutral-300'
+                        }`}
+                      >
+                        {paymentMethod === 'card' && (
+                          <span className="w-2 h-2 rounded-full bg-neutral-950" />
+                        )}
+                      </span>
+                      <CreditCard className="w-5 h-5 text-neutral-700 shrink-0" />
+                      <span className="text-sm font-semibold text-neutral-950">Card / SSL</span>
+                    </div>
+                    <span className="text-xs text-neutral-500 shrink-0">Visa, Mastercard</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-start gap-2 text-xs text-neutral-500 pt-1">
+                <Info className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Your personal data will be used to process your order and support your experience on this site.
+                </p>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Your order + Order summary */}
+          <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-6">
+            {/* Your order card */}
+            <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-bold text-neutral-950">Your order</h2>
+                  <span className="w-6 h-6 rounded-full bg-neutral-100 text-neutral-700 text-xs font-semibold flex items-center justify-center tabular-nums">
+                    {totalUnits}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onEditCart) onEditCart();
+                    else resetAndClose();
+                  }}
+                  className="text-[13px] font-semibold text-neutral-900 underline underline-offset-4 hover:opacity-75"
+                >
+                  Edit cart
+                </button>
+              </div>
+
+              {cart.length === 0 ? (
+                <div className="py-8 text-center space-y-3">
+                  <p className="text-sm text-neutral-500">Your cart is currently empty.</p>
+                  <button
+                    type="button"
+                    onClick={resetAndClose}
+                    className="px-4 py-2 rounded-xl bg-neutral-950 text-white text-xs font-semibold"
+                  >
+                    Browse Phone Cases
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {cart.map((item) => {
+                    const key = `${item.productId}-${item.model}`;
+                    const isUnavailable = unavailableIds.has(key);
+                    const optionTags = getItemOptionTags(item);
+                    return (
+                      <div
+                        key={key}
+                        className="border border-neutral-200 rounded-2xl bg-white p-3.5 space-y-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CheckoutThumb src={item.image} alt={item.title} />
+                          <p className="text-sm font-semibold text-neutral-950 line-clamp-2 leading-snug flex-1">
+                            {item.title}
+                          </p>
+                        </div>
+
+                        <div className="bg-neutral-50 rounded-xl p-3 space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 space-y-1.5">
+                              <div className="text-xs text-neutral-500 truncate">
+                                SKU: <span className="font-mono">{item.sku || 'Standard'}</span>
+                              </div>
+                              {optionTags.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {optionTags.map((tag) => (
+                                    <span
+                                      key={`${tag.name}-${tag.value}`}
+                                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-neutral-200 bg-white text-xs text-neutral-500"
+                                    >
+                                      <span>{tag.name}:</span>
+                                      <strong className="font-semibold text-neutral-900">
+                                        {tag.value}
+                                      </strong>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {onEditItem && (
+                                <button
+                                  type="button"
+                                  onClick={() => onEditItem(item.productId)}
+                                  aria-label={`Edit ${item.title}`}
+                                  className="w-8 h-8 rounded-lg border border-neutral-200 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center transition-colors"
+                                >
+                                  <SquarePen className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item.productId, item.model)}
+                                aria-label={`Remove ${item.title}`}
+                                className="w-8 h-8 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-sm text-neutral-500 tabular-nums">
+                                {formatTaka(item.price)}
+                              </span>
+                              <div className="inline-flex items-center border border-neutral-200 bg-white rounded-xl h-8">
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.productId, item.model, -1)}
+                                  aria-label="Decrease quantity"
+                                  className="px-2.5 h-full flex items-center justify-center text-neutral-700 hover:text-neutral-950"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="px-2 text-xs font-semibold text-neutral-950 tabular-nums">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.productId, item.model, 1)}
+                                  aria-label="Increase quantity"
+                                  className="px-2.5 h-full flex items-center justify-center text-neutral-700 hover:text-neutral-950"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <span className="text-sm font-bold text-neutral-950 tabular-nums">
+                              {formatTaka(item.price * item.quantity)}
+                            </span>
+                          </div>
+
+                          {isUnavailable && (
+                            <div className="p-3 rounded-xl border border-red-200 bg-red-50 text-xs text-red-600 space-y-2">
+                              <p className="font-semibold">
+                                This option is no longer available. Remove it to place your order.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item.productId, item.model)}
+                                className="px-3 py-1.5 rounded-lg border border-red-300 bg-white text-red-600 font-semibold hover:bg-red-100"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Summary Column */}
-            <div className="md:col-span-5 p-6 bg-neutral-50 flex flex-col justify-between">
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-neutral-900">Order Summary</h3>
-                <div className="space-y-3 max-h-52 overflow-y-auto pr-1">
-                  {cart.map((item) => (
-                    <div key={`${item.productId}-${item.model}`} className="flex items-center gap-3">
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="w-12 h-12 rounded-lg object-cover border border-neutral-200 shrink-0"
-                        referrerPolicy="no-referrer"
+            {/* Order summary card */}
+            <div className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 space-y-4">
+              <h2 className="text-base sm:text-lg font-bold text-neutral-950">Order summary</h2>
+
+              {/* Coupon Toggle */}
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  onClick={() => setCouponOpen((v) => !v)}
+                  className="inline-flex items-center gap-2 text-[13px] font-semibold text-neutral-900 hover:opacity-75"
+                >
+                  <Tag className="w-4 h-4 text-neutral-600" />
+                  <span className="underline underline-offset-4">Have a coupon code?</span>
+                </button>
+
+                {couponOpen && (
+                  <div className="space-y-1.5">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        placeholder="Promo code (e.g. CLASSY10)"
+                        className="flex-1 px-3 py-2 text-[13px] border border-neutral-300 rounded-xl bg-white focus:outline-none focus:border-neutral-950"
                       />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-neutral-900 truncate">{item.title}</p>
-                        <p className="text-[11px] text-neutral-500">
-                          {item.model} × {item.quantity}
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-neutral-900 tabular-nums">
-                        ৳{item.price * item.quantity}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        className="px-4 py-2 text-[13px] font-semibold border border-neutral-950 rounded-xl hover:bg-neutral-950 hover:text-white transition-colors"
+                      >
+                        Apply
+                      </button>
                     </div>
-                  ))}
+                    {couponMessage && (
+                      <p className="text-xs text-neutral-600">{couponMessage}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-neutral-200 pt-4 space-y-3 text-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-neutral-700 font-medium">Subtotal</div>
+                    <div className="text-xs text-neutral-500 mt-0.5">
+                      {totalUnits} {totalUnits === 1 ? 'item' : 'items'}
+                    </div>
+                  </div>
+                  <span className="font-bold text-neutral-950 tabular-nums">
+                    {formatTaka(subtotal)}
+                  </span>
                 </div>
 
-                {/* Promo code */}
-                <div className="pt-2 border-t border-neutral-200">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={couponInput}
-                      onChange={(e) => setCouponInput(e.target.value)}
-                      placeholder="Promo code (e.g. CLASSY10)"
-                      className="flex-1 px-3 py-1.5 text-xs border border-neutral-300 rounded-lg bg-white focus:outline-none focus:border-neutral-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyCoupon}
-                      className="px-3 py-1.5 text-xs font-medium border border-neutral-900 rounded-lg hover:bg-neutral-900 hover:text-white transition-colors"
-                    >
-                      Apply
-                    </button>
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>Discount ({appliedCoupon?.code})</span>
+                    <span className="font-semibold tabular-nums">-{formatTaka(discountAmount)}</span>
                   </div>
-                  {couponMessage && <p className="text-[11px] text-neutral-600 mt-1">{couponMessage}</p>}
-                </div>
+                )}
 
-                <div className="space-y-2 pt-3 border-t border-neutral-200 text-xs">
-                  <div className="flex justify-between text-neutral-600">
-                    <span>Subtotal</span>
-                    <span className="tabular-nums font-medium text-neutral-900">৳{subtotal}</span>
-                  </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-700">
-                      <span>Discount ({appliedCoupon?.code})</span>
-                      <span className="tabular-nums font-medium">-৳{discountAmount}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-neutral-600">
-                    <span>Delivery Fee</span>
-                    <span className="tabular-nums font-medium text-neutral-900">
-                      {shippingFee === 0 ? 'Free' : `৳${shippingFee}`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-neutral-200 text-sm font-bold text-neutral-900">
-                    <span>Total</span>
-                    <span className="tabular-nums">৳{estimatedTotal}</span>
-                  </div>
+                <div className="flex items-center justify-between text-neutral-700">
+                  <span>Delivery</span>
+                  <span className="text-[13px] font-medium text-neutral-700 tabular-nums">
+                    {deliveryArea === 'outside_dhaka' ? 'Outside Dhaka' : 'Inside Dhaka'} ·{' '}
+                    <strong className="text-neutral-950">
+                      {shippingFee === 0 ? 'Free' : formatTaka(shippingFee)}
+                    </strong>
+                  </span>
                 </div>
               </div>
 
-              <div className="pt-5">
+              <div className="border-t border-neutral-200 pt-4 flex items-center justify-between">
+                <span className="text-base font-bold text-neutral-950">Total</span>
+                <span className="text-xl font-bold text-neutral-950 tabular-nums">
+                  {formatTaka(estimatedTotal)}
+                </span>
+              </div>
+
+              <div className="space-y-2 pt-1">
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full py-3 px-4 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  disabled={loading || cart.length === 0 || hasUnavailableItems}
+                  className="w-full py-3.5 px-5 rounded-xl bg-[#111111] text-white text-sm font-semibold hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2 disabled:bg-neutral-400 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -498,271 +1039,295 @@ export function CheckoutModal({
                     <>
                       <span>
                         {paymentMethod === 'cod'
-                          ? `Place Order · ৳${estimatedTotal}`
-                          : `Pay Online · ৳${estimatedTotal}`}
+                          ? 'Place Order'
+                          : `Continue to ${paymentMethod.toUpperCase()} · ${formatTaka(estimatedTotal)}`}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
-                <p className="text-[11px] text-neutral-500 text-center mt-2 flex items-center justify-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  Encrypted server-verified checkout
-                </p>
+
+                {hasUnavailableItems ? (
+                  <p className="text-xs text-neutral-500 text-center">
+                    Remove the unavailable items to continue.
+                  </p>
+                ) : (
+                  <p className="text-xs text-neutral-500 text-center flex items-center justify-center gap-1.5 pt-0.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Encrypted server-verified checkout</span>
+                  </p>
+                )}
               </div>
             </div>
-          </form>
-        )}
+          </div>
+        </form>
+      )}
 
-        {/* Step 2: Interactive Online Payment Gateway */}
-        {step === 'gateway' && (
-          <form onSubmit={handleVerifyPayment} className="p-6 max-w-md mx-auto space-y-5">
-            {paymentMethod === 'bkash' && (
-              <div className="rounded-2xl overflow-hidden border border-[#E2136E]/30 shadow-sm">
-                <div className="bg-[#E2136E] text-white p-5 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs opacity-85">bKash Merchant Payment</div>
-                    <div className="text-lg font-bold">{settings.storeName}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs opacity-85">Amount</div>
-                    <div className="text-xl font-bold tabular-nums">৳{authoritativeTotal}</div>
-                  </div>
+      {/* Step 2: Interactive Online Payment Gateway */}
+      {step === 'gateway' && (
+        <form onSubmit={handleVerifyPayment} className="max-w-lg mx-auto py-4 space-y-5">
+          {paymentMethod === 'bkash' && (
+            <div className="rounded-2xl overflow-hidden border border-[#E2136E]/30 shadow-xs bg-white">
+              <div className="bg-[#E2136E] text-white p-5 flex items-center justify-between">
+                <div>
+                  <div className="text-xs opacity-90">bKash Merchant Payment</div>
+                  <div className="text-lg font-bold">{settings.storeName}</div>
                 </div>
-                <div className="p-5 bg-white space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Your bKash Account Number
-                    </label>
-                    <div className="relative">
-                      <Smartphone className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-                      <input
-                        type="tel"
-                        required
-                        value={walletNumber}
-                        onChange={(e) => setWalletNumber(e.target.value)}
-                        placeholder="01XXXXXXXXX"
-                        className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-[#E2136E]"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Verification Code (OTP) / PIN
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={pinOrOtp}
-                      onChange={(e) => setPinOrOtp(e.target.value)}
-                      placeholder="Enter 4–6 digit code (e.g. 12345)"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-[#E2136E]"
-                    />
-                  </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-90">Amount</div>
+                  <div className="text-xl font-bold tabular-nums">{formatTaka(authoritativeTotal)}</div>
                 </div>
               </div>
-            )}
-
-            {paymentMethod === 'nagad' && (
-              <div className="rounded-2xl overflow-hidden border border-[#ED1C24]/30 shadow-sm">
-                <div className="bg-gradient-to-r from-[#ED1C24] to-[#F7941D] text-white p-5 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs opacity-90">Nagad e-Commerce Gateway</div>
-                    <div className="text-lg font-bold">{settings.storeName}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs opacity-90">Payable</div>
-                    <div className="text-xl font-bold tabular-nums">৳{authoritativeTotal}</div>
-                  </div>
-                </div>
-                <div className="p-5 bg-white space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Your Nagad Account Number
-                    </label>
+              <div className="p-5 sm:p-6 bg-white space-y-4">
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Your bKash Account Number
+                  </label>
+                  <div className="relative">
+                    <Smartphone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="tel"
                       required
                       value={walletNumber}
                       onChange={(e) => setWalletNumber(e.target.value)}
                       placeholder="01XXXXXXXXX"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-[#ED1C24]"
+                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:border-[#E2136E]"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Verification Code (OTP) / PIN
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={pinOrOtp}
+                    onChange={(e) => setPinOrOtp(e.target.value)}
+                    placeholder="Enter 4–6 digit code (e.g. 12345)"
+                    className="w-full px-3.5 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:border-[#E2136E]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {paymentMethod === 'nagad' && (
+            <div className="rounded-2xl overflow-hidden border border-[#ED1C24]/30 shadow-xs bg-white">
+              <div className="bg-gradient-to-r from-[#ED1C24] to-[#F7941D] text-white p-5 flex items-center justify-between">
+                <div>
+                  <div className="text-xs opacity-90">Nagad e-Commerce Gateway</div>
+                  <div className="text-lg font-bold">{settings.storeName}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs opacity-90">Payable</div>
+                  <div className="text-xl font-bold tabular-nums">{formatTaka(authoritativeTotal)}</div>
+                </div>
+              </div>
+              <div className="p-5 sm:p-6 bg-white space-y-4">
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Your Nagad Account Number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={walletNumber}
+                    onChange={(e) => setWalletNumber(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    className="w-full px-3.5 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:border-[#ED1C24]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Nagad OTP / PIN
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={pinOrOtp}
+                    onChange={(e) => setPinOrOtp(e.target.value)}
+                    placeholder="Enter 4–6 digit OTP"
+                    className="w-full px-3.5 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:border-[#ED1C24]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {paymentMethod === 'card' && (
+            <div className="rounded-2xl overflow-hidden border border-neutral-200 shadow-xs bg-white">
+              <div className="bg-neutral-950 text-white p-5 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-neutral-300">
+                    {settings.paymentGateways.card.provider} Secure Pay
+                  </div>
+                  <div className="text-lg font-bold">{settings.storeName}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-neutral-300">Total</div>
+                  <div className="text-xl font-bold tabular-nums">{formatTaka(authoritativeTotal)}</div>
+                </div>
+              </div>
+              <div className="p-5 sm:p-6 bg-white space-y-4">
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Cardholder Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={cardHolder}
+                    onChange={(e) => setCardHolder(e.target.value)}
+                    placeholder="MD IBRAHIM"
+                    className="w-full px-3.5 py-2.5 text-sm border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                    Card Number
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                    placeholder="4532 •••• •••• 8910"
+                    className="w-full px-3.5 py-2.5 text-sm font-mono border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                      Expiry Date
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={cardExpiry}
+                      onChange={(e) => setCardExpiry(e.target.value)}
+                      placeholder="12/28"
+                      className="w-full px-3.5 py-2.5 text-sm font-mono border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">
-                      Nagad OTP / PIN
+                    <label className="block text-[13px] font-semibold text-neutral-700 mb-1.5">
+                      CVC / CVV
                     </label>
                     <input
                       type="password"
                       required
-                      value={pinOrOtp}
-                      onChange={(e) => setPinOrOtp(e.target.value)}
-                      placeholder="Enter 4–6 digit OTP"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-[#ED1C24]"
+                      value={cardCvc}
+                      onChange={(e) => setCardCvc(e.target.value)}
+                      placeholder="123"
+                      className="w-full px-3.5 py-2.5 text-sm font-mono border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
                     />
                   </div>
                 </div>
               </div>
-            )}
-
-            {paymentMethod === 'card' && (
-              <div className="rounded-2xl overflow-hidden border border-indigo-200 shadow-sm">
-                <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs text-slate-300">{settings.paymentGateways.card.provider} Secure Pay</div>
-                    <div className="text-lg font-bold">{settings.storeName}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-slate-300">Total</div>
-                    <div className="text-xl font-bold tabular-nums">৳{authoritativeTotal}</div>
-                  </div>
-                </div>
-                <div className="p-5 bg-white space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">Cardholder Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={cardHolder}
-                      onChange={(e) => setCardHolder(e.target.value)}
-                      placeholder="MD IBRAHIM"
-                      className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-neutral-700 mb-1">Card Number</label>
-                    <input
-                      type="text"
-                      required
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
-                      placeholder="4532 •••• •••• 8910"
-                      className="w-full px-3 py-2 text-sm font-mono border border-neutral-300 rounded-lg focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">Expiry Date</label>
-                      <input
-                        type="text"
-                        required
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        placeholder="12/28"
-                        className="w-full px-3 py-2 text-sm font-mono border border-neutral-300 rounded-lg focus:outline-none focus:border-indigo-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-neutral-700 mb-1">CVC / CVV</label>
-                      <input
-                        type="password"
-                        required
-                        value={cardCvc}
-                        onChange={(e) => setCardCvc(e.target.value)}
-                        placeholder="123"
-                        className="w-full px-3 py-2 text-sm font-mono border border-neutral-300 rounded-lg focus:outline-none focus:border-indigo-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
-                {error}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setStep('details')}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-[2] py-2.5 px-4 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 flex items-center justify-center gap-2 disabled:opacity-60"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Confirm Payment ৳${authoritativeTotal}`}
-              </button>
             </div>
-          </form>
-        )}
+          )}
 
-        {/* Step 3: Order Confirmed Receipt */}
-        {step === 'receipt' && completedOrder && (
-          <div className="p-8 max-w-lg mx-auto text-center space-y-5">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-8 h-8" />
+          {error && (
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+              {error}
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-neutral-900">
-                Order #{completedOrder.orderNumber} Confirmed
-              </h3>
-              <p className="text-sm text-neutral-500 mt-1">
-                Thank you, {completedOrder.customerName}. Your order has been recorded and sent to fulfillment.
-              </p>
-            </div>
+          )}
 
-            <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-left space-y-2.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-neutral-500">Order Number</span>
-                <span className="font-mono font-semibold text-neutral-900">#{completedOrder.orderNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-500">Transaction ID</span>
-                <span className="font-mono text-neutral-900">{completedOrder.transactionId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-500">Payment Method</span>
-                <span className="uppercase font-medium text-neutral-900">{completedOrder.paymentMethod}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-500">Payment Status</span>
-                <span
-                  className={`font-semibold ${
-                    completedOrder.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'
-                  }`}
-                >
-                  {completedOrder.paymentStatus === 'paid' ? 'Paid Online' : 'Cash on Delivery (Pending)'}
-                </span>
-              </div>
-              <div className="flex justify-between pt-2 border-t border-neutral-200 text-sm font-bold text-neutral-900">
-                <span>Total Amount</span>
-                <span className="tabular-nums">৳{completedOrder.total}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              {onViewMyOrders && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetAndClose();
-                    onViewMyOrders();
-                  }}
-                  className="flex-1 py-3 rounded-xl border border-neutral-300 bg-white text-neutral-900 text-sm font-semibold hover:bg-neutral-50 transition-colors"
-                >
-                  View in My Orders
-                </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setStep('details')}
+              className="flex-1 py-3 px-4 rounded-xl border border-neutral-300 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+            >
+              Back
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-[2] py-3 px-4 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 flex items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                `Confirm Payment ${formatTaka(authoritativeTotal)}`
               )}
-              <button
-                type="button"
-                onClick={resetAndClose}
-                className="flex-1 py-3 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Step 3: Order Confirmed Receipt */}
+      {step === 'receipt' && completedOrder && (
+        <div className="max-w-lg mx-auto py-8 border border-neutral-200 rounded-2xl bg-white p-6 sm:p-8 text-center space-y-5">
+          <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-neutral-950">
+              Order #{completedOrder.orderNumber} Confirmed
+            </h2>
+            <p className="text-sm text-neutral-600 mt-1.5">
+              Thank you, {completedOrder.customerName}. Your order has been recorded and sent to fulfillment.
+            </p>
+          </div>
+
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 sm:p-5 text-left space-y-2.5 text-[13px]">
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Order Number</span>
+              <span className="font-mono font-semibold text-neutral-950">
+                #{completedOrder.orderNumber}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Transaction ID</span>
+              <span className="font-mono text-neutral-950">{completedOrder.transactionId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Payment Method</span>
+              <span className="uppercase font-medium text-neutral-950">
+                {completedOrder.paymentMethod}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Payment Status</span>
+              <span
+                className={`font-semibold ${
+                  completedOrder.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'
+                }`}
               >
-                Continue Shopping
-              </button>
+                {completedOrder.paymentStatus === 'paid' ? 'Paid Online' : 'Cash on Delivery (Pending)'}
+              </span>
+            </div>
+            <div className="flex justify-between pt-2.5 border-t border-neutral-200 text-base font-bold text-neutral-950">
+              <span>Total Amount</span>
+              <span className="tabular-nums">{formatTaka(completedOrder.total)}</span>
             </div>
           </div>
-        )}
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            {onViewMyOrders && (
+              <button
+                type="button"
+                onClick={() => {
+                  resetAndClose();
+                  onViewMyOrders();
+                }}
+                className="flex-1 py-3 rounded-xl border border-neutral-300 bg-white text-neutral-900 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+              >
+                View in My Orders
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={resetAndClose}
+              className="flex-1 py-3 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+            >
+              Continue Shopping
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </section>
   );
 }

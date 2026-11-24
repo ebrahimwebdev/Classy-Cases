@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ArrowLeftRight,
   Banknote,
@@ -41,6 +41,7 @@ import {
   X,
 } from 'lucide-react';
 import type { StoreSettings } from '../types';
+import { applyDocumentFavicon } from '../utils/branding';
 import {
   AdminSettingsPanels,
   type ExtendedSettingsTab,
@@ -101,8 +102,10 @@ export function AdminSettings({
   const [saving, setSaving] = useState(false);
   const [savedBanner, setSavedBanner] = useState('');
   const [errorBanner, setErrorBanner] = useState('');
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const faviconInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function handleSave() {
+  async function persistSettings(nextForm: StoreSettings, successMessage = 'Settings saved and synced to live storefront.') {
     setSaving(true);
     setSavedBanner('');
     setErrorBanner('');
@@ -113,7 +116,7 @@ export function AdminSettings({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminToken}`,
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(nextForm),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -122,13 +125,50 @@ export function AdminSettings({
       }
       onSettingsUpdated(data.settings);
       setForm(data.settings);
-      setSavedBanner('Settings saved and synced to live storefront.');
-      setTimeout(() => setSavedBanner(''), 3000);
+      applyDocumentFavicon(data.settings.faviconUrl, data.settings.storeName);
+      setSavedBanner(successMessage);
+      setTimeout(() => setSavedBanner(''), 3200);
     } catch {
       setErrorBanner('Network error while saving settings');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSave() {
+    await persistSettings(form);
+  }
+
+  function handleBrandFileChange(field: 'logoUrl' | 'faviconUrl', file: File | undefined) {
+    if (!file) return;
+    setErrorBanner('');
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorBanner('Image must be smaller than 2 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return;
+      const nextForm: StoreSettings = { ...form, [field]: reader.result };
+      setForm(nextForm);
+      void persistSettings(
+        nextForm,
+        field === 'logoUrl' ? 'Site logo updated and synced.' : 'Favicon updated and synced.'
+      );
+    };
+    reader.onerror = () => {
+      setErrorBanner('Could not read the selected image file.');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleResetBrandAsset(field: 'logoUrl' | 'faviconUrl') {
+    const nextForm: StoreSettings = { ...form, [field]: '' };
+    setForm(nextForm);
+    void persistSettings(
+      nextForm,
+      field === 'logoUrl' ? 'Site logo reset to store wordmark.' : 'Favicon reset to store initials.'
+    );
   }
 
   const navGroups: {
@@ -487,49 +527,138 @@ export function AdminSettings({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <span className="block text-[11px] text-slate-500 mb-1.5">Logo</span>
-                        <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex items-center justify-center h-16">
-                          <span className="font-brand text-xl font-black text-black truncate">
-                            {form.storeName}
-                          </span>
+                      {/* Logo Upload & URL */}
+                      <div className="space-y-2">
+                        <span className="block text-[11px] text-slate-500">Logo</span>
+                        <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex items-center justify-center h-16 overflow-hidden">
+                          {form.logoUrl ? (
+                            <img
+                              src={form.logoUrl}
+                              alt="Store Logo Preview"
+                              referrerPolicy="no-referrer"
+                              className="max-h-11 max-w-full object-contain"
+                            />
+                          ) : (
+                            <span className="font-brand text-xl font-black text-black truncate">
+                              {form.storeName}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 mt-2">
+
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleBrandFileChange('logoUrl', e.target.files?.[0]);
+                            e.target.value = '';
+                          }}
+                        />
+
+                        <input
+                          type="url"
+                          value={form.logoUrl?.startsWith('data:') ? '' : form.logoUrl || ''}
+                          onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+                          placeholder={
+                            form.logoUrl?.startsWith('data:')
+                              ? 'Custom uploaded logo active'
+                              : 'Paste HTTPS logo URL...'
+                          }
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-indigo-500"
+                        />
+
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => setSavedBanner('Logo wordmark syncs automatically with Store name.')}
+                            onClick={() => logoInputRef.current?.click()}
                             className="px-2.5 py-1 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
-                            <span>Replace</span>
+                            <span>{form.logoUrl ? 'Replace' : 'Upload'}</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setForm({ ...form, storeName: 'Classy Cases' })}
-                            className="px-2.5 py-1 rounded-md text-xs text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            <span>Reset</span>
-                          </button>
+                          {form.logoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetBrandAsset('logoUrl')}
+                              className="px-2.5 py-1 rounded-md text-xs text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Reset</span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      <div>
-                        <span className="block text-[11px] text-slate-500 mb-1.5">Favicon</span>
-                        <div className="border border-slate-200 rounded-lg p-3 bg-white flex items-center gap-2 h-16">
-                          <div className="w-7 h-7 rounded bg-neutral-900 text-white font-brand font-bold text-xs flex items-center justify-center">
-                            {form.storeName.slice(0, 2).toUpperCase()}
+                      {/* Favicon Upload & URL */}
+                      <div className="space-y-2">
+                        <span className="block text-[11px] text-slate-500">Favicon</span>
+                        <div className="border border-slate-200 rounded-lg p-3 bg-white flex items-center gap-2.5 h-16">
+                          {form.faviconUrl ? (
+                            <img
+                              src={form.faviconUrl}
+                              alt="Favicon Preview"
+                              referrerPolicy="no-referrer"
+                              className="w-8 h-8 rounded object-contain border border-slate-100 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-neutral-900 text-white font-brand font-bold text-xs flex items-center justify-center shrink-0">
+                              {(form.storeName.trim() || 'CC').slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] font-medium text-slate-700 truncate">
+                              {form.storeName || 'Classy Cases'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 truncate">
+                              Browser Tab Icon
+                            </div>
                           </div>
-                          <div className="h-2 w-16 rounded bg-slate-200" />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setSavedBanner('Favicon badge generated from Store initials.')}
-                          className="mt-2 px-2.5 py-1 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
-                        >
-                          <Upload className="w-3 h-3" />
-                          <span>Upload</span>
-                        </button>
+
+                        <input
+                          ref={faviconInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,.ico"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleBrandFileChange('faviconUrl', e.target.files?.[0]);
+                            e.target.value = '';
+                          }}
+                        />
+
+                        <input
+                          type="url"
+                          value={form.faviconUrl?.startsWith('data:') ? '' : form.faviconUrl || ''}
+                          onChange={(e) => setForm({ ...form, faviconUrl: e.target.value })}
+                          placeholder={
+                            form.faviconUrl?.startsWith('data:')
+                              ? 'Custom uploaded favicon active'
+                              : 'Paste HTTPS favicon URL...'
+                          }
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-indigo-500"
+                        />
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => faviconInputRef.current?.click()}
+                            className="px-2.5 py-1 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>{form.faviconUrl ? 'Replace' : 'Upload'}</span>
+                          </button>
+                          {form.faviconUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetBrandAsset('faviconUrl')}
+                              className="px-2.5 py-1 rounded-md text-xs text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Reset</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -2,13 +2,26 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import type { PhoneCaseProduct } from '../models/phoneCase';
 import type { Product } from '../types';
 
+export interface CartOptionTag {
+  name: string;
+  value: string;
+}
+
 export interface CartEntry {
   productId: string;
   title: string;
   model: string;
+  sku?: string;
+  selectedOptions?: CartOptionTag[];
   image: string;
   price: number;
   quantity: number;
+}
+
+export interface AddCartItemMeta {
+  sku?: string;
+  price?: number;
+  selectedOptions?: CartOptionTag[];
 }
 
 interface CartContextValue {
@@ -18,7 +31,12 @@ interface CartContextValue {
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
-  addItem: (product: PhoneCaseProduct | Product, model?: string, quantity?: number) => void;
+  addItem: (
+    product: PhoneCaseProduct | Product,
+    model?: string,
+    quantity?: number,
+    meta?: AddCartItemMeta
+  ) => void;
   updateQuantity: (productId: string, model: string, delta: number) => void;
   removeItem: (productId: string, model: string) => void;
   clearCart: () => void;
@@ -79,9 +97,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
   const addItem = useCallback(
-    (product: PhoneCaseProduct | Product, model?: string, quantity = 1) => {
+    (
+      product: PhoneCaseProduct | Product,
+      model?: string,
+      quantity = 1,
+      meta?: AddCartItemMeta
+    ) => {
       const safeQty = Math.max(1, Math.floor(quantity));
       const chosenModel = model || product.brandModels?.[0] || 'Standard Fit';
+      const resolvedPrice =
+        typeof meta?.price === 'number' && Number.isFinite(meta.price)
+          ? meta.price
+          : product.price;
+      const resolvedSku = meta?.sku || product.sku;
 
       setItems((prev) => {
         const idx = prev.findIndex(
@@ -89,7 +117,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         );
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = { ...next[idx], quantity: next[idx].quantity + safeQty };
+          next[idx] = {
+            ...next[idx],
+            quantity: next[idx].quantity + safeQty,
+            sku: resolvedSku || next[idx].sku,
+            price: resolvedPrice,
+            selectedOptions: meta?.selectedOptions || next[idx].selectedOptions,
+          };
           return next;
         }
         return [
@@ -98,8 +132,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             productId: product.id,
             title: product.title,
             model: chosenModel,
+            sku: resolvedSku,
+            selectedOptions: meta?.selectedOptions,
             image: product.image,
-            price: product.price,
+            price: resolvedPrice,
             quantity: safeQty,
           },
         ];

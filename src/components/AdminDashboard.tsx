@@ -65,6 +65,7 @@ import {
 } from './AdminAccountingReportsView';
 import {
   AdminInventoryCatalogViews,
+  type CategoryFormPayload,
   type InventoryCatalogSection,
 } from './AdminInventoryCatalogViews';
 import { AdminProductEditor, type ProductEditorPayload } from './AdminProductEditor';
@@ -349,17 +350,47 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
     if (res.ok) fetchOverview(adminToken);
   }
 
-  async function handleCreateCategoryByName(name: string) {
-    if (!adminToken || !name.trim()) return;
+  async function handleCreateCategoryByName(input: string | CategoryFormPayload) {
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
+    const payload: CategoryFormPayload =
+      typeof input === 'string' ? { name: input.trim() } : { ...input, name: input.name.trim() };
+    if (!payload.name) {
+      throw new Error('Category name is required.');
+    }
     const res = await fetch('/api/admin/categories', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${adminToken}`,
       },
-      body: JSON.stringify({ name: name.trim() }),
+      body: JSON.stringify(payload),
     });
-    if (res.ok) await fetchOverview(adminToken);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to create category.');
+    }
+    await fetchOverview(adminToken);
+  }
+
+  async function handleUpdateCategory(id: string, patch: Partial<CategoryFormPayload>) {
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
+    const res = await fetch(`/api/admin/categories/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify(patch),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to update category.');
+    }
+    await fetchOverview(adminToken);
   }
 
   async function handleDeleteProduct(id: string) {
@@ -398,12 +429,18 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
   }
 
   async function handleDeleteCategory(id: string) {
-    if (!adminToken) return;
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
     const res = await fetch(`/api/admin/categories/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${adminToken}` },
     });
-    if (res.ok) fetchOverview(adminToken);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to delete category.');
+    }
+    await fetchOverview(adminToken);
   }
 
   async function handlePosSubmit(e: React.FormEvent) {
@@ -1883,8 +1920,10 @@ export function AdminDashboard({ onBackToStore }: AdminDashboardProps) {
                 }
                 products={products}
                 categories={categories}
+                shippingClasses={settings?.deliverySettings?.shippingClasses?.map((c) => c.name)}
                 onQuickStockChange={handleQuickStockChange}
                 onCreateCategory={handleCreateCategoryByName}
+                onUpdateCategory={handleUpdateCategory}
                 onDeleteCategory={handleDeleteCategory}
                 onCreateProduct={handleCreateImportedProduct}
                 onEditProduct={openEditProduct}

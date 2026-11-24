@@ -10,7 +10,7 @@ import {
   X,
   CheckCircle2,
 } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import { useCart, type AddCartItemMeta } from '../context/CartContext';
 import {
   extractSearchSuggestions,
   matchesPhoneCaseSearch,
@@ -30,10 +30,13 @@ import { PhoneCaseGrid } from './PhoneCaseGrid';
 import { ProductDetailView } from './ProductDetailView';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
 import { TrustedBySection } from './TrustedBySection';
+import { applyDocumentFavicon } from '../utils/branding';
 
 export interface PublicStoreSettings {
   storeName: string;
   tagline: string;
+  logoUrl?: string;
+  faviconUrl?: string;
   orderPrefix: string;
   takePreOrders: boolean;
   phone: string;
@@ -90,11 +93,14 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [newsletterMsg, setNewsletterMsg] = useState('');
   const [toastMsg, setToastMsg] = useState('');
 
+  const [logoImgFailed, setLogoImgFailed] = useState(false);
+
   async function fetchStorefront() {
     try {
       const res = await fetch('/api/storefront');
       const data = await res.json();
       setSettings(data.settings);
+      setLogoImgFailed(false);
       setCategories(data.categories || []);
       setProducts(((data.products || []) as Product[]).map(normalizePhoneCaseProduct));
     } catch {
@@ -108,6 +114,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     fetchStorefront();
   }, []);
 
+  useEffect(() => {
+    if (!settings) return;
+    applyDocumentFavicon(settings.faviconUrl, settings.storeName);
+  }, [settings?.faviconUrl, settings?.storeName]);
+
   function showToast(msg: string) {
     setToastMsg(msg);
     setTimeout(() => {
@@ -116,6 +127,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function openMyOrders() {
+    setCheckoutOpen(false);
     setActiveProduct(null);
     setMyOrdersOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -133,12 +145,14 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     setSearchQuery(nextQuery);
     setCarouselPage(0);
     if (nextQuery.trim() !== '') {
+      setCheckoutOpen(false);
       setActiveProduct(null);
       setMyOrdersOpen(false);
     }
   }
 
   function scrollToCatalog() {
+    setCheckoutOpen(false);
     setActiveProduct(null);
     setMyOrdersOpen(false);
     setTimeout(() => {
@@ -155,8 +169,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       ? filteredProducts
       : filteredProducts.slice(safePage * pageSize, safePage * pageSize + pageSize);
 
-  function addToCart(product: Product, model?: string, qty = 1) {
-    addItem(product, model, qty);
+  function addToCart(product: Product, model?: string, qty = 1, meta?: AddCartItemMeta) {
+    addItem(product, model, qty, meta);
     showToast(`Added "${product.title.slice(0, 28)}..." to bag`);
   }
 
@@ -210,7 +224,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     <div className="min-h-screen flex flex-col bg-white text-neutral-900 overflow-x-clip">
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-5 z-50 bg-neutral-950 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-medium flex items-center gap-2">
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-5 z-50 bg-neutral-950 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span className="truncate">{toastMsg}</span>
         </div>
@@ -224,6 +238,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={() => {
+                setCheckoutOpen(false);
                 setActiveProduct(null);
                 setMyOrdersOpen(false);
                 setSelectedCategory('All');
@@ -231,9 +246,19 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 setViewAll(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="font-brand text-xl sm:text-[26px] font-black tracking-tight text-black whitespace-nowrap shrink-0 cursor-pointer"
+              className="font-brand text-xl sm:text-[26px] font-black tracking-tight text-black whitespace-nowrap shrink-0 cursor-pointer flex items-center"
             >
-              {settings?.storeName || 'Classy Cases'}
+              {settings?.logoUrl && !logoImgFailed ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.storeName || 'Classy Cases'}
+                  referrerPolicy="no-referrer"
+                  onError={() => setLogoImgFailed(true)}
+                  className="h-8 sm:h-10 w-auto max-w-[180px] object-contain"
+                />
+              ) : (
+                settings?.storeName || 'Classy Cases'
+              )}
             </button>
 
           {/* Zone 2: Search Bar */}
@@ -253,7 +278,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               type="button"
               onClick={openMyOrders}
               title="My Orders & Tracking"
-              className={`px-2 sm:px-2.5 py-1.5 rounded-lg transition-colors relative inline-flex items-center gap-1.5 text-xs font-semibold ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-colors relative inline-flex items-center gap-1.5 text-[13px] font-semibold ${
                 myOrdersOpen
                   ? 'bg-neutral-950 text-white'
                   : 'text-neutral-800 hover:bg-neutral-100'
@@ -300,7 +325,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="ml-0.5 sm:ml-1 inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-neutral-300 text-xs font-semibold text-neutral-800 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors whitespace-nowrap shrink-0"
+              className="ml-0.5 sm:ml-1 inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg border border-neutral-300 text-[13px] font-semibold text-neutral-800 hover:bg-neutral-900 hover:text-white hover:border-neutral-900 transition-colors whitespace-nowrap shrink-0"
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Admin</span>
@@ -323,17 +348,18 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
         {/* Solid Black Category Strip */}
         <nav className="bg-[#0a0a0a] text-white border-t border-neutral-900">
-          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 h-10 flex items-center justify-start sm:justify-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar">
+          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 h-11 flex items-center justify-start sm:justify-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => {
+                setCheckoutOpen(false);
                 setActiveProduct(null);
                 setMyOrdersOpen(false);
                 setSelectedCategory('All');
                 setCarouselPage(0);
               }}
-              className={`text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
-                selectedCategory === 'All' && !myOrdersOpen ? 'text-white font-semibold' : 'text-neutral-400 hover:text-white'
+              className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
+                selectedCategory === 'All' && !myOrdersOpen && !checkoutOpen ? 'text-white font-semibold' : 'text-neutral-400 hover:text-white'
               }`}
             >
               All categories
@@ -343,6 +369,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 key={cat.id}
                 type="button"
                 onClick={() => {
+                  setCheckoutOpen(false);
                   setActiveProduct(null);
                   setMyOrdersOpen(false);
                   setSelectedCategory(cat.name);
@@ -351,8 +378,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
                   }, 30);
                 }}
-                className={`text-xs font-medium whitespace-nowrap shrink-0 transition-colors ${
-                  !myOrdersOpen && selectedCategory.toLowerCase() === cat.name.toLowerCase()
+                className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
+                  !myOrdersOpen && !checkoutOpen && selectedCategory.toLowerCase() === cat.name.toLowerCase()
                     ? 'text-white font-semibold underline underline-offset-4'
                     : 'text-neutral-300 hover:text-white'
                 }`}
@@ -366,7 +393,36 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
       {/* Main Content */}
       <main className="flex-1">
-        {myOrdersOpen ? (
+        {checkoutOpen && settings ? (
+          <CheckoutModal
+            isOpen={checkoutOpen}
+            onClose={() => setCheckoutOpen(false)}
+            cart={cart}
+            products={products}
+            settings={settings}
+            deliveryArea={deliveryArea}
+            onDeliveryAreaChange={setDeliveryArea}
+            onOrderCompleted={(_order, customerOrderToken) => {
+              if (customerOrderToken) {
+                saveCustomerOrderToken(customerOrderToken);
+                setHasSavedOrders(true);
+              }
+              clearCart();
+              fetchStorefront();
+            }}
+            onViewMyOrders={openMyOrders}
+            onEditCart={openDrawer}
+            onEditItem={(productId) => {
+              const found = products.find((p) => p.id === productId);
+              if (found) {
+                setCheckoutOpen(false);
+                setMyOrdersOpen(false);
+                setActiveProduct(found);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          />
+        ) : myOrdersOpen ? (
           <MyOrdersSection
             products={products}
             onBackToShop={() => {
@@ -400,13 +456,14 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onToggleWishlist={toggleWishlist}
-            onAddToCart={(product, model, qty = 1) => {
-              addToCart(product, model, qty);
+            onAddToCart={(product, model, qty = 1, meta) => {
+              addToCart(product, model, qty, meta);
               openDrawer();
             }}
-            onBuyNow={(product, model, qty = 1) => {
-              addToCart(product, model, qty);
+            onBuyNow={(product, model, qty = 1, meta) => {
+              addToCart(product, model, qty, meta);
               setCheckoutOpen(true);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onOpenWhatsAppHelp={() =>
               setInfoModal({
@@ -425,35 +482,46 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               </h2>
 
               <div className="grid grid-cols-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center gap-3 sm:gap-5 max-w-md sm:max-w-none mx-auto">
-                {categories.map((cat) => {
-                  const isActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory(isActive ? 'All' : cat.name);
-                        setCarouselPage(0);
-                        document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="group flex flex-col items-center focus:outline-none w-full sm:w-auto"
-                    >
-                      <div
-                        className={`w-full aspect-square max-w-[112px] sm:w-32 sm:h-32 sm:max-w-none rounded-2xl border bg-white flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 ${
-                          isActive ? 'border-neutral-900 ring-1 ring-neutral-900' : 'border-neutral-200'
-                        }`}
+                {categories
+                  .filter((c) => c.featured !== false)
+                  .map((cat) => {
+                    const isActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(isActive ? 'All' : cat.name);
+                          setCarouselPage(0);
+                          document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="group flex flex-col items-center focus:outline-none w-full sm:w-auto"
                       >
-                        <div className="scale-[0.78] sm:scale-100">
-                          {cat.brandKey === 'motorola' && <MotorolaLogo />}
-                          {cat.brandKey === 'vivo' && <VivoLogo />}
-                          {cat.brandKey === 'xiaomi' && <XiaomiLogo />}
-                          {cat.brandKey === 'custom' && <CustomBrandLogo name={cat.name} />}
+                        <div
+                          className={`w-full aspect-square max-w-[112px] sm:w-32 sm:h-32 sm:max-w-none rounded-2xl border bg-white flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
+                            isActive ? 'border-neutral-900 ring-1 ring-neutral-900' : 'border-neutral-200'
+                          }`}
+                        >
+                          {cat.image ? (
+                            <img
+                              src={cat.image}
+                              alt={cat.name}
+                              referrerPolicy="no-referrer"
+                              className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl"
+                            />
+                          ) : (
+                            <div className="scale-[0.78] sm:scale-100">
+                              {cat.brandKey === 'motorola' && <MotorolaLogo />}
+                              {cat.brandKey === 'vivo' && <VivoLogo />}
+                              {cat.brandKey === 'xiaomi' && <XiaomiLogo />}
+                              {cat.brandKey === 'custom' && <CustomBrandLogo name={cat.name} />}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <span className="mt-2 sm:mt-2.5 text-xs font-semibold text-neutral-900">{cat.name}</span>
-                    </button>
-                  );
-                })}
+                        <span className="mt-2 sm:mt-2.5 text-[13px] font-semibold text-neutral-900">{cat.name}</span>
+                      </button>
+                    );
+                  })}
               </div>
             </section>
 
@@ -485,7 +553,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     <button
                       type="button"
                       onClick={() => setSelectedCategory('All')}
-                      className="text-xs font-medium text-neutral-700 hover:text-neutral-950 underline underline-offset-4 whitespace-nowrap"
+                      className="text-[13px] font-medium text-neutral-700 hover:text-neutral-950 underline underline-offset-4 whitespace-nowrap"
                     >
                       Search all brands
                     </button>
@@ -498,7 +566,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         setSearchQuery('');
                         setViewAll(false);
                       }}
-                      className="text-xs font-medium text-neutral-500 hover:text-neutral-900 whitespace-nowrap"
+                      className="text-[13px] font-medium text-neutral-500 hover:text-neutral-900 whitespace-nowrap"
                     >
                       Reset filter
                     </button>
@@ -506,7 +574,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   <button
                     type="button"
                     onClick={() => setViewAll((v) => !v)}
-                    className="text-[11px] font-semibold tracking-wider uppercase text-neutral-900 underline underline-offset-4 inline-flex items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0"
+                    className="text-xs font-semibold tracking-wider uppercase text-neutral-900 underline underline-offset-4 inline-flex items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0"
                   >
                     <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -548,9 +616,19 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           {/* Column 1 */}
           <div className="space-y-3">
             <div className="font-brand text-2xl font-black text-black">
-              {settings?.storeName || 'Classy Cases'}
+              {settings?.logoUrl && !logoImgFailed ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.storeName || 'Classy Cases'}
+                  referrerPolicy="no-referrer"
+                  onError={() => setLogoImgFailed(true)}
+                  className="h-9 w-auto max-w-[180px] object-contain"
+                />
+              ) : (
+                settings?.storeName || 'Classy Cases'
+              )}
             </div>
-            <p className="text-xs text-neutral-600">
+            <p className="text-[13px] sm:text-sm text-neutral-600 leading-relaxed">
               WhatsApp:{' '}
               <button
                 type="button"
@@ -568,17 +646,17 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={scrollToCatalog}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-900 underline underline-offset-4 hover:opacity-75"
+              className="inline-flex items-center gap-1 text-[13px] sm:text-sm font-semibold text-neutral-900 underline underline-offset-4 hover:opacity-75"
             >
               <span>Shop now</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <ArrowUpRight className="w-4 h-4" />
             </button>
           </div>
 
           {/* Column 2: Help */}
           <div>
-            <h3 className="text-sm font-semibold text-neutral-900 mb-3">Help</h3>
-            <ul className="space-y-2 text-xs text-neutral-600">
+            <h3 className="text-base font-semibold text-neutral-900 mb-3.5">Help</h3>
+            <ul className="space-y-2.5 text-[13px] sm:text-sm text-neutral-600">
               <li>
                 <button type="button" onClick={openMyOrders} className="hover:text-neutral-950 font-medium text-neutral-800">
                   My Orders &amp; Tracking
@@ -647,8 +725,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
           {/* Column 3: Company */}
           <div>
-            <h3 className="text-sm font-semibold text-neutral-900 mb-3">Company</h3>
-            <ul className="space-y-2 text-xs text-neutral-600">
+            <h3 className="text-base font-semibold text-neutral-900 mb-3.5">Company</h3>
+            <ul className="space-y-2.5 text-[13px] sm:text-sm text-neutral-600">
               <li>
                 <button
                   type="button"
@@ -705,8 +783,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
           {/* Column 4: Newsletter */}
           <div>
-            <h3 className="text-sm font-semibold text-neutral-900 mb-2">Newsletter</h3>
-            <p className="text-xs text-neutral-600 leading-relaxed mb-3">
+            <h3 className="text-base font-semibold text-neutral-900 mb-2.5">Newsletter</h3>
+            <p className="text-[13px] sm:text-sm text-neutral-600 leading-relaxed mb-3.5">
               Subscribe for new arrivals, offers and updates. No spam — unsubscribe any time.
             </p>
             <form
@@ -719,17 +797,17 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="flex-1 min-w-0 px-2.5 py-1.5 text-xs focus:outline-none"
+                className="flex-1 min-w-0 px-2.5 py-2 text-[13px] focus:outline-none"
               />
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded-md bg-neutral-950 text-white text-xs font-medium inline-flex items-center gap-1 hover:bg-neutral-800 whitespace-nowrap shrink-0"
+                className="px-3.5 py-2 rounded-md bg-neutral-950 text-white text-[13px] font-medium inline-flex items-center gap-1 hover:bg-neutral-800 whitespace-nowrap shrink-0"
               >
                 <span>Subscribe</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
               </button>
             </form>
-            {newsletterMsg && <p className="text-[11px] text-neutral-600 mt-1.5">{newsletterMsg}</p>}
+            {newsletterMsg && <p className="text-xs text-neutral-600 mt-1.5">{newsletterMsg}</p>}
           </div>
         </div>
 
@@ -743,13 +821,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           <ArrowUp className="w-4 h-4" />
         </button>
         <div className="max-w-[1180px] mx-auto px-4 sm:px-8 pb-8">
-          <div className="border-t border-neutral-200 pt-6 text-center text-xs text-neutral-500">
+          <div className="border-t border-neutral-200 pt-6 text-center text-[13px] text-neutral-500">
             © 2026 {settings?.storeName || 'Classy Cases'}. All Rights Reserved
           </div>
         </div>
       </footer>
-
-
 
       {/* Persistent Slide-Out Shopping Bag Drawer */}
       <CartDrawer
@@ -758,7 +834,21 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         freeShippingThreshold={settings?.freeShippingThreshold}
         deliveryZone={deliveryArea}
         onDeliveryZoneChange={setDeliveryArea}
-        onProceedToCheckout={() => setCheckoutOpen(true)}
+        onProceedToCheckout={() => {
+          setMyOrdersOpen(false);
+          setActiveProduct(null);
+          setCheckoutOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onEditItem={(productId) => {
+          const found = products.find((p) => p.id === productId);
+          if (found) {
+            setCheckoutOpen(false);
+            setMyOrdersOpen(false);
+            setActiveProduct(found);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }}
       />
 
       {/* Wishlist Drawer */}
@@ -793,8 +883,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       className="w-16 h-16 rounded-lg object-cover border border-neutral-200"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-neutral-900 line-clamp-2">{p.title}</p>
-                      <p className="text-xs font-bold mt-1 tabular-nums">৳{p.price}</p>
+                      <p className="text-sm font-semibold text-neutral-900 line-clamp-2">{p.title}</p>
+                      <p className="text-sm font-bold mt-1 tabular-nums">৳{p.price}</p>
                     </div>
                     <button
                       type="button"
@@ -803,7 +893,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         setWishlistOpen(false);
                         openDrawer();
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-neutral-950 text-white text-xs font-semibold shrink-0"
+                      className="px-3.5 py-2 rounded-lg bg-neutral-950 text-white text-xs font-semibold shrink-0"
                     >
                       Add
                     </button>
@@ -820,7 +910,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-neutral-200 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-neutral-900">{infoModal.title}</h3>
+              <h3 className="text-lg font-bold text-neutral-900">{infoModal.title}</h3>
               <button
                 type="button"
                 onClick={() => setInfoModal(null)}
@@ -833,7 +923,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={() => setInfoModal(null)}
-              className="w-full py-2.5 rounded-xl bg-neutral-950 text-white text-xs font-semibold"
+              className="w-full py-2.5 rounded-xl bg-neutral-950 text-white text-sm font-semibold"
             >
               Close
             </button>
@@ -841,26 +931,6 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         </div>
       )}
 
-      {/* Checkout Modal */}
-      {settings && (
-        <CheckoutModal
-          isOpen={checkoutOpen}
-          onClose={() => setCheckoutOpen(false)}
-          cart={cart}
-          settings={settings}
-          deliveryArea={deliveryArea}
-          onDeliveryAreaChange={setDeliveryArea}
-          onOrderCompleted={(_order, customerOrderToken) => {
-            if (customerOrderToken) {
-              saveCustomerOrderToken(customerOrderToken);
-              setHasSavedOrders(true);
-            }
-            clearCart();
-            fetchStorefront();
-          }}
-          onViewMyOrders={openMyOrders}
-        />
-      )}
     </div>
   );
 }

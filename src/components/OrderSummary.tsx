@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Truck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { formatTaka } from '../models/phoneCase';
 
@@ -50,8 +49,9 @@ export function OrderSummary({
   onDeliveryZoneChange,
   onProceedToCheckout,
 }: OrderSummaryProps) {
-  const { cartSubtotal, cartCount, closeDrawer } = useCart();
+  const { cartSubtotal, closeDrawer } = useCart();
   const [internalZone, setInternalZone] = useState<DeliveryZone>('inside_dhaka');
+  const [showShippingEstimator, setShowShippingEstimator] = useState(false);
 
   const deliveryZone = controlledZone ?? internalZone;
   const setDeliveryZone = (next: DeliveryZone) => {
@@ -73,85 +73,93 @@ export function OrderSummary({
   return (
     <section
       aria-label="Order Summary"
-      className="p-5 sm:p-6 border-t border-neutral-200 bg-neutral-50 space-y-3.5"
+      className="px-5 sm:px-6 pt-4 pb-5 border-t border-neutral-200 bg-white space-y-3.5"
     >
+      {/* Subtotal line matching screenshot */}
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900">
-          Order Summary
-        </h3>
-        <span className="text-[11px] font-medium text-neutral-500 tabular-nums">
-          {cartCount} {cartCount === 1 ? 'item' : 'items'}
+        <span className="text-lg font-normal text-neutral-900">Subtotal</span>
+        <span className="text-xl font-bold text-neutral-950 tabular-nums">
+          {formatTaka(subtotal)}
         </span>
       </div>
 
-      {/* Delivery Zone Toggle for Shipping Estimate */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-600">
-          <Truck className="w-3.5 h-3.5 text-neutral-500" />
-          <span>Shipping Estimate Zone</span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5 bg-neutral-200/70 p-1 rounded-lg">
+      {/* Shipping estimate toggle & breakdown */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between gap-2 text-[13px] text-neutral-500">
+          <span>
+            {qualifiesForFreeShipping
+              ? 'Free nationwide delivery unlocked'
+              : 'Delivery charge calculated at checkout'}
+          </span>
           <button
             type="button"
-            onClick={() => setDeliveryZone('inside_dhaka')}
-            className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-              deliveryZone === 'inside_dhaka'
-                ? 'bg-white text-neutral-950 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
-            }`}
+            onClick={() => setShowShippingEstimator((v) => !v)}
+            className="text-xs font-semibold text-neutral-800 underline underline-offset-4 hover:text-neutral-950 shrink-0"
           >
-            Inside Dhaka ({formatTaka(shippingInsideDhaka)})
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeliveryZone('outside_dhaka')}
-            className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-colors ${
-              deliveryZone === 'outside_dhaka'
-                ? 'bg-white text-neutral-950 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            Outside Dhaka ({formatTaka(shippingOutsideDhaka)})
+            {showShippingEstimator ? 'Hide estimate' : 'Estimate total'}
           </button>
         </div>
+
+        {showShippingEstimator && (
+          <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 space-y-2.5 text-[13px]">
+            <div className="grid grid-cols-2 gap-1.5 bg-neutral-200/70 p-1 rounded-lg">
+              <button
+                type="button"
+                onClick={() => setDeliveryZone('inside_dhaka')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  deliveryZone === 'inside_dhaka'
+                    ? 'bg-white text-neutral-950 shadow-xs'
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                Inside Dhaka ({formatTaka(shippingInsideDhaka)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryZone('outside_dhaka')}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  deliveryZone === 'outside_dhaka'
+                    ? 'bg-white text-neutral-950 shadow-xs'
+                    : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                Outside Dhaka ({formatTaka(shippingOutsideDhaka)})
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-neutral-600">
+              <span>Estimated Shipping</span>
+              <span className="font-semibold text-neutral-900 tabular-nums">
+                {qualifiesForFreeShipping ? 'Free' : formatTaka(estimatedShipping)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between font-bold text-neutral-950 pt-1.5 border-t border-neutral-200">
+              <span>Estimated Total</span>
+              <span className="tabular-nums">{formatTaka(total)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Cost Breakdown */}
-      <dl className="space-y-2 text-xs pt-1">
-        <div className="flex items-center justify-between text-neutral-600">
-          <dt>Subtotal</dt>
-          <dd className="font-semibold text-neutral-900 tabular-nums">{formatTaka(subtotal)}</dd>
-        </div>
-        <div className="flex items-center justify-between text-neutral-600">
-          <dt>Estimated Shipping</dt>
-          <dd className="font-semibold tabular-nums">
-            {qualifiesForFreeShipping ? (
-              <span className="text-emerald-700">Free</span>
-            ) : (
-              <span className="text-neutral-900">{formatTaka(estimatedShipping)}</span>
-            )}
-          </dd>
-        </div>
-        <div className="pt-2.5 border-t border-neutral-200 flex items-center justify-between text-sm font-bold text-neutral-950">
-          <dt>Total</dt>
-          <dd className="tabular-nums">{formatTaka(total)}</dd>
-        </div>
-      </dl>
+      <div className="border-t border-neutral-200 pt-4 grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setShowShippingEstimator((v) => !v)}
+          className="py-3 px-4 rounded-xl border border-neutral-300 bg-white text-neutral-950 text-sm font-semibold hover:bg-neutral-50 transition-colors"
+        >
+          View cart
+        </button>
 
-      <p className="text-[11px] text-neutral-500">
-        Pay securely online with bKash, Nagad, Visa/Mastercard, or Cash on Delivery.
-      </p>
-
-      <button
-        type="button"
-        onClick={() => {
-          closeDrawer();
-          onProceedToCheckout();
-        }}
-        className="w-full py-3 rounded-xl bg-neutral-950 text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
-      >
-        Proceed to Checkout
-      </button>
+        <button
+          type="button"
+          onClick={() => {
+            closeDrawer();
+            onProceedToCheckout();
+          }}
+          className="py-3 px-4 rounded-xl bg-[#111111] text-white text-sm font-semibold hover:bg-neutral-800 transition-colors"
+        >
+          Check out
+        </button>
+      </div>
     </section>
   );
 }

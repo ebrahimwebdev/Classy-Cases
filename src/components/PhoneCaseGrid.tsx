@@ -56,22 +56,22 @@ export function PhoneCaseCard({
 
         <h3
           onClick={() => onSelectProduct(product)}
-          className="text-xs sm:text-[13px] font-semibold text-neutral-900 leading-snug line-clamp-2 min-h-[2.25rem] sm:min-h-[2.4rem] cursor-pointer hover:underline"
+          className="text-[13px] sm:text-sm font-semibold text-neutral-900 leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:underline"
         >
           {product.title}
         </h3>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 flex-wrap">
-          <span className="text-[13px] sm:text-sm font-bold text-neutral-900 tabular-nums">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <span className="text-sm sm:text-[15px] font-bold text-neutral-900 tabular-nums">
             {formatTaka(product.price)}
           </span>
           {product.originalPrice > product.price && (
-            <span className="text-[11px] sm:text-xs text-neutral-400 line-through tabular-nums">
+            <span className="text-xs sm:text-[13px] text-neutral-400 line-through tabular-nums">
               {formatTaka(product.originalPrice)}
             </span>
           )}
           {product.discountPercent > 0 && (
-            <span className="bg-[#D91E18] text-white text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded tabular-nums">
+            <span className="bg-[#D91E18] text-white text-[11px] font-semibold px-1.5 py-0.5 rounded tabular-nums">
               -{product.discountPercent}%
             </span>
           )}
@@ -81,7 +81,7 @@ export function PhoneCaseCard({
       <button
         type="button"
         onClick={() => onAddToCart(product)}
-        className="mt-3 w-full py-2 px-2.5 sm:px-3 rounded-lg border border-neutral-300 bg-white text-[11px] sm:text-xs font-semibold text-neutral-900 flex items-center justify-center gap-1.5 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 transition-colors whitespace-nowrap"
+        className="mt-3 w-full py-2.5 px-3 rounded-lg border border-neutral-300 bg-white text-xs sm:text-[13px] font-semibold text-neutral-900 flex items-center justify-center gap-1.5 hover:bg-neutral-950 hover:text-white hover:border-neutral-950 transition-colors whitespace-nowrap"
       >
         <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
         <span>Add to Cart</span>

@@ -211,7 +211,7 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
               <div className="pb-2 flex-1 min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span
-                    className={`text-xs sm:text-sm font-semibold ${
+                    className={`text-sm font-semibold ${
                       m.current
                         ? 'text-neutral-950'
                         : m.done
@@ -221,9 +221,9 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
                   >
                     {m.title}
                   </span>
-                  <span className="text-[11px] text-neutral-500 tabular-nums">{m.time}</span>
+                  <span className="text-xs text-neutral-500 tabular-nums">{m.time}</span>
                 </div>
-                <p className="text-xs text-neutral-500 mt-0.5 leading-relaxed">{m.detail}</p>
+                <p className="text-[13px] text-neutral-500 mt-0.5 leading-relaxed">{m.detail}</p>
               </div>
             </div>
           ))}
@@ -487,11 +487,11 @@ export function MyOrdersSection({
         <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 sm:p-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="max-w-md">
-              <h2 className="text-sm font-bold text-neutral-950 flex items-center gap-2">
+              <h2 className="text-base font-bold text-neutral-950 flex items-center gap-2">
                 <Truck className="w-4 h-4 text-neutral-700" />
                 <span>Track Your Order</span>
               </h2>
-              <p className="text-xs text-neutral-600 mt-1 leading-relaxed">
+              <p className="text-[13px] text-neutral-600 mt-1 leading-relaxed">
                 Enter your Order Number and checkout Phone Number to inspect live courier status and sync past orders to this browser.
               </p>
             </div>
@@ -506,7 +506,7 @@ export function MyOrdersSection({
                 value={lookupOrderNumber}
                 onChange={(e) => setLookupOrderNumber(e.target.value)}
                 placeholder="Order # (e.g. 1001)"
-                className="flex-1 px-3.5 py-2.5 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
               />
               <input
                 type="tel"
@@ -514,17 +514,17 @@ export function MyOrdersSection({
                 value={lookupPhone}
                 onChange={(e) => setLookupPhone(e.target.value)}
                 placeholder="Phone (e.g. 017XXXXXXXX)"
-                className="flex-1 px-3.5 py-2.5 text-xs bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
+                className="flex-1 px-3.5 py-2.5 text-[13px] bg-white border border-neutral-300 rounded-xl focus:outline-none focus:border-neutral-950"
               />
               <button
                 type="submit"
                 disabled={lookupLoading}
-                className="px-5 py-2.5 rounded-xl bg-neutral-950 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-60"
+                className="px-5 py-2.5 rounded-xl bg-neutral-950 text-white text-[13px] font-semibold hover:bg-neutral-800 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap disabled:opacity-60"
               >
                 {lookupLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <PackageCheck className="w-3.5 h-3.5" />
+                  <PackageCheck className="w-4 h-4" />
                 )}
                 <span>Track Order</span>
               </button>
@@ -789,15 +789,15 @@ export function MyOrdersSection({
                               className="w-14 h-14 rounded-xl object-cover border border-neutral-200 shrink-0 bg-neutral-100"
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="text-xs sm:text-sm font-semibold text-neutral-950 line-clamp-1">
+                              <div className="text-sm font-semibold text-neutral-950 line-clamp-1">
                                 {item.title}
                               </div>
-                              <div className="text-[11px] text-neutral-500 mt-0.5">
+                              <div className="text-xs text-neutral-500 mt-0.5">
                                 Model: <span className="font-medium text-neutral-700">{item.model}</span> · Qty:{' '}
                                 <span className="font-medium text-neutral-700 tabular-nums">{item.quantity}</span>
                               </div>
                             </div>
-                            <div className="text-xs sm:text-sm font-bold text-neutral-950 tabular-nums shrink-0">
+                            <div className="text-sm font-bold text-neutral-950 tabular-nums shrink-0">
                               {formatTaka(item.price * item.quantity)}
                             </div>
                           </div>
@@ -806,7 +806,7 @@ export function MyOrdersSection({
 
                       {/* Expanded Delivery & Breakdown */}
                       {isExpanded && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 text-[13px]">
                           <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/80 space-y-1.5">
                             <div className="font-semibold text-neutral-900 flex items-center gap-1.5">
                               <MapPin className="w-3.5 h-3.5 text-neutral-500" />

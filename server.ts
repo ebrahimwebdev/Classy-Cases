@@ -1,9 +1,9 @@
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import type {
   Category,
   Coupon,
@@ -71,6 +71,8 @@ function createInitialData(): StoreDatabase {
     settings: {
       storeName: 'Classy Cases',
       tagline: 'Premium phone cases, made to fit "Your Perfect Case". Everyday protection. Effortless style.',
+      logoUrl: '',
+      faviconUrl: '',
       orderPrefix: '',
       nextOrderNumber: 1001,
       takePreOrders: true,
@@ -413,6 +415,8 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
   return {
     storeName: settings.storeName,
     tagline: settings.tagline,
+    logoUrl: settings.logoUrl || '',
+    faviconUrl: settings.faviconUrl || '',
     orderPrefix: settings.orderPrefix,
     takePreOrders: settings.takePreOrders,
     phone: settings.phone,
@@ -699,7 +703,7 @@ async function startServer() {
   app.get('/api/storefront', (_req, res) => {
     res.json({
       settings: sanitizeSettingsForPublic(db.settings),
-      categories: db.categories,
+      categories: db.categories.filter((c) => c.active !== false),
       products: db.products.filter((p) => p.active !== false),
     });
   });
@@ -1383,26 +1387,94 @@ async function startServer() {
   });
 
   app.post('/api/admin/categories', requireAdmin, (req, res) => {
-    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-    if (name.length < 2) {
+    const body = req.body || {};
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (name.length < 1) {
       res.status(400).json({ error: 'Category name is required' });
       return;
     }
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    if (db.categories.some((c) => c.slug === slug)) {
-      res.status(409).json({ error: 'Category already exists' });
+
+    const rawSlugSource = typeof body.slug === 'string' && body.slug.trim() ? body.slug.trim() : name;
+    let slug = rawSlugSource
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    if (!slug) {
+      slug = `category-${crypto.randomUUID().slice(0, 6)}`;
+    }
+
+    if (db.categories.some((c) => c.slug.toLowerCase() === slug.toLowerCase())) {
+      res.status(409).json({ error: `A category with URL "/${slug}" already exists.` });
       return;
     }
+
+    const rawImage = typeof body.image === 'string' ? body.image.trim() : '';
+    const safeCatImage = rawImage && isSafeImageSource(rawImage) ? rawImage : '';
+
     const category: Category = {
       id: `cat-${crypto.randomUUID().slice(0, 6)}`,
       name,
       slug,
       brandKey: 'custom',
-      featured: true,
+      featured: body.featured !== false,
+      active: body.active !== false,
+      parentId: typeof body.parentId === 'string' ? body.parentId.trim() : '',
+      description: typeof body.description === 'string' ? body.description.trim() : '',
+      googleCategory: typeof body.googleCategory === 'string' ? body.googleCategory.trim() : '',
+      seoTitle: typeof body.seoTitle === 'string' ? body.seoTitle.trim() : '',
+      seoDescription: typeof body.seoDescription === 'string' ? body.seoDescription.trim() : '',
+      image: safeCatImage,
+      shippingClass: typeof body.shippingClass === 'string' ? body.shippingClass.trim() : 'No class',
     };
     db.categories.push(category);
     saveDatabase();
     res.status(201).json({ category });
+  });
+
+  app.put('/api/admin/categories/:id', requireAdmin, (req, res) => {
+    const category = db.categories.find((c) => c.id === req.params.id);
+    if (!category) {
+      res.status(404).json({ error: 'Category not found' });
+      return;
+    }
+    const body = req.body || {};
+    if (typeof body.name === 'string') {
+      const trimmed = body.name.trim();
+      if (trimmed.length < 1) {
+        res.status(400).json({ error: 'Category name is required' });
+        return;
+      }
+      category.name = trimmed;
+    }
+    if (typeof body.slug === 'string' && body.slug.trim()) {
+      const nextSlug = body.slug
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      if (
+        nextSlug &&
+        db.categories.some((c) => c.id !== category.id && c.slug.toLowerCase() === nextSlug.toLowerCase())
+      ) {
+        res.status(409).json({ error: `URL "/${nextSlug}" is already used by another category.` });
+        return;
+      }
+      if (nextSlug) category.slug = nextSlug;
+    }
+    if (typeof body.active === 'boolean') category.active = body.active;
+    if (typeof body.featured === 'boolean') category.featured = body.featured;
+    if (typeof body.parentId === 'string') category.parentId = body.parentId.trim();
+    if (typeof body.description === 'string') category.description = body.description.trim();
+    if (typeof body.googleCategory === 'string') category.googleCategory = body.googleCategory.trim();
+    if (typeof body.seoTitle === 'string') category.seoTitle = body.seoTitle.trim();
+    if (typeof body.seoDescription === 'string') category.seoDescription = body.seoDescription.trim();
+    if (typeof body.shippingClass === 'string') category.shippingClass = body.shippingClass.trim();
+    if (body.image !== undefined) {
+      const rawImage = typeof body.image === 'string' ? body.image.trim() : '';
+      category.image = rawImage && isSafeImageSource(rawImage) ? rawImage : '';
+    }
+    saveDatabase();
+    res.json({ category });
   });
 
   app.delete('/api/admin/categories/:id', requireAdmin, (req, res) => {
@@ -1468,8 +1540,32 @@ async function startServer() {
   app.put('/api/admin/settings', requireAdmin, (req, res) => {
     const body = req.body || {};
     const s = db.settings;
+    const isSafeBrandAsset = (val: unknown): val is string =>
+      typeof val === 'string' &&
+      (val.trim() === '' ||
+        val.trim().startsWith('/src/assets/') ||
+        val.trim().startsWith('/assets/') ||
+        val.trim().startsWith('https://') ||
+        /^data:image\/(png|jpeg|jpg|webp|gif|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
+          val.trim()
+        ));
+
     if (typeof body.storeName === 'string' && body.storeName.trim()) s.storeName = body.storeName.trim();
     if (typeof body.tagline === 'string') s.tagline = body.tagline.trim();
+    if (body.logoUrl !== undefined) {
+      if (!isSafeBrandAsset(body.logoUrl)) {
+        res.status(400).json({ error: 'Logo must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+        return;
+      }
+      s.logoUrl = body.logoUrl.trim();
+    }
+    if (body.faviconUrl !== undefined) {
+      if (!isSafeBrandAsset(body.faviconUrl)) {
+        res.status(400).json({ error: 'Favicon must be an HTTPS image URL or PNG/JPG/WEBP/GIF/ICO upload.' });
+        return;
+      }
+      s.faviconUrl = body.faviconUrl.trim();
+    }
     if (typeof body.orderPrefix === 'string') s.orderPrefix = body.orderPrefix.trim().slice(0, 10);
     if (typeof body.takePreOrders === 'boolean') s.takePreOrders = body.takePreOrders;
     if (typeof body.autoMovePending === 'boolean') s.autoMovePending = body.autoMovePending;
@@ -1645,6 +1741,7 @@ async function startServer() {
   // Vite Dev Middleware or Static Production Build
   const isProd = process.env.NODE_ENV === 'production';
   if (!isProd) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -1658,7 +1755,7 @@ async function startServer() {
     });
   }
 
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Classy Cases server listening on http://localhost:${PORT}`);
   });

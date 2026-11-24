@@ -145,12 +145,12 @@ export function TrustedBySection() {
             >
               Trusted by Retail Partners, Couriers &amp; Payment Networks
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-600 mt-2 leading-relaxed">
+            <p className="text-[13px] sm:text-sm text-neutral-600 mt-2 leading-relaxed">
               Backed by nationwide express logistics, verified payment gateways, and precision OEM case manufacturing across Bangladesh.
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-neutral-600 tabular-nums shrink-0">
+          <div className="flex items-center gap-4 text-[13px] text-neutral-600 tabular-nums shrink-0">
             <span className="font-semibold text-neutral-950">12,500+ Orders Fulfilled</span>
             <span aria-hidden="true" className="text-neutral-300">·</span>
             <span>4.9/5 Partner Rating</span>
@@ -176,10 +176,10 @@ export function TrustedBySection() {
               >
                 {partner.mark}
                 <div className="leading-tight">
-                  <div className="text-sm font-bold tracking-tight text-neutral-950 whitespace-nowrap">
+                  <div className="text-[15px] font-bold tracking-tight text-neutral-950 whitespace-nowrap">
                     {partner.name}
                   </div>
-                  <div className="text-[11px] text-neutral-500 whitespace-nowrap">
+                  <div className="text-xs text-neutral-500 whitespace-nowrap">
                     {partner.category}
                   </div>
                 </div>
@@ -195,20 +195,20 @@ export function TrustedBySection() {
               key={item.id}
               className="border border-neutral-200 rounded-2xl bg-white p-5 sm:p-6 flex flex-col justify-between gap-5"
             >
-              <p className="text-xs sm:text-[13px] text-neutral-700 leading-relaxed">
+              <p className="text-[13px] sm:text-sm text-neutral-700 leading-relaxed">
                 &ldquo;{item.quote}&rdquo;
               </p>
 
               <footer className="pt-4 border-t border-neutral-100 flex items-end justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-neutral-950 truncate">
+                  <div className="text-[13px] font-bold text-neutral-950 truncate">
                     {item.author}
                   </div>
-                  <div className="text-[11px] text-neutral-500 truncate mt-0.5">
+                  <div className="text-xs text-neutral-500 truncate mt-0.5">
                     {item.role} · {item.organization}
                   </div>
                 </div>
-                <div className="text-[11px] font-semibold text-neutral-700 tabular-nums whitespace-nowrap shrink-0">
+                <div className="text-xs font-semibold text-neutral-700 tabular-nums whitespace-nowrap shrink-0">
                   {item.metric}
                 </div>
               </footer>

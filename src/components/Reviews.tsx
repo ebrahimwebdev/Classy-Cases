@@ -141,8 +141,8 @@ export function Reviews({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-bold text-neutral-900">Customer Reviews &amp; Ratings</h4>
-          <p className="text-xs text-neutral-500 mt-0.5">
+          <h4 className="text-base font-bold text-neutral-900">Customer Reviews &amp; Ratings</h4>
+          <p className="text-[13px] text-neutral-500 mt-0.5">
             Feedback from phone case buyers across Bangladesh
           </p>
         </div>
@@ -150,9 +150,9 @@ export function Reviews({
         <button
           type="button"
           onClick={() => setFormOpen((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-900 hover:bg-neutral-100 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-neutral-300 bg-white text-[13px] font-semibold text-neutral-900 hover:bg-neutral-100 transition-colors"
         >
-          <MessageSquarePlus className="w-3.5 h-3.5" />
+          <MessageSquarePlus className="w-4 h-4" />
           <span>{formOpen ? 'Cancel' : 'Write a Review'}</span>
         </button>
       </div>
@@ -160,7 +160,7 @@ export function Reviews({
       {formOpen && (
         <form
           onSubmit={handleSubmitReview}
-          className="bg-white border border-neutral-200 rounded-xl p-4 space-y-3 text-xs"
+          className="bg-white border border-neutral-200 rounded-xl p-4 sm:p-5 space-y-3.5 text-[13px]"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -270,7 +270,7 @@ export function Reviews({
               <div className="mt-1.5">
                 <StarRow rating={data.averageRating} size="md" />
               </div>
-              <p className="text-[11px] text-neutral-500 mt-1 tabular-nums">
+              <p className="text-xs text-neutral-500 mt-1.5 tabular-nums">
                 Based on {data.totalCount} {data.totalCount === 1 ? 'review' : 'reviews'}
               </p>
             </div>
@@ -280,7 +280,7 @@ export function Reviews({
                 const count = data.ratingBreakdown[stars] || 0;
                 const widthClass = getBarWidthClass(count, data.totalCount);
                 return (
-                  <div key={stars} className="flex items-center gap-2 text-[11px]">
+                  <div key={stars} className="flex items-center gap-2 text-xs">
                     <span className="w-6 text-neutral-600 font-medium tabular-nums shrink-0">
                       {stars}★
                     </span>
@@ -301,19 +301,19 @@ export function Reviews({
             {data.reviews.map((review) => (
               <article
                 key={review.id}
-                className="bg-white border border-neutral-200 rounded-xl p-4 space-y-2"
+                className="bg-white border border-neutral-200 rounded-xl p-4 sm:p-5 space-y-2.5"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-neutral-900">{review.authorName}</span>
+                    <span className="text-sm font-bold text-neutral-900">{review.authorName}</span>
                     {review.verifiedPurchase && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
                         <CheckCircle2 className="w-3 h-3" />
                         Verified Buyer
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-neutral-400">
+                  <span className="text-xs text-neutral-400">
                     {new Date(review.createdAt).toLocaleDateString()}
                   </span>
                 </div>
@@ -321,13 +321,13 @@ export function Reviews({
                 <div className="flex flex-wrap items-center gap-2">
                   <StarRow rating={review.rating} />
                   {review.deviceModel && (
-                    <span className="text-[11px] text-neutral-500">
+                    <span className="text-xs text-neutral-500">
                       Model: <strong className="text-neutral-700 font-medium">{review.deviceModel}</strong>
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs text-neutral-700 leading-relaxed">{review.comment}</p>
+                <p className="text-[13px] sm:text-sm text-neutral-700 leading-relaxed">{review.comment}</p>
               </article>
             ))}
           </div>

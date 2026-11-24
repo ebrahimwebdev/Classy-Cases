@@ -65,11 +65,10 @@ export function AdminProductsView({
       (sum, p) => sum + (p.costPrice ?? 0) * Math.max(0, p.stock),
       0
     );
-    const outOfStockCount = products.filter((p) => p.stock <= 0).length;
-    const lowStockCount = products.filter((p) => {
-      const threshold = p.lowStockThreshold ?? 10;
-      return p.stock > 0 && p.stock <= threshold;
-    }).length;
+    const outOfStockCount = products.filter((p) => p.trackStock !== false && p.stock <= 0).length;
+    const lowStockCount = products.filter(
+      (p) => p.trackStock !== false && p.stock > 0 && p.stock < 5
+    ).length;
     const waitingOrdersCount = orders.filter(
       (o) => o.fulfillmentStatus === 'pending' || o.fulfillmentStatus === 'confirmed'
     ).length;
@@ -101,12 +100,12 @@ export function AdminProductsView({
       const matchesCategory =
         categoryFilter === 'all' || p.category.toLowerCase() === categoryFilter.toLowerCase();
 
-      const threshold = p.lowStockThreshold ?? 10;
+      const isTracked = p.trackStock !== false;
       const matchesStock =
         stockFilter === 'all' ||
-        (stockFilter === 'out_of_stock' && p.stock <= 0) ||
-        (stockFilter === 'low_stock' && p.stock > 0 && p.stock <= threshold) ||
-        (stockFilter === 'in_stock' && p.stock > threshold);
+        (stockFilter === 'out_of_stock' && isTracked && p.stock <= 0) ||
+        (stockFilter === 'low_stock' && isTracked && p.stock > 0 && p.stock < 5) ||
+        (stockFilter === 'in_stock' && (!isTracked || p.stock >= 5));
 
       const isActive = p.active !== false;
       const matchesStatus =
@@ -403,7 +402,9 @@ export function AdminProductsView({
               ) : (
                 paginatedProducts.map((p) => {
                   const isActive = p.active !== false;
-                  const threshold = p.lowStockThreshold ?? 10;
+                  const isTracked = p.trackStock !== false;
+                  const isOutOfStock = isTracked && p.stock <= 0;
+                  const isLowStock = isTracked && p.stock > 0 && p.stock < 5;
                   const hasOffer = p.originalPrice > p.price;
                   const explicitVariantCount = p.variants?.length ?? 0;
                   const hasModelVariants =
@@ -484,15 +485,27 @@ export function AdminProductsView({
                       </td>
 
                       <td className="py-3.5 px-3 text-right tabular-nums">
-                        <div className="inline-flex flex-col items-end gap-0.5">
-                          <span className="font-bold text-slate-900">{p.stock}</span>
-                          {p.stock <= 0 ? (
-                            <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-600 text-[10px] font-semibold whitespace-nowrap">
-                              Out of stock
+                        <div className="inline-flex flex-col items-end gap-1">
+                          <span
+                            className={`font-bold ${
+                              isOutOfStock
+                                ? 'text-rose-600'
+                                : isLowStock
+                                  ? 'text-amber-700'
+                                  : 'text-slate-900'
+                            }`}
+                          >
+                            {p.stock}
+                          </span>
+                          {isOutOfStock ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold whitespace-nowrap">
+                              <PackageX className="w-3 h-3 shrink-0" />
+                              Out of Stock
                             </span>
-                          ) : p.stock <= threshold ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-semibold whitespace-nowrap">
-                              Low stock
+                          ) : isLowStock ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold whitespace-nowrap">
+                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                              Low Stock
                             </span>
                           ) : null}
                         </div>

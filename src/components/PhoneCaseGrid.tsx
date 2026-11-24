@@ -56,7 +56,7 @@ export function PhoneCaseCard({
 
         <h3
           onClick={() => onSelectProduct(product)}
-          className="text-[13px] sm:text-sm font-semibold text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108] hover:underline"
+          className="text-[13px] sm:text-sm font-semibold text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
         >
           {product.title}
         </h3>

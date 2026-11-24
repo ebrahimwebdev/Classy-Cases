@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowLeftRight,
   BarChart2,
   BarChart3,
@@ -72,6 +73,8 @@ import {
 import { AdminProductEditor, type ProductEditorPayload } from './AdminProductEditor';
 import { AdminProductsView } from './AdminProductsView';
 import { AdminSettings } from './AdminSettings';
+import { usePersistedProducts } from '../hooks/usePersistedProducts';
+import { hasLocalCatalogChanges, loadStoredProducts } from '../services/productStorage';
 
 type AdminSection =
   | 'Dashboard'
@@ -136,7 +139,11 @@ export function AdminDashboard({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const {
+    products,
+    persistProducts,
+    syncWithServerCatalog,
+  } = usePersistedProducts({ activeOnly: false });
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
@@ -194,10 +201,11 @@ export function AdminDashboard({
     checkAuth();
   }, []);
 
-  async function fetchOverview(token: string) {
+  async function fetchOverview(token: string, options?: { markLocalChanges?: boolean }) {
     setDataLoading(true);
     try {
       const res = await fetch('/api/admin/overview', {
+        credentials: 'same-origin',
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
@@ -207,7 +215,34 @@ export function AdminDashboard({
       const data = await res.json();
       setAnalytics(data.analytics);
       setOrders(data.orders || []);
-      setProducts(data.products || []);
+      const serverProducts: Product[] = data.products || [];
+      if (!data.catalogModified && hasLocalCatalogChanges()) {
+        const storedProducts = loadStoredProducts();
+        if (storedProducts) {
+          const syncRes = await fetch('/api/admin/products/sync', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ products: storedProducts }),
+          });
+          if (syncRes.ok) {
+            const syncData = await syncRes.json().catch(() => ({}));
+            persistProducts(syncData.products || storedProducts, true);
+          } else {
+            syncWithServerCatalog(serverProducts, false);
+          }
+        } else {
+          syncWithServerCatalog(serverProducts, false);
+        }
+      } else if (options?.markLocalChanges) {
+        persistProducts(serverProducts, true);
+      } else {
+        syncWithServerCatalog(serverProducts, Boolean(data.catalogModified));
+      }
       setCategories(data.categories || []);
       setSettings(data.settings || null);
       setSubscribers(data.subscribers || []);
@@ -316,24 +351,41 @@ export function AdminDashboard({
   }
 
   async function handleSaveProduct(payload: ProductEditorPayload) {
-    if (!adminToken) return;
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
     setProductSaving(true);
     try {
       const url = editingProduct ? `/api/admin/products/${editingProduct.id}` : '/api/admin/products';
       const method = editingProduct ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method,
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        setProductEditorOpen(false);
-        setEditingProduct(null);
-        await fetchOverview(adminToken);
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        setAdminToken(null);
+        throw new Error('Your admin session expired. Please sign in again.');
       }
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save product. Please try again.');
+      }
+      if (data.product) {
+        const saved: Product = data.product;
+        const nextProducts = editingProduct
+          ? products.map((p) => (p.id === saved.id ? saved : p))
+          : [saved, ...products];
+        persistProducts(nextProducts, true);
+      }
+      setProductEditorOpen(false);
+      setEditingProduct(null);
+      await fetchOverview(adminToken, { markLocalChanges: true });
     } finally {
       setProductSaving(false);
     }
@@ -343,14 +395,20 @@ export function AdminDashboard({
     if (!adminToken) return;
     const res = await fetch('/api/admin/products', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      await fetchOverview(adminToken);
+      const data = await res.json().catch(() => ({}));
+      if (data.product) {
+        persistProducts([data.product, ...products], true);
+      }
+      await fetchOverview(adminToken, { markLocalChanges: true });
     }
   }
 
@@ -358,21 +416,34 @@ export function AdminDashboard({
     if (!adminToken) return;
     const res = await fetch(`/api/admin/products/${p.id}`, {
       method: 'PUT',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({ active: p.active === false }),
     });
-    if (res.ok) fetchOverview(adminToken);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.product) {
+        persistProducts(
+          products.map((item) => (item.id === p.id ? data.product : item)),
+          true
+        );
+      }
+      fetchOverview(adminToken, { markLocalChanges: true });
+    }
   }
 
   async function handleDuplicateProduct(p: Product) {
     if (!adminToken) return;
     const res = await fetch('/api/admin/products', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({
@@ -382,7 +453,13 @@ export function AdminDashboard({
         slug: `${p.slug}-copy-${Math.floor(10 + Math.random() * 90)}`,
       }),
     });
-    if (res.ok) fetchOverview(adminToken);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.product) {
+        persistProducts([data.product, ...products], true);
+      }
+      fetchOverview(adminToken, { markLocalChanges: true });
+    }
   }
 
   async function handleCreateCategoryByName(input: string | CategoryFormPayload) {
@@ -432,9 +509,19 @@ export function AdminDashboard({
     if (!adminToken) return;
     const res = await fetch(`/api/admin/products/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${adminToken}` },
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Authorization: `Bearer ${adminToken}`,
+      },
     });
-    if (res.ok) fetchOverview(adminToken);
+    if (res.ok) {
+      persistProducts(
+        products.filter((p) => p.id !== id),
+        true
+      );
+      fetchOverview(adminToken, { markLocalChanges: true });
+    }
   }
 
   async function handleUpdateOrderStatus(orderId: string, fulfillmentStatus: FulfillmentStatus) {
@@ -452,15 +539,26 @@ export function AdminDashboard({
 
   async function handleQuickStockChange(p: Product, delta: number) {
     if (!adminToken) return;
-    await fetch(`/api/admin/products/${p.id}`, {
+    const res = await fetch(`/api/admin/products/${p.id}`, {
       method: 'PUT',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify({ stock: Math.max(0, p.stock + delta) }),
     });
-    fetchOverview(adminToken);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.product) {
+        persistProducts(
+          products.map((item) => (item.id === p.id ? data.product : item)),
+          true
+        );
+      }
+      fetchOverview(adminToken, { markLocalChanges: true });
+    }
   }
 
   async function handleDeleteCategory(id: string) {
@@ -775,6 +873,11 @@ export function AdminDashboard({
   }
   const customerList = Array.from(customerMap.values());
 
+  const lowStockAlertProducts = products.filter(
+    (p) => p.trackStock !== false && p.stock < 5
+  );
+  const lowStockOnlyCount = lowStockAlertProducts.filter((p) => p.stock > 0).length;
+
   // Hourly SVG path calculation
   const hourlySeries = analytics?.hourlySeries || [];
   const maxHourly = Math.max(4, ...hourlySeries.map((h) => Math.max(h.today, h.yesterday)));
@@ -859,14 +962,25 @@ export function AdminDashboard({
                         setProductEditorOpen(false);
                         setMobileSidebarOpen(false);
                       }}
-                      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors ${
+                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors ${
                         activeSection === 'Products'
                           ? 'bg-indigo-50 text-indigo-600 font-semibold'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
-                      <Box className="w-4 h-4" />
-                      <span className="truncate">Products</span>
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <Box className="w-4 h-4 shrink-0" />
+                        <span className="truncate">Products</span>
+                      </span>
+                      {lowStockAlertProducts.length > 0 && (
+                        <span
+                          title={`${lowStockAlertProducts.length} product(s) below 5 units`}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold tabular-nums shrink-0"
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                          {lowStockAlertProducts.length}
+                        </span>
+                      )}
                     </button>
 
                     <button
@@ -1117,14 +1231,25 @@ export function AdminDashboard({
                     setActiveSection('Products');
                     setProductEditorOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors ${
+                  className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors ${
                     activeSection === 'Products'
                       ? 'bg-indigo-50 text-indigo-600 font-semibold'
                       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
-                  <Box className="w-4 h-4" />
-                  <span className="truncate">Products</span>
+                  <span className="flex items-center gap-2.5 min-w-0">
+                    <Box className="w-4 h-4 shrink-0" />
+                    <span className="truncate">Products</span>
+                  </span>
+                  {lowStockAlertProducts.length > 0 && (
+                    <span
+                      title={`${lowStockAlertProducts.length} product(s) below 5 units`}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold tabular-nums shrink-0"
+                    >
+                      <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                      {lowStockAlertProducts.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -1523,8 +1648,22 @@ export function AdminDashboard({
                 {/* Middle Row: Needs attention + Order Volume */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                   <div className="lg:col-span-4 bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
-                    <h2 className="text-sm font-semibold text-slate-900">Needs attention</h2>
-                    {(analytics?.needsAttentionOrders.length || 0) === 0 ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="text-sm font-semibold text-slate-900">Needs attention</h2>
+                      {lowStockAlertProducts.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveSection('Products')}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold hover:bg-amber-100 transition-colors"
+                        >
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          <span>
+                            {lowStockOnlyCount > 0 ? `${lowStockOnlyCount} Low Stock` : `${lowStockAlertProducts.length} Stock Alert`}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                    {(analytics?.needsAttentionOrders.length || 0) === 0 && lowStockAlertProducts.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center py-14 text-center">
                         <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
                           <CheckCircle2 className="w-5 h-5" />
@@ -1534,6 +1673,52 @@ export function AdminDashboard({
                       </div>
                     ) : (
                       <div className="mt-4 space-y-2.5 max-h-64 overflow-y-auto">
+                        {lowStockAlertProducts.map((prod) => (
+                          <div
+                            key={`low-${prod.id}`}
+                            className="p-3 rounded-lg border border-amber-200 bg-amber-50/50 flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0 flex items-center gap-2.5">
+                              <img
+                                src={prod.image}
+                                alt={prod.title}
+                                referrerPolicy="no-referrer"
+                                className="w-8 h-8 rounded-md object-cover border border-amber-200 shrink-0 bg-white"
+                              />
+                              <div className="min-w-0">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditProduct(prod)}
+                                  className="text-xs font-semibold text-slate-900 hover:text-indigo-600 truncate block text-left w-full"
+                                >
+                                  {prod.title}
+                                </button>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {prod.stock <= 0 ? (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-semibold">
+                                      Out of Stock
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
+                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                      Low Stock
+                                    </span>
+                                  )}
+                                  <span className="text-[11px] text-slate-600 tabular-nums">
+                                    {prod.stock} left
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickStockChange(prod, 5)}
+                              className="px-2.5 py-1 rounded-md bg-white border border-amber-300 text-amber-800 text-[11px] font-semibold hover:bg-amber-100 shrink-0"
+                            >
+                              +5 Restock
+                            </button>
+                          </div>
+                        ))}
                         {analytics?.needsAttentionOrders.map((ord) => (
                           <div
                             key={ord.id}
@@ -2083,9 +2268,19 @@ export function AdminDashboard({
             {/* INVENTORY / PURCHASES */}
             {(activeSection === 'Inventory Dashboard' || activeSection === 'Purchases') && (
               <div className="space-y-4">
-                <div>
-                  <h1 className="text-xl font-bold text-slate-900">{activeSection}</h1>
-                  <p className="text-xs text-slate-500">Live inventory count and one-click stock adjustments</p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h1 className="text-xl font-bold text-slate-900">{activeSection}</h1>
+                    <p className="text-xs text-slate-500">Live inventory count and one-click stock adjustments</p>
+                  </div>
+                  {lowStockAlertProducts.length > 0 && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        {lowStockAlertProducts.length} product{lowStockAlertProducts.length === 1 ? '' : 's'} below 5 units
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                   <div className="overflow-x-auto">
@@ -2099,29 +2294,58 @@ export function AdminDashboard({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {products.map((p) => (
-                          <tr key={p.id}>
-                            <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-900">{p.title}</td>
-                            <td className="py-3 px-4 text-right tabular-nums font-bold">{p.stock}</td>
-                            <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => handleQuickStockChange(p, -1)}
-                                className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50"
+                        {products.map((p) => {
+                          const isTracked = p.trackStock !== false;
+                          const isOutOfStock = isTracked && p.stock <= 0;
+                          const isLowStock = isTracked && p.stock > 0 && p.stock < 5;
+                          return (
+                            <tr key={p.id}>
+                              <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
+                              <td className="py-3 px-4 font-semibold text-slate-900">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span>{p.title}</span>
+                                  {isOutOfStock ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                                      Out of Stock
+                                    </span>
+                                  ) : isLowStock ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
+                                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                      Low Stock
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td
+                                className={`py-3 px-4 text-right tabular-nums font-bold ${
+                                  isOutOfStock
+                                    ? 'text-rose-600'
+                                    : isLowStock
+                                      ? 'text-amber-700'
+                                      : 'text-slate-900'
+                                }`}
                               >
-                                -1
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickStockChange(p, 5)}
-                                className="px-2.5 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold"
-                              >
-                                +5 Restock
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                                {p.stock}
+                              </td>
+                              <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStockChange(p, -1)}
+                                  className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50"
+                                >
+                                  -1
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStockChange(p, 5)}
+                                  className="px-2.5 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold"
+                                >
+                                  +5 Restock
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2135,35 +2359,54 @@ export function AdminDashboard({
                 <div className="lg:col-span-7 space-y-3">
                   <h1 className="text-xl font-bold text-slate-900">Point of Sale Counter</h1>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {products.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          setPosItems((prev) => {
-                            const ex = prev.find((i) => i.productId === p.id);
-                            if (ex) {
-                              return prev.map((i) =>
-                                i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i
-                              );
-                            }
-                            return [...prev, { productId: p.id, quantity: 1 }];
-                          });
-                        }}
-                        className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 text-left hover:border-indigo-400 transition-colors"
-                      >
-                        <img
-                          src={p.image}
-                          alt={p.title}
-                          referrerPolicy="no-referrer"
-                          className="w-12 h-12 rounded-lg object-cover shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-slate-900 truncate">{p.title}</div>
-                          <div className="text-xs font-bold text-indigo-600 tabular-nums mt-0.5">৳{p.price}</div>
-                        </div>
-                      </button>
-                    ))}
+                    {products.map((p) => {
+                      const isTracked = p.trackStock !== false;
+                      const isOutOfStock = isTracked && p.stock <= 0;
+                      const isLowStock = isTracked && p.stock > 0 && p.stock < 5;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setPosItems((prev) => {
+                              const ex = prev.find((i) => i.productId === p.id);
+                              if (ex) {
+                                return prev.map((i) =>
+                                  i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i
+                                );
+                              }
+                              return [...prev, { productId: p.id, quantity: 1 }];
+                            });
+                          }}
+                          className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 text-left hover:border-indigo-400 transition-colors"
+                        >
+                          <img
+                            src={p.image}
+                            alt={p.title}
+                            referrerPolicy="no-referrer"
+                            className="w-12 h-12 rounded-lg object-cover shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-semibold text-slate-900 truncate">{p.title}</div>
+                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                              <span className="text-xs font-bold text-indigo-600 tabular-nums">৳{p.price}</span>
+                              {isOutOfStock ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                                  Out of Stock
+                                </span>
+                              ) : isLowStock ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                  Low Stock ({p.stock})
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 tabular-nums">{p.stock} in stock</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

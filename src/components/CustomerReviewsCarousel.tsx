@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   ChevronLeft,
@@ -73,6 +73,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
   const [activeIndex, setActiveIndex] = useState(0);
   const [visibleCount, setVisibleCount] = useState(3);
   const [isPaused, setIsPaused] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -129,7 +130,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     }
     const timer = window.setInterval(() => {
       setActiveIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
-    }, 5500);
+    }, 3800);
     return () => window.clearInterval(timer);
   }, [isPaused, maxIndex]);
 
@@ -166,7 +167,12 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
     return null;
   }
 
-  const visibleReviews = filteredReviews.slice(safeIndex, safeIndex + visibleCount);
+  const cardWidth =
+    visibleCount === 1
+      ? '100%'
+      : visibleCount === 2
+        ? 'calc((100% - 20px) / 2)'
+        : 'calc((100% - 40px) / 3)';
 
   return (
     <section
@@ -276,7 +282,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
         </div>
 
         {/* Carousel Slide Viewport */}
-        {visibleReviews.length === 0 ? (
+        {filteredReviews.length === 0 ? (
           <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-8 text-center text-sm text-[#6B4C4E]">
             No customer reviews match this rating filter yet.
           </div>
@@ -285,13 +291,36 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
             role="region"
             aria-roledescription="carousel"
             aria-label="Verified customer reviews"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 transition-opacity duration-200"
+            onTouchStart={(e) => {
+              touchStartX.current = e.touches[0]?.clientX ?? null;
+              setIsPaused(true);
+            }}
+            onTouchEnd={(e) => {
+              const startX = touchStartX.current;
+              const endX = e.changedTouches[0]?.clientX ?? null;
+              touchStartX.current = null;
+              setIsPaused(false);
+              if (startX === null || endX === null || maxIndex === 0) return;
+              const delta = startX - endX;
+              if (Math.abs(delta) > 40) {
+                if (delta > 0) handleNext();
+                else handlePrev();
+              }
+            }}
+            className="overflow-hidden py-1 -my-1"
           >
-            {visibleReviews.map((review) => (
-              <article
-                key={review.id}
-                className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#650108]/35 hover:shadow-md"
-              >
+            <div
+              style={{
+                transform: `translate3d(calc(-${safeIndex} * ((100% + 20px) / ${visibleCount})), 0, 0)`,
+              }}
+              className="flex gap-5 will-change-transform transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            >
+              {filteredReviews.map((review) => (
+                <article
+                  key={review.id}
+                  style={{ width: cardWidth }}
+                  className="shrink-0 bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#650108]/35 hover:shadow-md"
+                >
                 <div className="space-y-4">
                   {/* Rating + Date */}
                   <div className="flex items-center justify-between gap-3">
@@ -361,7 +390,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
                   >
                     <ReviewThumbnail src={review.productImage} alt={review.productTitle} />
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108] group-hover:underline underline-offset-2">
+                      <div className="text-xs font-semibold text-[#2B1416] truncate group-hover:text-[#650108]">
                         {review.productTitle}
                       </div>
                       <div className="text-xs font-medium text-[#6B4C4E] tabular-nums mt-0.5">
@@ -370,8 +399,9 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
                     </div>
                   </button>
                 </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
           </div>
         )}
 

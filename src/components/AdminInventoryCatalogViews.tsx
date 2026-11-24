@@ -240,10 +240,10 @@ export function AdminInventoryCatalogViews({
 
   const filteredStockProducts = useMemo(() => {
     return products.filter((p) => {
-      const threshold = p.lowStockThreshold ?? 10;
-      if (stockFilter === 'out') return p.stock <= 0;
-      if (stockFilter === 'low') return p.stock > 0 && p.stock <= threshold;
-      if (stockFilter === 'healthy') return p.stock > threshold;
+      const isTracked = p.trackStock !== false;
+      if (stockFilter === 'out') return isTracked && p.stock <= 0;
+      if (stockFilter === 'low') return isTracked && p.stock > 0 && p.stock < 5;
+      if (stockFilter === 'healthy') return !isTracked || p.stock >= 5;
       return true;
     });
   }, [products, stockFilter]);
@@ -468,7 +468,7 @@ export function AdminInventoryCatalogViews({
         originalPrice: priceNum,
         costPrice: Math.round(priceNum * 0.6),
         stock: Math.max(0, Math.floor(Number(importStock) || 0)),
-        lowStockThreshold: 10,
+        lowStockThreshold: 5,
         trackStock: true,
         preOrderMode: 'store_default',
         requiresShipping: true,
@@ -525,7 +525,7 @@ export function AdminInventoryCatalogViews({
           originalPrice: priceNum,
           costPrice: 0,
           stock: stockNum,
-          lowStockThreshold: 10,
+          lowStockThreshold: 5,
           trackStock: true,
           preOrderMode: 'store_default',
           requiresShipping: true,
@@ -1428,8 +1428,9 @@ export function AdminInventoryCatalogViews({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredStockProducts.map((p) => {
-                  const threshold = p.lowStockThreshold ?? 10;
-                  const status = p.stock <= 0 ? 'Out of stock' : p.stock <= threshold ? 'Low stock' : 'In stock';
+                  const isTracked = p.trackStock !== false;
+                  const isOut = isTracked && p.stock <= 0;
+                  const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70">
                       <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
@@ -1443,20 +1444,23 @@ export function AdminInventoryCatalogViews({
                         </button>
                       </td>
                       <td className="py-3 px-4 text-slate-600">{p.category}</td>
-                      <td className="py-3 px-4 text-right tabular-nums text-slate-500">{threshold}</td>
+                      <td className="py-3 px-4 text-right tabular-nums text-slate-500">&lt; 5</td>
                       <td className="py-3 px-4 text-right tabular-nums font-bold text-slate-900">{p.stock}</td>
                       <td className="py-3 px-4 text-right">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                            p.stock <= 0
-                              ? 'bg-rose-50 text-rose-600'
-                              : p.stock <= threshold
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-emerald-50 text-emerald-700'
-                          }`}
-                        >
-                          {status}
-                        </span>
+                        {isOut ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold">
+                            Out of Stock
+                          </span>
+                        ) : isLow ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            Low Stock
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+                            In stock
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1472,7 +1476,7 @@ export function AdminInventoryCatalogViews({
   if (section === 'Stock Tracker') {
     const totalUnits = products.reduce((s, p) => s + Math.max(0, p.stock), 0);
     const totalRetail = products.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
-    const lowCount = products.filter((p) => p.stock > 0 && p.stock <= (p.lowStockThreshold ?? 10)).length;
+    const lowCount = products.filter((p) => p.trackStock !== false && p.stock > 0 && p.stock < 5).length;
 
     return (
       <div className="space-y-4">
@@ -1505,23 +1509,42 @@ export function AdminInventoryCatalogViews({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
-          {products.map((p) => (
-            <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3 min-w-0">
-                <Package className="w-4 h-4 text-slate-400 shrink-0" />
-                <div className="min-w-0">
-                  <div className="font-semibold text-slate-900 truncate">{p.title}</div>
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    {p.sku} · {p.variants?.length ? `${p.variants.length} variants` : `${p.brandModels.length} models`}
+          {products.map((p) => {
+            const isTracked = p.trackStock !== false;
+            const isOut = isTracked && p.stock <= 0;
+            const isLow = isTracked && p.stock > 0 && p.stock < 5;
+            return (
+              <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Package className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-slate-900 truncate">{p.title}</span>
+                      {isOut ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold shrink-0">
+                          Out of Stock
+                        </span>
+                      ) : isLow ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold shrink-0">
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          Low Stock
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono">
+                      {p.sku} · {p.variants?.length ? `${p.variants.length} variants` : `${p.brandModels.length} models`}
+                    </div>
                   </div>
                 </div>
+                <div className="text-right shrink-0 tabular-nums">
+                  <div className={`font-bold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'}`}>
+                    {p.stock} units
+                  </div>
+                  <div className="text-[11px] text-slate-500">{formatTaka(p.price * p.stock)}</div>
+                </div>
               </div>
-              <div className="text-right shrink-0 tabular-nums">
-                <div className="font-bold text-slate-900">{p.stock} units</div>
-                <div className="text-[11px] text-slate-500">{formatTaka(p.price * p.stock)}</div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -1552,11 +1575,31 @@ export function AdminInventoryCatalogViews({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {products.map((p) => (
+                {products.map((p) => {
+                  const isTracked = p.trackStock !== false;
+                  const isOut = isTracked && p.stock <= 0;
+                  const isLow = isTracked && p.stock > 0 && p.stock < 5;
+                  return (
                   <tr key={p.id}>
                     <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{p.title}</td>
-                    <td className="py-3 px-4 text-right tabular-nums font-bold">{p.stock}</td>
+                    <td className="py-3 px-4 font-semibold text-slate-900">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{p.title}</span>
+                        {isOut ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                            Out of Stock
+                          </span>
+                        ) : isLow ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            Low Stock
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className={`py-3 px-4 text-right tabular-nums font-bold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'}`}>
+                      {p.stock}
+                    </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         <button
@@ -1597,7 +1640,8 @@ export function AdminInventoryCatalogViews({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -37,6 +37,7 @@ import { ProductDetailView } from './ProductDetailView';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { TrustedBySection } from './TrustedBySection';
+import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { applyDocumentFavicon } from '../utils/branding';
 
 export interface PublicStoreSettings {
@@ -69,8 +70,16 @@ interface StorefrontProps {
 export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [settings, setSettings] = useState<PublicStoreSettings | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<PhoneCaseProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    products: persistedProducts,
+    hasCachedCatalog,
+    syncWithServerCatalog,
+  } = usePersistedProducts({ activeOnly: true });
+  const products = useMemo(
+    () => persistedProducts.map(normalizePhoneCaseProduct),
+    [persistedProducts]
+  );
+  const [loading, setLoading] = useState(() => !hasCachedCatalog);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,9 +138,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       setLogoImgFailed(false);
       setFailedCatImages({});
       setCategories(data.categories || []);
-      setProducts(((data.products || []) as Product[]).map(normalizePhoneCaseProduct));
+      syncWithServerCatalog(
+        (data.products || []) as Product[],
+        Boolean(data.catalogModified)
+      );
     } catch {
-      // ignore transient error
+      // ignore transient error; localStorage products remain available
     } finally {
       setLoading(false);
     }
@@ -313,7 +325,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       {/* Top Navigation Header */}
       <header className="bg-[#FAF4E6] border-b border-[#DFCFB0] relative z-30">
         <div className="sticky top-0 z-30 bg-[#FAF4E6] border-b border-[#E6D9BE] md:border-b-0">
-          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-8">
+          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 min-h-14 sm:min-h-[76px] py-2 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-8">
             {/* Zone 1: Mobile Menu Icon + Brand Wordmark */}
             <div className="flex items-center gap-1.5 sm:gap-0 min-w-0">
               <button
@@ -436,7 +448,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         </div>
 
         {/* Mobile search row */}
-        <div className="md:hidden px-4 py-2.5 bg-[#FAF4E6]">
+        <div className="md:hidden px-4 pt-2.5 pb-3.5 bg-[#FAF4E6]">
           <StorefrontSearchBar
             value={searchQuery}
             onChange={handleSearchChange}
@@ -470,7 +482,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 setCarouselPage(0);
               }}
               className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
-                selectedCategory === 'All' && !myOrdersOpen && !checkoutOpen ? 'text-[#FFFFFF] font-semibold underline underline-offset-4' : 'text-[#F2E8D2]/80 hover:text-white'
+                selectedCategory === 'All' && !myOrdersOpen && !checkoutOpen ? 'text-[#FFFFFF] font-semibold' : 'text-[#F2E8D2]/80 hover:text-white'
               }`}
             >
               All categories
@@ -491,7 +503,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 }}
                 className={`text-[13px] font-medium whitespace-nowrap shrink-0 transition-colors ${
                   !myOrdersOpen && !checkoutOpen && selectedCategory.toLowerCase() === cat.name.toLowerCase()
-                    ? 'text-[#FFFFFF] font-semibold underline underline-offset-4'
+                    ? 'text-[#FFFFFF] font-semibold'
                     : 'text-[#F2E8D2]/80 hover:text-white'
                 }`}
               >
@@ -1361,7 +1373,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                           setActiveProduct(p);
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="text-left text-sm font-semibold text-[#2B1416] line-clamp-2 hover:text-[#650108] hover:underline cursor-pointer"
+                        className="text-left text-sm font-semibold text-[#2B1416] line-clamp-2 hover:text-[#650108] cursor-pointer"
                       >
                         {p.title}
                       </button>

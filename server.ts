@@ -58,6 +58,8 @@ interface StoreDatabase {
   expenses: Expense[];
   reviews: ProductReview[];
   adminAuth: AdminAuthRecord | null;
+  sessionSecret?: string;
+  catalogModified?: boolean;
 }
 
 const PRIMARY_DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -66,7 +68,6 @@ const FALLBACK_DATA_DIR = '/tmp/classy-cases-data';
 const FALLBACK_DB_FILE = path.resolve(FALLBACK_DATA_DIR, 'store.json');
 let activeDataDir = PRIMARY_DATA_DIR;
 let activeDbFile = PRIMARY_DB_FILE;
-const SESSION_SECRET = process.env.SESSION_SECRET?.trim() || crypto.randomBytes(32).toString('hex');
 const pendingPayments = new Map<string, PendingPaymentSession>();
 
 function createInitialData(): StoreDatabase {
@@ -266,6 +267,7 @@ function createInitialData(): StoreDatabase {
     expenses: [],
     reviews: [],
     adminAuth: null,
+    catalogModified: false,
   };
 }
 
@@ -336,6 +338,16 @@ function loadDatabase(): StoreDatabase {
 }
 
 let db: StoreDatabase = loadDatabase();
+
+const SESSION_SECRET = (() => {
+  const envSecret = process.env.SESSION_SECRET?.trim();
+  if (envSecret) return envSecret;
+  if (!db.sessionSecret) {
+    db.sessionSecret = crypto.randomBytes(32).toString('hex');
+    saveDatabase();
+  }
+  return db.sessionSecret;
+})();
 
 function saveDatabase(): void {
   try {
@@ -789,7 +801,7 @@ function computeDashboardAnalytics(): DashboardAnalytics {
     ordersBySource: Array.from(sourceMap.values()),
     salesByChannel: Array.from(channelMap.values()),
     totalProducts: db.products.length,
-    lowStockProducts: db.products.filter((p) => p.stock <= 10),
+    lowStockProducts: db.products.filter((p) => p.trackStock !== false && p.stock < 5),
   };
 }
 
@@ -808,8 +820,8 @@ async function startServer() {
     return (
       trimmed.startsWith('/src/assets/') ||
       trimmed.startsWith('/assets/') ||
-      /^https:\/\//i.test(trimmed) ||
-      /^data:image\/(png|jpeg|jpg|webp|gif|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
+      /^https?:\/\//i.test(trimmed) ||
+      /^data:image\/(png|jpeg|jpg|pjpeg|webp|gif|avif|bmp|x-icon|vnd\.microsoft\.icon)(?:;charset=[^;]+)?;base64,[A-Za-z0-9+/=\s]+$/i.test(
         trimmed
       )
     );
@@ -867,6 +879,7 @@ async function startServer() {
       settings: sanitizeSettingsForPublic(db.settings),
       categories: db.categories.filter((c) => c.active !== false),
       products: db.products.filter((p) => p.active !== false),
+      catalogModified: Boolean(db.catalogModified),
     });
   });
 
@@ -900,43 +913,26 @@ async function startServer() {
 
     const showcaseReviews = activeProducts.slice(0, 6).flatMap((prod, pIdx) => {
       const sim = buildSimulatedReviews(prod);
-      const first = sim[0];
-      const second = sim[1];
-      const rows = [
-        first
-          ? {
-              id: `storefront-${first.id}`,
-              productId: prod.id,
-              productTitle: prod.title,
-              productImage: prod.image,
-              productPrice: prod.price,
-              authorName: first.authorName,
-              city: cities[pIdx % cities.length],
-              deviceModel: first.deviceModel,
-              rating: first.rating,
-              comment: first.comment,
-              verifiedPurchase: true,
-              createdAt: first.createdAt,
-            }
-          : null,
-        second && pIdx < 3
-          ? {
-              id: `storefront-${second.id}`,
-              productId: prod.id,
-              productTitle: prod.title,
-              productImage: prod.image,
-              productPrice: prod.price,
-              authorName: second.authorName,
-              city: cities[(pIdx + 3) % cities.length],
-              deviceModel: second.deviceModel,
-              rating: second.rating,
-              comment: second.comment,
-              verifiedPurchase: true,
-              createdAt: second.createdAt,
-            }
-          : null,
-      ];
-      return rows.filter((item): item is NonNullable<typeof item> => Boolean(item));
+      const selected =
+        activeProducts.length <= 2
+          ? sim
+          : pIdx < 3
+            ? sim.slice(0, 2)
+            : sim.slice(0, 1);
+      return selected.map((rev, rIdx) => ({
+        id: `storefront-${rev.id}`,
+        productId: prod.id,
+        productTitle: prod.title,
+        productImage: prod.image,
+        productPrice: prod.price,
+        authorName: rev.authorName,
+        city: cities[(pIdx + rIdx * 3) % cities.length],
+        deviceModel: rev.deviceModel,
+        rating: rev.rating,
+        comment: rev.comment,
+        verifiedPurchase: true,
+        createdAt: rev.createdAt,
+      }));
     });
 
     const combined = [...userStorefrontReviews, ...showcaseReviews].slice(0, 12);
@@ -1391,7 +1387,46 @@ async function startServer() {
       subscribers: db.subscribers,
       coupons: db.coupons,
       expenses: db.expenses || [],
+      catalogModified: Boolean(db.catalogModified),
     });
+  });
+
+  app.post('/api/admin/products/sync', requireAdmin, (req, res) => {
+    const incoming = req.body?.products;
+    if (!Array.isArray(incoming)) {
+      res.status(400).json({ error: 'Invalid products payload' });
+      return;
+    }
+
+    const sanitized: Product[] = incoming
+      .filter((item): item is Product => Boolean(item && typeof item === 'object' && typeof item.title === 'string' && item.title.trim()))
+      .map((item) => {
+        const price = Number.isFinite(Number(item.price)) ? Math.max(0, Number(item.price)) : 0;
+        const originalPrice = Number.isFinite(Number(item.originalPrice)) ? Math.max(0, Number(item.originalPrice)) : price;
+        const safeImg = isSafeImageSource(item.image)
+          ? item.image.trim()
+          : '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg';
+        const safeGallery = Array.isArray(item.galleryImages)
+          ? item.galleryImages.filter(isSafeImageSource).map((g) => g.trim()).slice(0, 4)
+          : [];
+        return {
+          ...item,
+          id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `prod-${crypto.randomUUID().slice(0, 8)}`,
+          title: item.title.trim(),
+          price,
+          originalPrice,
+          discountPercent: originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0,
+          stock: Number.isFinite(Number(item.stock)) ? Math.max(0, Math.floor(Number(item.stock))) : 0,
+          image: safeImg,
+          galleryImages: safeGallery,
+          brandModels: Array.isArray(item.brandModels) && item.brandModels.length > 0 ? item.brandModels.map(String) : ['Standard Fit'],
+        };
+      });
+
+    db.products = sanitized;
+    db.catalogModified = true;
+    saveDatabase();
+    res.json({ products: db.products, catalogModified: true });
   });
 
   app.post('/api/admin/products', requireAdmin, (req, res) => {
@@ -1436,18 +1471,23 @@ async function startServer() {
     const numericOriginal = Number(originalPrice) || numericPrice;
     const numericCost = Math.max(0, Number(costPrice) || 0);
     const numericStock = Math.max(0, Math.floor(Number(stock) || 0));
-    const numericLowStock = Math.max(0, Math.floor(Number(lowStockThreshold ?? 10) || 10));
+    const numericLowStock = Math.max(0, Math.floor(Number(lowStockThreshold ?? 5) || 5));
     if (!Number.isFinite(numericPrice) || numericPrice < 0) {
       res.status(400).json({ error: 'Valid price is required' });
       return;
     }
     const discountPercent =
       numericOriginal > numericPrice ? Math.round(((numericOriginal - numericPrice) / numericOriginal) * 100) : 0;
-    const safeImage = isSafeImageSource(image)
-      ? image
-      : '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg';
+    if (typeof image === 'string' && image.trim() !== '' && !isSafeImageSource(image)) {
+      res.status(400).json({ error: 'Invalid product image format. Please upload a PNG, JPG, WEBP, or GIF image.' });
+      return;
+    }
+    const safeImage =
+      typeof image === 'string' && image.trim() !== ''
+        ? image.trim()
+        : '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg';
     const safeGallery = Array.isArray(galleryImages)
-      ? galleryImages.filter(isSafeImageSource).slice(0, 4)
+      ? galleryImages.filter(isSafeImageSource).map((g) => g.trim()).slice(0, 4)
       : [];
 
     const fallbackSlug = title
@@ -1518,6 +1558,7 @@ async function startServer() {
       createdAt: new Date().toISOString(),
     };
     db.products.unshift(product);
+    db.catalogModified = true;
     saveDatabase();
     res.status(201).json({ product });
   });
@@ -1592,11 +1633,15 @@ async function startServer() {
       product.preOrderMode = preOrderMode;
     }
     if (typeof sku === 'string' && sku.trim()) product.sku = sku.trim();
-    if (isSafeImageSource(image)) {
-      product.image = image;
+    if (typeof image === 'string' && image.trim() !== '') {
+      if (!isSafeImageSource(image)) {
+        res.status(400).json({ error: 'Invalid product image format. Please upload a PNG, JPG, WEBP, or GIF image.' });
+        return;
+      }
+      product.image = image.trim();
     }
     if (Array.isArray(galleryImages)) {
-      product.galleryImages = galleryImages.filter(isSafeImageSource).slice(0, 4);
+      product.galleryImages = galleryImages.filter(isSafeImageSource).map((g) => g.trim()).slice(0, 4);
     }
     if (typeof shortDescription === 'string') product.shortDescription = shortDescription.trim();
     if (typeof description === 'string') product.description = description.trim();
@@ -1638,6 +1683,7 @@ async function startServer() {
     if (typeof active === 'boolean') product.active = active;
     if (typeof featured === 'boolean') product.featured = featured;
 
+    db.catalogModified = true;
     saveDatabase();
     res.json({ product });
   });
@@ -1649,6 +1695,7 @@ async function startServer() {
       return;
     }
     db.products.splice(idx, 1);
+    db.catalogModified = true;
     saveDatabase();
     res.json({ ok: true });
   });

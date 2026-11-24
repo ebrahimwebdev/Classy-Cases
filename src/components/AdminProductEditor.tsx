@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
+  AlertTriangle,
   AlignLeft,
   ArrowLeft,
   Bold,
@@ -193,7 +194,7 @@ export function AdminProductEditor({
   const [costPrice, setCostPrice] = useState(String(editingProduct?.costPrice ?? 0));
   const [onHand, setOnHand] = useState(String(editingProduct?.stock ?? 0));
   const [lowStockThreshold, setLowStockThreshold] = useState(
-    String(editingProduct?.lowStockThreshold ?? 10)
+    String(editingProduct?.lowStockThreshold ?? 5)
   );
   const [preOrderMode, setPreOrderMode] = useState<'store_default' | 'allow' | 'disallow'>(
     editingProduct?.preOrderMode || 'store_default'
@@ -326,8 +327,9 @@ export function AdminProductEditor({
 
   async function handleFileRead(file: File, onLoaded: (dataUrl: string) => void) {
     const lowerName = file.name.toLowerCase();
+    const hasAllowedExt = /\.(png|jpe?g|webp|gif|avif|bmp|jfif)$/i.test(lowerName);
     if (
-      !file.type.startsWith('image/') ||
+      (!file.type.startsWith('image/') && !hasAllowedExt) ||
       file.type === 'image/svg+xml' ||
       lowerName.endsWith('.svg')
     ) {
@@ -488,7 +490,7 @@ export function AdminProductEditor({
       originalPrice: hasValidOffer ? Math.max(reg, off) : reg,
       costPrice: Math.max(0, Number(costPrice) || 0),
       stock: Math.max(0, Math.floor(Number(onHand) || 0)),
-      lowStockThreshold: Math.max(0, Math.floor(Number(lowStockThreshold) || 10)),
+      lowStockThreshold: Math.max(0, Math.floor(Number(lowStockThreshold) || 5)),
       trackStock,
       preOrderMode,
       requiresShipping,
@@ -506,7 +508,11 @@ export function AdminProductEditor({
       featured,
     };
 
-    await onSave(payload);
+    try {
+      await onSave(payload);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'Failed to save product. Please try again.');
+    }
   }
 
   const canSubmit = name.trim().length >= 2 && !saving && processingImages === 0;
@@ -550,7 +556,15 @@ export function AdminProductEditor({
             }`}
           >
             <ClipboardCheck className="w-3.5 h-3.5" />
-            <span>{saving ? 'Saving...' : editingProduct ? 'Save Changes' : 'Create Product'}</span>
+            <span>
+              {processingImages > 0
+                ? 'Processing image...'
+                : saving
+                  ? 'Saving...'
+                  : editingProduct
+                    ? 'Save Changes'
+                    : 'Create Product'}
+            </span>
           </button>
         </div>
       </div>
@@ -765,18 +779,26 @@ export function AdminProductEditor({
                           />
                         </td>
                         <td className="py-2.5 px-4 text-right">
-                          <input
-                            type="number"
-                            min={0}
-                            value={v.stock}
-                            onChange={(e) => {
-                              const next = variants.map((item, i) =>
-                                i === idx ? { ...item, stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) } : item
-                              );
-                              setVariants(next);
-                            }}
-                            className="w-20 px-2.5 py-1.5 rounded-lg border border-slate-200 text-right tabular-nums text-xs"
-                          />
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {trackStock && v.stock > 0 && v.stock < 5 && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold whitespace-nowrap">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                                Low Stock
+                              </span>
+                            )}
+                            <input
+                              type="number"
+                              min={0}
+                              value={v.stock}
+                              onChange={(e) => {
+                                const next = variants.map((item, i) =>
+                                  i === idx ? { ...item, stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) } : item
+                                );
+                                setVariants(next);
+                              }}
+                              className="w-20 px-2.5 py-1.5 rounded-lg border border-slate-200 text-right tabular-nums text-xs"
+                            />
+                          </div>
                         </td>
                         <td className="py-2.5 px-4 text-center">
                           <input
@@ -966,10 +988,22 @@ export function AdminProductEditor({
 
               {/* Large On hand stock box matching reference */}
               <div className="border border-slate-200 rounded-xl p-3.5">
-                <label className="text-[11px] font-medium text-slate-500 flex items-center gap-1 mb-1">
-                  <span>On hand</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                    <span>On hand</span>
+                    <HelpCircle className="w-3 h-3 text-slate-400" />
+                  </label>
+                  {trackStock && (Number(onHand) || 0) <= 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                      Out of Stock
+                    </span>
+                  ) : trackStock && (Number(onHand) || 0) < 5 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
+                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                      Low Stock (&lt; 5)
+                    </span>
+                  ) : null}
+                </div>
                 <input
                   type="number"
                   min={0}
@@ -1082,7 +1116,7 @@ export function AdminProductEditor({
                     <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2">
                       <input
                         type="number"
-                        step="0.1"
+                        step="any"
                         min={0}
                         value={weightKg}
                         onChange={(e) => setWeightKg(e.target.value)}

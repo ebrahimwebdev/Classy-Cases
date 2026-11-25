@@ -101,6 +101,45 @@ const HERO_VIDEOS_COLLECTION = 'heroVideos';
 const HERO_CONFIG_COLLECTION = 'heroConfig';
 const HERO_CONFIG_DOC_ID = 'default';
 const ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const HERO_CACHE_STORAGE_KEY = 'classy_cases_hero_cache_v1';
+
+export interface CachedHeroState {
+  slides: HeroVideoSlide[];
+  config: HeroPlaybackConfig | null;
+}
+
+export function loadCachedHeroState(): CachedHeroState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(HERO_CACHE_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<CachedHeroState>;
+    if (!parsed || !Array.isArray(parsed.slides) || parsed.slides.length === 0) {
+      return null;
+    }
+    return {
+      slides: parsed.slides,
+      config: parsed.config ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedHeroState(
+  slides: HeroVideoSlide[],
+  config: HeroPlaybackConfig | null
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      HERO_CACHE_STORAGE_KEY,
+      JSON.stringify({ slides, config })
+    );
+  } catch {
+    // ignore storage quota errors
+  }
+}
 
 export function isValidHeroVideoUrl(url: string): boolean {
   const trimmed = url.trim();

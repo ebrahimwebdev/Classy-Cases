@@ -127,6 +127,40 @@ function CheckoutThumb({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+const CHECKOUT_DRAFT_STORAGE_KEY = 'classy_cases_checkout_draft_v1';
+
+interface CheckoutDraft {
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  district?: string;
+  deliveryAddress?: string;
+  orderNote?: string;
+  showNoteInput?: boolean;
+  deliveryArea?: 'inside_dhaka' | 'outside_dhaka';
+}
+
+function readCheckoutDraft(): CheckoutDraft {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.sessionStorage.getItem(CHECKOUT_DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as CheckoutDraft) : {};
+  } catch {
+    return {};
+  }
+}
+
+function clearCheckoutDraft() {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(CHECKOUT_DRAFT_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function CheckoutModal({
   isOpen,
   onClose,
@@ -144,17 +178,20 @@ export function CheckoutModal({
   const { updateQuantity, removeItem } = useCart();
   const { idToken } = useFirebaseAuth();
 
+  const initialDraft = React.useMemo(() => readCheckoutDraft(), []);
   const [step, setStep] = useState<'details' | 'gateway' | 'receipt'>('details');
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [district, setDistrict] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [showNoteInput, setShowNoteInput] = useState(false);
-  const [orderNote, setOrderNote] = useState('');
+  const [customerName, setCustomerName] = useState(initialDraft.customerName || '');
+  const [customerPhone, setCustomerPhone] = useState(initialDraft.customerPhone || '');
+  const [customerEmail, setCustomerEmail] = useState(initialDraft.customerEmail || '');
+  const [district, setDistrict] = useState(initialDraft.district || '');
+  const [deliveryAddress, setDeliveryAddress] = useState(initialDraft.deliveryAddress || '');
+  const [showNoteInput, setShowNoteInput] = useState(
+    Boolean(initialDraft.showNoteInput || initialDraft.orderNote)
+  );
+  const [orderNote, setOrderNote] = useState(initialDraft.orderNote || '');
 
   const [internalDeliveryArea, setInternalDeliveryArea] = useState<'inside_dhaka' | 'outside_dhaka'>(
-    externalDeliveryArea || 'inside_dhaka'
+    initialDraft.deliveryArea || externalDeliveryArea || 'inside_dhaka'
   );
 
   useEffect(() => {
@@ -168,6 +205,40 @@ export function CheckoutModal({
     setInternalDeliveryArea(next);
     onDeliveryAreaChange?.(next);
   };
+
+  useEffect(() => {
+    if (step === 'receipt') {
+      clearCheckoutDraft();
+      return;
+    }
+    try {
+      window.sessionStorage.setItem(
+        CHECKOUT_DRAFT_STORAGE_KEY,
+        JSON.stringify({
+          customerName,
+          customerPhone,
+          customerEmail,
+          district,
+          deliveryAddress,
+          orderNote,
+          showNoteInput,
+          deliveryArea,
+        })
+      );
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [
+    step,
+    customerName,
+    customerPhone,
+    customerEmail,
+    district,
+    deliveryAddress,
+    orderNote,
+    showNoteInput,
+    deliveryArea,
+  ]);
 
   const availableMethods: PaymentMethod[] = [];
   if (settings.paymentGateways.cod.enabled) availableMethods.push('cod');

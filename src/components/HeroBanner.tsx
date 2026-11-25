@@ -12,7 +12,10 @@ import {
   DEFAULT_HERO_VIDEO_SLIDES,
   fetchPublicHeroConfig,
   fetchPublicHeroSlides,
+  loadCachedHeroState,
+  saveCachedHeroState,
   type HeroMobileLayoutConfig,
+  type HeroPlaybackConfig,
   type HeroVideoSlide,
 } from '../services/heroVideoFirestore';
 
@@ -27,84 +30,129 @@ export function HeroBanner({
   onShopNow,
   onInspectProduct,
 }: HeroBannerProps) {
-  const [slides, setSlides] = useState<HeroVideoSlide[]>(DEFAULT_HERO_VIDEO_SLIDES);
+  const initialCacheRef = useRef(loadCachedHeroState());
+  const [slides, setSlides] = useState<HeroVideoSlide[]>(
+    () => initialCacheRef.current?.slides || []
+  );
+  const [heroReady, setHeroReady] = useState<boolean>(
+    () => Boolean(initialCacheRef.current?.slides?.length)
+  );
   const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number>(
-    DEFAULT_HERO_CONFIG.autoAdvanceSeconds
+    () =>
+      initialCacheRef.current?.config?.autoAdvanceSeconds ??
+      DEFAULT_HERO_CONFIG.autoAdvanceSeconds
   );
-  const [mobileLayout, setMobileLayout] = useState<HeroMobileLayoutConfig>(
-    DEFAULT_HERO_MOBILE_LAYOUT
-  );
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [mobileLayout, setMobileLayout] = useState<HeroMobileLayoutConfig>(() => ({
+    ...DEFAULT_HERO_MOBILE_LAYOUT,
+    ...(initialCacheRef.current?.config?.mobileLayout || {}),
+  }));
+  const [activeIndex, setActiveIndex] = useState<number>(() => {
+    const cachedSlides = initialCacheRef.current?.slides;
+    const activeId = initialCacheRef.current?.config?.activeSlideId;
+    if (cachedSlides && activeId) {
+      const idx = cachedSlides.findIndex((s) => s.id === activeId);
+      if (idx >= 0) return idx;
+    }
+    return 0;
+  });
   const [videoFailed, setVideoFailed] = useState<Record<string, boolean>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hasAppliedInitialSelectionRef = useRef<boolean>(
+    Boolean(initialCacheRef.current?.slides?.length)
+  );
 
-  const loadPersistedHeroSlides = useCallback(async () => {
-    try {
-      const [remoteSlides, remoteConfig, serverRes] = await Promise.all([
-        fetchPublicHeroSlides().catch(() => []),
-        fetchPublicHeroConfig().catch(() => null),
-        fetch('/api/hero-videos')
+  const applyResolvedHero = useCallback(
+    (
+      nextSlides: HeroVideoSlide[],
+      activeConfig: HeroPlaybackConfig | null,
+      forceSelectActiveId = false
+    ) => {
+      setSlides(nextSlides);
+      setVideoFailed({});
+      setHeroReady(true);
+
+      const nextMobileLayout: HeroMobileLayoutConfig = activeConfig?.mobileLayout
+        ? { ...DEFAULT_HERO_MOBILE_LAYOUT, ...activeConfig.mobileLayout }
+        : DEFAULT_HERO_MOBILE_LAYOUT;
+      setMobileLayout(nextMobileLayout);
+
+      const nextAutoAdvance =
+        typeof activeConfig?.autoAdvanceSeconds === 'number' &&
+        Number.isFinite(activeConfig.autoAdvanceSeconds)
+          ? activeConfig.autoAdvanceSeconds
+          : DEFAULT_HERO_CONFIG.autoAdvanceSeconds;
+      setAutoAdvanceSeconds(nextAutoAdvance);
+
+      if (activeConfig?.activeSlideId && (!hasAppliedInitialSelectionRef.current || forceSelectActiveId)) {
+        const matchIdx = nextSlides.findIndex(
+          (s) => s.id === activeConfig.activeSlideId
+        );
+        if (matchIdx >= 0) {
+          setActiveIndex(matchIdx);
+        }
+        hasAppliedInitialSelectionRef.current = true;
+      }
+
+      saveCachedHeroState(nextSlides, {
+        activeSlideId: activeConfig?.activeSlideId || nextSlides[0]?.id || '',
+        autoAdvanceSeconds: nextAutoAdvance,
+        mobileLayout: nextMobileLayout,
+      });
+    },
+    []
+  );
+
+  const loadPersistedHeroSlides = useCallback(
+    async (forceSelectActiveId = false) => {
+      try {
+        const serverPromise = fetch('/api/hero-videos')
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null) as Promise<{
           slides?: HeroVideoSlide[];
-          config?: {
-            activeSlideId?: string;
-            autoAdvanceSeconds?: number;
-            mobileLayout?: HeroMobileLayoutConfig;
-          } | null;
-        } | null>,
-      ]);
+          config?: HeroPlaybackConfig | null;
+        } | null>;
 
-      const serverSlides = Array.isArray(serverRes?.slides)
-        ? serverRes.slides.filter((s) => s.active !== false)
-        : [];
-      const activeConfig =
-        remoteSlides.length > 0 ? remoteConfig : serverRes?.config || remoteConfig;
+        const serverRes = await serverPromise;
+        const serverSlides = Array.isArray(serverRes?.slides)
+          ? serverRes.slides.filter((s) => s.active !== false)
+          : [];
 
-      const nextSlides =
-        remoteSlides.length > 0
-          ? remoteSlides
-          : serverSlides.length > 0
-            ? serverSlides
-            : DEFAULT_HERO_VIDEO_SLIDES;
-
-      setSlides(nextSlides);
-      setVideoFailed({});
-
-      if (serverRes?.config?.mobileLayout) {
-        setMobileLayout({
-          ...DEFAULT_HERO_MOBILE_LAYOUT,
-          ...serverRes.config.mobileLayout,
-        });
-      } else {
-        setMobileLayout(DEFAULT_HERO_MOBILE_LAYOUT);
-      }
-
-      if (activeConfig) {
-        if (
-          typeof activeConfig.autoAdvanceSeconds === 'number' &&
-          Number.isFinite(activeConfig.autoAdvanceSeconds)
-        ) {
-          setAutoAdvanceSeconds(activeConfig.autoAdvanceSeconds);
-        }
-        if (activeConfig.activeSlideId) {
-          const matchIdx = nextSlides.findIndex(
-            (s) => s.id === activeConfig.activeSlideId
+        if (serverSlides.length > 0) {
+          applyResolvedHero(
+            serverSlides,
+            serverRes?.config || null,
+            forceSelectActiveId
           );
-          if (matchIdx >= 0) {
-            setActiveIndex(matchIdx);
-          }
+          return;
         }
+
+        const [remoteSlides, remoteConfig] = await Promise.all([
+          fetchPublicHeroSlides().catch(() => []),
+          fetchPublicHeroConfig().catch(() => null),
+        ]);
+
+        const nextSlides =
+          remoteSlides.length > 0 ? remoteSlides : DEFAULT_HERO_VIDEO_SLIDES;
+        const activeConfig: HeroPlaybackConfig | null =
+          remoteConfig || serverRes?.config || null;
+
+        applyResolvedHero(nextSlides, activeConfig, forceSelectActiveId);
+      } catch {
+        setHeroReady((ready) => {
+          if (!ready) {
+            setSlides(DEFAULT_HERO_VIDEO_SLIDES);
+          }
+          return true;
+        });
       }
-    } catch {
-      // Keep default slides smoothly if Firestore and server are unavailable
-    }
-  }, []);
+    },
+    [applyResolvedHero]
+  );
 
   useEffect(() => {
-    void loadPersistedHeroSlides();
+    void loadPersistedHeroSlides(false);
     function handleRefresh() {
-      void loadPersistedHeroSlides();
+      void loadPersistedHeroSlides(true);
     }
     window.addEventListener('hero-videos-updated', handleRefresh);
     return () => window.removeEventListener('hero-videos-updated', handleRefresh);
@@ -196,7 +244,12 @@ export function HeroBanner({
       <div
         className={`relative w-full min-h-[250px] sm:min-h-[450px] lg:min-h-[520px] flex ${mobileAlignClass}`}
       >
-        {videoFailed[currentSlide.id] || !currentSlide.videoSrc ? (
+        {!heroReady ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full bg-[#240306]"
+          />
+        ) : videoFailed[currentSlide.id] || !currentSlide.videoSrc ? (
           <img
             src={
               currentSlide.posterSrc ||
@@ -235,77 +288,79 @@ export function HeroBanner({
         />
 
         {/* Foreground Content Aligned to Storefront Container */}
-        <div
-          className={`relative z-10 w-full max-w-[1180px] mx-auto ${mobilePaddingXClass} ${mobilePaddingYClass}`}
-        >
-          <div className="max-w-xl">
-            <p
-              className={`${
-                mobileLayout.showKicker ? 'block' : 'hidden sm:block'
-              } text-[10px] sm:text-xs font-medium uppercase tracking-[1.75px] text-[#F2E8D2]/90`}
-            >
-              {currentSlide.kicker}
-            </p>
-
-            <h1
-              className={`${
-                mobileLayout.showKicker ? 'mt-1.5 sm:mt-3' : 'mt-0 sm:mt-3'
-              } font-brand ${mobileHeadlineClass} font-semibold tracking-tight text-[#FBF6EA] text-balance max-w-[230px] sm:max-w-none`}
-            >
-              {currentSlide.headline}
-            </h1>
-
-            <p
-              className={`${
-                mobileLayout.showDescription ? 'block' : 'hidden sm:block'
-              } mt-1.5 sm:mt-3.5 text-xs sm:text-[15px] font-normal leading-relaxed text-[#F2E8D2]/90 max-w-md`}
-            >
-              {currentSlide.description}
-            </p>
-
-            <div
-              className={`${
-                showMobileCtaRow ? 'flex' : 'hidden sm:flex'
-              } mt-2.5 sm:mt-7 flex-wrap items-center gap-2 sm:gap-3`}
-            >
-              <button
-                type="button"
-                onClick={() => onShopNow(currentSlide.categoryTarget)}
+        {heroReady && (
+          <div
+            className={`relative z-10 w-full max-w-[1180px] mx-auto ${mobilePaddingXClass} ${mobilePaddingYClass}`}
+          >
+            <div className="max-w-xl">
+              <p
                 className={`${
-                  mobileLayout.showExploreButton
-                    ? 'inline-flex'
-                    : 'hidden sm:inline-flex'
-                } px-3.5 py-1.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-white/15 backdrop-blur-md border border-white/45 text-[#FBF6EA] text-[11px] sm:text-sm font-semibold items-center gap-1.5 sm:gap-2 hover:bg-[#F2E8D2] hover:text-[#650108] hover:border-[#F2E8D2] transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white cursor-pointer`}
+                  mobileLayout.showKicker ? 'block' : 'hidden sm:block'
+                } text-[10px] sm:text-xs font-medium uppercase tracking-[1.75px] text-[#F2E8D2]/90`}
               >
-                <span>Explore</span>
-                <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-              </button>
+                {currentSlide.kicker}
+              </p>
 
-              {matchedProduct && (
+              <h1
+                className={`${
+                  mobileLayout.showKicker ? 'mt-1.5 sm:mt-3' : 'mt-0 sm:mt-3'
+                } font-brand ${mobileHeadlineClass} font-semibold tracking-tight text-[#FBF6EA] text-balance max-w-[230px] sm:max-w-none`}
+              >
+                {currentSlide.headline}
+              </h1>
+
+              <p
+                className={`${
+                  mobileLayout.showDescription ? 'block' : 'hidden sm:block'
+                } mt-1.5 sm:mt-3.5 text-xs sm:text-[15px] font-normal leading-relaxed text-[#F2E8D2]/90 max-w-md`}
+              >
+                {currentSlide.description}
+              </p>
+
+              <div
+                className={`${
+                  showMobileCtaRow ? 'flex' : 'hidden sm:flex'
+                } mt-2.5 sm:mt-7 flex-wrap items-center gap-2 sm:gap-3`}
+              >
                 <button
                   type="button"
-                  onClick={() => onInspectProduct(matchedProduct)}
+                  onClick={() => onShopNow(currentSlide.categoryTarget)}
                   className={`${
-                    mobileLayout.showProductButton
+                    mobileLayout.showExploreButton
                       ? 'inline-flex'
                       : 'hidden sm:inline-flex'
-                  } px-3 py-1.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-[#650108]/80 backdrop-blur-sm border border-[#F2E8D2]/25 text-[#F2E8D2] text-[11px] sm:text-sm font-semibold items-center gap-1.5 sm:gap-2 hover:bg-[#650108] hover:border-[#F2E8D2]/55 transition-colors whitespace-nowrap shrink-0 cursor-pointer`}
+                  } px-3.5 py-1.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-white/15 backdrop-blur-md border border-white/45 text-[#FBF6EA] text-[11px] sm:text-sm font-semibold items-center gap-1.5 sm:gap-2 hover:bg-[#F2E8D2] hover:text-[#650108] hover:border-[#F2E8D2] transition-all whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white cursor-pointer`}
                 >
-                  <span className="max-w-[145px] sm:max-w-[175px] truncate">
-                    {matchedProduct.title}
-                  </span>
-                  <span className="font-bold tabular-nums text-[#FBF6EA]">
-                    {formatTaka(displayPrice)}
-                  </span>
-                  <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span>Explore</span>
+                  <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                 </button>
-              )}
+
+                {matchedProduct && (
+                  <button
+                    type="button"
+                    onClick={() => onInspectProduct(matchedProduct)}
+                    className={`${
+                      mobileLayout.showProductButton
+                        ? 'inline-flex'
+                        : 'hidden sm:inline-flex'
+                    } px-3 py-1.5 sm:px-4 sm:py-3 rounded-lg sm:rounded-xl bg-[#650108]/80 backdrop-blur-sm border border-[#F2E8D2]/25 text-[#F2E8D2] text-[11px] sm:text-sm font-semibold items-center gap-1.5 sm:gap-2 hover:bg-[#650108] hover:border-[#F2E8D2]/55 transition-colors whitespace-nowrap shrink-0 cursor-pointer`}
+                  >
+                    <span className="max-w-[145px] sm:max-w-[175px] truncate">
+                      {matchedProduct.title}
+                    </span>
+                    <span className="font-bold tabular-nums text-[#FBF6EA]">
+                      {formatTaka(displayPrice)}
+                    </span>
+                    <ArrowUpRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Subtle Left / Right Slide Chevrons */}
-        {slides.length > 1 && (
+        {heroReady && slides.length > 1 && (
           <>
             <button
               type="button"

@@ -80,12 +80,14 @@ export function PhoneCaseCard({
           </div>
         </div>
 
-        <h3
-          onClick={() => onSelectProduct(product)}
-          className="text-[14px] sm:text-sm font-medium text-[#2B1416] leading-[1.32] line-clamp-2 min-h-[2.35rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
-        >
-          {product.title}
-        </h3>
+        <div className="min-h-[2.35rem] sm:min-h-[2.5rem]">
+          <h3
+            onClick={() => onSelectProduct(product)}
+            className="text-[14px] sm:text-sm font-medium text-[#2B1416] leading-[1.32] line-clamp-2 cursor-pointer hover:text-[#650108]"
+          >
+            {product.title}
+          </h3>
+        </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-nowrap sm:flex-wrap">
           <span className="text-[15px] font-bold text-[#650108] tabular-nums shrink-0">

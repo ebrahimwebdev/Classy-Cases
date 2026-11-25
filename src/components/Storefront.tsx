@@ -80,6 +80,103 @@ interface StorefrontProps {
   onOpenAdmin: () => void;
 }
 
+const STOREFRONT_META_CACHE_KEY = 'classy_cases_storefront_meta_v1';
+
+interface CachedStorefrontMeta {
+  settings: PublicStoreSettings | null;
+  categories: Category[];
+}
+
+function readCachedStorefrontMeta(): CachedStorefrontMeta {
+  if (typeof window === 'undefined') {
+    return { settings: null, categories: [] };
+  }
+  try {
+    const raw = window.localStorage.getItem(STOREFRONT_META_CACHE_KEY);
+    if (!raw) return { settings: null, categories: [] };
+    const parsed = JSON.parse(raw) as Partial<CachedStorefrontMeta>;
+    return {
+      settings: parsed?.settings && typeof parsed.settings === 'object' ? parsed.settings : null,
+      categories: Array.isArray(parsed?.categories) ? parsed.categories : [],
+    };
+  } catch {
+    return { settings: null, categories: [] };
+  }
+}
+
+function saveCachedStorefrontMeta(
+  settings: PublicStoreSettings | null,
+  categories: Category[]
+) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      STOREFRONT_META_CACHE_KEY,
+      JSON.stringify({ settings, categories })
+    );
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+type StorefrontRoute =
+  | { view: 'home' }
+  | { view: 'checkout' }
+  | { view: 'orders' }
+  | { view: 'product'; productKey: string };
+
+function parseStorefrontRoute(): StorefrontRoute {
+  if (typeof window === 'undefined') return { view: 'home' };
+  const rawPath = window.location.pathname;
+  const rawHash = window.location.hash;
+  const target = rawHash.startsWith('#/') ? rawHash.slice(1) : rawPath;
+  const normalized = target.replace(/\/+$/, '') || '/';
+  const lower = normalized.toLowerCase();
+
+  if (lower === '/checkout') {
+    return { view: 'checkout' };
+  }
+  if (lower === '/orders') {
+    return { view: 'orders' };
+  }
+  if (lower.startsWith('/product/')) {
+    const rawKey = normalized.slice('/product/'.length);
+    if (rawKey) {
+      try {
+        return { view: 'product', productKey: decodeURIComponent(rawKey) };
+      } catch {
+        return { view: 'product', productKey: rawKey };
+      }
+    }
+  }
+  return { view: 'home' };
+}
+
+function pushStorefrontPath(path: string) {
+  if (typeof window === 'undefined') return;
+  const current = window.location.pathname.replace(/\/+$/, '') || '/';
+  const target = path.replace(/\/+$/, '') || '/';
+  if (current === target && !window.location.hash) return;
+  try {
+    window.history.pushState(null, '', target);
+  } catch {
+    window.location.hash = `#${target}`;
+  }
+}
+
+function findProductByKey(
+  products: PhoneCaseProduct[],
+  key: string
+): PhoneCaseProduct | null {
+  const trimmed = key.trim().toLowerCase();
+  if (!trimmed) return null;
+  return (
+    products.find((p) => p.id.toLowerCase() === trimmed) ||
+    products.find((p) => (p.slug || '').toLowerCase() === trimmed) ||
+    null
+  );
+}
+
 export function Storefront({ onOpenAdmin }: StorefrontProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -91,8 +188,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onOpenAdmin]);
-  const [settings, setSettings] = useState<PublicStoreSettings | null>(null);
-  const [categories, setCategories] = useState<Category[]>([]);
+
+  const initialMeta = useMemo(() => readCachedStorefrontMeta(), []);
+  const initialRoute = useMemo(() => parseStorefrontRoute(), []);
+
+  const [settings, setSettings] = useState<PublicStoreSettings | null>(initialMeta.settings);
+  const [categories, setCategories] = useState<Category[]>(initialMeta.categories);
   const {
     products: persistedProducts,
     hasCachedCatalog,
@@ -140,14 +241,21 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [expandedDrawerCatIds, setExpandedDrawerCatIds] = useState<Record<string, boolean>>({});
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(() => initialRoute.view === 'checkout');
   const [deliveryArea, setDeliveryArea] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
   const [infoModal, setInfoModal] = useState<{ title: string; content: string } | null>(null);
 
   // Active sub-views
-  const [activeProduct, setActiveProduct] = useState<PhoneCaseProduct | null>(null);
+  const [pendingProductKey, setPendingProductKey] = useState<string | null>(() =>
+    initialRoute.view === 'product' ? initialRoute.productKey : null
+  );
+  const [activeProduct, setActiveProduct] = useState<PhoneCaseProduct | null>(() => {
+    if (initialRoute.view !== 'product') return null;
+    const cachedList = persistedProducts.map(normalizePhoneCaseProduct);
+    return findProductByKey(cachedList, initialRoute.productKey);
+  });
   const [quickViewProduct, setQuickViewProduct] = useState<PhoneCaseProduct | null>(null);
-  const [myOrdersOpen, setMyOrdersOpen] = useState(false);
+  const [myOrdersOpen, setMyOrdersOpen] = useState(() => initialRoute.view === 'orders');
   const [hasSavedOrders, setHasSavedOrders] = useState(() => getSavedCustomerOrderTokens().length > 0);
 
   // Newsletter state
@@ -162,10 +270,13 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     try {
       const res = await fetch('/api/storefront');
       const data = await res.json();
-      setSettings(data.settings);
+      const nextSettings = data.settings || null;
+      const nextCategories = Array.isArray(data.categories) ? data.categories : [];
+      setSettings(nextSettings);
       setLogoImgFailed(false);
       setFailedCatImages({});
-      setCategories(data.categories || []);
+      setCategories(nextCategories);
+      saveCachedStorefrontMeta(nextSettings, nextCategories);
       syncWithServerCatalog(
         (data.products || []) as Product[],
         Boolean(data.catalogModified)
@@ -180,6 +291,51 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   useEffect(() => {
     fetchStorefront();
   }, []);
+
+  useEffect(() => {
+    if (!pendingProductKey) return;
+    const matched = findProductByKey(products, pendingProductKey);
+    if (matched) {
+      setActiveProduct(matched);
+    } else if (!loading && products.length > 0) {
+      setPendingProductKey(null);
+      setActiveProduct(null);
+      pushStorefrontPath('/');
+    }
+  }, [products, pendingProductKey, loading]);
+
+  useEffect(() => {
+    function handlePopState() {
+      const route = parseStorefrontRoute();
+      if (route.view === 'checkout') {
+        setMyOrdersOpen(false);
+        setActiveProduct(null);
+        setPendingProductKey(null);
+        setCheckoutOpen(true);
+      } else if (route.view === 'orders') {
+        setCheckoutOpen(false);
+        setActiveProduct(null);
+        setPendingProductKey(null);
+        setMyOrdersOpen(true);
+      } else if (route.view === 'product') {
+        setCheckoutOpen(false);
+        setMyOrdersOpen(false);
+        setPendingProductKey(route.productKey);
+        setActiveProduct(findProductByKey(products, route.productKey));
+      } else {
+        setCheckoutOpen(false);
+        setMyOrdersOpen(false);
+        setActiveProduct(null);
+        setPendingProductKey(null);
+      }
+    }
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [products]);
 
   useEffect(() => {
     if (!settings) return;
@@ -211,10 +367,41 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     }, 2600);
   }
 
+  function navigateHome(scrollTop = false) {
+    setCheckoutOpen(false);
+    setActiveProduct(null);
+    setPendingProductKey(null);
+    setMyOrdersOpen(false);
+    pushStorefrontPath('/');
+    if (scrollTop) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  function navigateProduct(product: PhoneCaseProduct) {
+    setCheckoutOpen(false);
+    setMyOrdersOpen(false);
+    setPendingProductKey(product.slug || product.id);
+    setActiveProduct(product);
+    pushStorefrontPath(`/product/${encodeURIComponent(product.slug || product.id)}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function navigateCheckout() {
+    setMyOrdersOpen(false);
+    setActiveProduct(null);
+    setPendingProductKey(null);
+    setCheckoutOpen(true);
+    pushStorefrontPath('/checkout');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function openMyOrders() {
     setCheckoutOpen(false);
     setActiveProduct(null);
+    setPendingProductKey(null);
     setMyOrdersOpen(true);
+    pushStorefrontPath('/orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -342,16 +529,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     setSearchQuery(nextQuery);
     setCarouselPage(0);
     if (nextQuery.trim() !== '') {
-      setCheckoutOpen(false);
-      setActiveProduct(null);
-      setMyOrdersOpen(false);
+      navigateHome();
     }
   }
 
   function handleQuickSelectCategory(categoryName: string) {
-    setCheckoutOpen(false);
-    setActiveProduct(null);
-    setMyOrdersOpen(false);
+    navigateHome();
     applyCategorySelection(categoryName);
     setTimeout(() => {
       document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
@@ -359,9 +542,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function scrollToCatalog() {
-    setCheckoutOpen(false);
-    setActiveProduct(null);
-    setMyOrdersOpen(false);
+    navigateHome();
     setTimeout(() => {
       const el = document.getElementById('new-arrivals-section');
       el?.scrollIntoView({ behavior: 'smooth' });
@@ -476,11 +657,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               <button
                 type="button"
                 onClick={() => {
-                  setCheckoutOpen(false);
-                  setActiveProduct(null);
-                  setMyOrdersOpen(false);
                   resetAllFilters();
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  navigateHome(true);
                 }}
                 className="font-brand text-xl sm:text-[26px] font-semibold tracking-tight text-[#650108] whitespace-nowrap shrink-0 cursor-pointer flex items-center"
               >
@@ -507,10 +685,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               onSelectProduct={(productId) => {
                 const found = products.find((p) => p.id === productId);
                 if (found) {
-                  setCheckoutOpen(false);
-                  setMyOrdersOpen(false);
-                  setActiveProduct(found);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  navigateProduct(found);
                 }
               }}
               onSelectCategory={handleQuickSelectCategory}
@@ -585,10 +760,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             onSelectProduct={(productId) => {
               const found = products.find((p) => p.id === productId);
               if (found) {
-                setCheckoutOpen(false);
-                setMyOrdersOpen(false);
-                setActiveProduct(found);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                navigateProduct(found);
               }
             }}
             onSelectCategory={handleQuickSelectCategory}
@@ -601,42 +773,43 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
       {/* Main Content */}
       <main className="flex-1">
-        {checkoutOpen && settings ? (
-          <CheckoutModal
-            isOpen={checkoutOpen}
-            onClose={() => setCheckoutOpen(false)}
-            cart={cart}
-            products={products}
-            settings={settings}
-            deliveryArea={deliveryArea}
-            onDeliveryAreaChange={setDeliveryArea}
-            onOrderCompleted={(_order, customerOrderToken) => {
-              if (customerOrderToken) {
-                saveCustomerOrderToken(customerOrderToken);
-                setHasSavedOrders(true);
-              }
-              clearCart();
-              fetchStorefront();
-            }}
-            onViewMyOrders={openMyOrders}
-            onEditCart={openDrawer}
-            onEditItem={(productId) => {
-              const found = products.find((p) => p.id === productId);
-              if (found) {
-                setCheckoutOpen(false);
-                setMyOrdersOpen(false);
-                setActiveProduct(found);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
-          />
+        {checkoutOpen ? (
+          settings ? (
+            <CheckoutModal
+              isOpen={checkoutOpen}
+              onClose={() => navigateHome(true)}
+              cart={cart}
+              products={products}
+              settings={settings}
+              deliveryArea={deliveryArea}
+              onDeliveryAreaChange={setDeliveryArea}
+              onOrderCompleted={(_order, customerOrderToken) => {
+                if (customerOrderToken) {
+                  saveCustomerOrderToken(customerOrderToken);
+                  setHasSavedOrders(true);
+                }
+                clearCart();
+                fetchStorefront();
+              }}
+              onViewMyOrders={openMyOrders}
+              onEditCart={openDrawer}
+              onEditItem={(productId) => {
+                const found = products.find((p) => p.id === productId);
+                if (found) {
+                  navigateProduct(found);
+                }
+              }}
+            />
+          ) : (
+            <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-20 flex flex-col items-center justify-center gap-3 text-center">
+              <div className="w-8 h-8 rounded-full border-2 border-[#650108]/25 border-t-[#650108] animate-spin" />
+              <p className="text-sm font-medium text-[#6B4C4E]">Loading checkout...</p>
+            </div>
+          )
         ) : myOrdersOpen ? (
           <MyOrdersSection
             products={products}
-            onBackToShop={() => {
-              setMyOrdersOpen(false);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onBackToShop={() => navigateHome(true)}
             onBuyAgain={handleBuyAgain}
           />
         ) : activeProduct ? (
@@ -658,11 +831,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             shippingInsideDhaka={settings?.shippingInsideDhaka}
             shippingOutsideDhaka={settings?.shippingOutsideDhaka}
             freeShippingThreshold={settings?.freeShippingThreshold}
-            onBack={() => setActiveProduct(null)}
-            onSelectProduct={(product) => {
-              setActiveProduct(product);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onBack={() => navigateHome(true)}
+            onSelectProduct={navigateProduct}
             onToggleWishlist={toggleWishlist}
             onAddToCart={(product, model, qty = 1, meta) => {
               addToCart(product, model, qty, meta);
@@ -670,8 +840,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             }}
             onBuyNow={(product, model, qty = 1, meta) => {
               addToCart(product, model, qty, meta);
-              setCheckoutOpen(true);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              navigateCheckout();
             }}
             onOpenWhatsAppHelp={() =>
               setInfoModal({
@@ -681,6 +850,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             }
             onShareToast={showToast}
           />
+        ) : pendingProductKey && loading ? (
+          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 py-20 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="w-8 h-8 rounded-full border-2 border-[#650108]/25 border-t-[#650108] animate-spin" />
+            <p className="text-sm font-medium text-[#6B4C4E]">Loading product...</p>
+          </div>
         ) : (
           <>
             {/* Premium Hero Banner & Trust Section (collapsed during active top search so filtered results appear right away) */}
@@ -694,10 +868,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       .getElementById('new-arrivals-section')
                       ?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  onInspectProduct={(product) => {
-                    setActiveProduct(product);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
+                  onInspectProduct={navigateProduct}
                 />
                 <TrustHighlights
                   shippingInsideDhaka={settings?.shippingInsideDhaka}
@@ -733,10 +904,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 wishlist={wishlist}
                 loading={loading}
                 desktopColumns={desktopColumns}
-                onSelectProduct={(product) => {
-                  setActiveProduct(product);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onSelectProduct={navigateProduct}
                 onQuickView={(product) => setQuickViewProduct(product)}
                 onToggleWishlist={toggleWishlist}
                 onAddToCart={(product) => addToCart(product)}
@@ -841,10 +1009,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 currentPage={safePage}
                 totalPages={totalPages}
                 onPageChange={setCarouselPage}
-                onSelectProduct={(product) => {
-                  setActiveProduct(product);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+                onSelectProduct={navigateProduct}
                 onQuickView={(product) => setQuickViewProduct(product)}
                 onToggleWishlist={toggleWishlist}
                 onAddToCart={(product) => addToCart(product)}
@@ -872,8 +1037,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 onSelectProduct={(productId) => {
                   const found = products.find((p) => p.id === productId);
                   if (found) {
-                    setActiveProduct(found);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    navigateProduct(found);
                   }
                 }}
               />
@@ -1104,19 +1268,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         freeShippingThreshold={settings?.freeShippingThreshold}
         deliveryZone={deliveryArea}
         onDeliveryZoneChange={setDeliveryArea}
-        onProceedToCheckout={() => {
-          setMyOrdersOpen(false);
-          setActiveProduct(null);
-          setCheckoutOpen(true);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onProceedToCheckout={navigateCheckout}
         onEditItem={(productId) => {
           const found = products.find((p) => p.id === productId);
           if (found) {
-            setCheckoutOpen(false);
-            setMyOrdersOpen(false);
-            setActiveProduct(found);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navigateProduct(found);
           }
         }}
       />
@@ -1135,8 +1291,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         onToggleWishlist={toggleWishlist}
         onOpenFullDetails={(product) => {
           setQuickViewProduct(null);
-          setActiveProduct(product);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          navigateProduct(product);
         }}
       />
 
@@ -1159,11 +1314,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  setCheckoutOpen(false);
-                  setActiveProduct(null);
-                  setMyOrdersOpen(false);
                   resetAllFilters();
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  navigateHome(true);
                 }}
                 className="font-brand text-2xl font-semibold tracking-tight text-[#650108] text-left"
               >
@@ -1225,11 +1377,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setCheckoutOpen(false);
-                    setActiveProduct(null);
-                    setMyOrdersOpen(false);
                     resetAllFilters();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    navigateHome(true);
                   }}
                   className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
                 >
@@ -1272,9 +1421,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                           type="button"
                           onClick={() => {
                             setMobileMenuOpen(false);
-                            setCheckoutOpen(false);
-                            setActiveProduct(null);
-                            setMyOrdersOpen(false);
+                            navigateHome();
                             applyCategorySelection(cat.name);
                             setTimeout(() => {
                               document
@@ -1324,9 +1471,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                                 type="button"
                                 onClick={() => {
                                   setMobileMenuOpen(false);
-                                  setCheckoutOpen(false);
-                                  setActiveProduct(null);
-                                  setMyOrdersOpen(false);
+                                  navigateHome();
                                   applyCategorySelection(sub.name);
                                   setTimeout(() => {
                                     document
@@ -1487,10 +1632,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       type="button"
                       onClick={() => {
                         setWishlistOpen(false);
-                        setCheckoutOpen(false);
-                        setMyOrdersOpen(false);
-                        setActiveProduct(p);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        navigateProduct(p);
                       }}
                       className="shrink-0 cursor-pointer"
                     >
@@ -1506,10 +1648,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         type="button"
                         onClick={() => {
                           setWishlistOpen(false);
-                          setCheckoutOpen(false);
-                          setMyOrdersOpen(false);
-                          setActiveProduct(p);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          navigateProduct(p);
                         }}
                         className="text-left text-sm font-medium text-[#2B1416] line-clamp-2 hover:text-[#650108] cursor-pointer"
                       >

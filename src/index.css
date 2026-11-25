@@ -57,6 +57,7 @@
 .font-brand {
   font-family: var(--font-serif);
   font-style: italic;
+  text-transform: capitalize;
 }
 
 .no-scrollbar::-webkit-scrollbar {

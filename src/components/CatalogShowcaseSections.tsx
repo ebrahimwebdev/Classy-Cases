@@ -47,7 +47,7 @@ export function CatalogShowcaseSections({
         Number(Boolean(b.featured)) - Number(Boolean(a.featured)) ||
         b.discountPercent - a.discountPercent
     );
-    return sorted.slice(0, 10);
+    return sorted.slice(0, 5);
   }, [products]);
 
   const topLevelCategories = useMemo(
@@ -65,7 +65,7 @@ export function CatalogShowcaseSections({
               names.has(p.category.trim().toLowerCase()) ||
               (p.alsoShowIn || []).some((c) => names.has(c.trim().toLowerCase()))
           );
-    return filtered.slice(0, 10);
+    return filtered.slice(0, 5);
   }, [products, categories, phoneCaseBrand]);
 
   if (loading && products.length === 0) {

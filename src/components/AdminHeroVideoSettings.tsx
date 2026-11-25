@@ -27,6 +27,7 @@ import {
   sanitizeSlideId,
   saveHeroConfigToFirestore,
   saveHeroVideoSlideToFirestore,
+  saveCachedHeroState,
   seedDefaultHeroSlidesToFirestore,
   type HeroMobileLayoutConfig,
   type HeroPlaybackConfig,
@@ -165,7 +166,12 @@ export function AdminHeroVideoSettings({
         throw new Error(data.error || 'Failed to save hero video settings.');
       }
       setHasServerDocs(true);
-      return data as { slides: HeroVideoSlide[]; config: HeroPlaybackConfig };
+      const saved = data as { slides: HeroVideoSlide[]; config: HeroPlaybackConfig };
+      const activeSlides = (Array.isArray(saved.slides) ? saved.slides : nextSlides).filter(
+        (s) => s.active !== false
+      );
+      saveCachedHeroState(activeSlides, saved.config || nextConfig);
+      return saved;
     },
     [adminToken]
   );

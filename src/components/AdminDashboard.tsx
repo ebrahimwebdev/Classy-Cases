@@ -199,6 +199,10 @@ export function AdminDashboard({
   const [productEditorOpen, setProductEditorOpen] = useState(false);
   const [productSaving, setProductSaving] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [prefillProductCategories, setPrefillProductCategories] = useState<{
+    mainCategory: string;
+    alsoShowIn: string[];
+  } | null>(null);
   const [catalogMenuOpen, setCatalogMenuOpen] = useState(true);
   const [stockToolsMenuOpen, setStockToolsMenuOpen] = useState(true);
 
@@ -490,12 +494,33 @@ export function AdminDashboard({
 
   function openAddProduct() {
     setEditingProduct(null);
+    setPrefillProductCategories(null);
     setActiveSection('Products');
     setProductEditorOpen(true);
   }
 
   function openEditProduct(p: Product) {
     setEditingProduct(p);
+    setPrefillProductCategories(null);
+    setActiveSection('Products');
+    setProductEditorOpen(true);
+  }
+
+  function handleNewProductInCategory(cat: Category) {
+    let rootCat = cat;
+    const visited = new Set<string>([cat.id]);
+    while (rootCat.parentId) {
+      const parent = categories.find((c) => c.id === rootCat.parentId);
+      if (!parent || visited.has(parent.id)) break;
+      visited.add(parent.id);
+      rootCat = parent;
+    }
+    setEditingProduct(null);
+    setPrefillProductCategories(
+      rootCat.id !== cat.id
+        ? { mainCategory: rootCat.name, alsoShowIn: [cat.name] }
+        : { mainCategory: cat.name, alsoShowIn: [] }
+    );
     setActiveSection('Products');
     setProductEditorOpen(true);
   }
@@ -535,6 +560,7 @@ export function AdminDashboard({
       }
       setProductEditorOpen(false);
       setEditingProduct(null);
+      setPrefillProductCategories(null);
       await fetchOverview(adminToken, { markLocalChanges: true });
     } finally {
       setProductSaving(false);
@@ -760,6 +786,113 @@ export function AdminDashboard({
     await syncCategoriesToFirestore(categories);
     if (adminToken) {
       await fetchOverview(adminToken);
+    }
+  }
+
+  async function handleReorderCategories(nextCategories: Category[]) {
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
+    const previous = categories;
+    setCategories(nextCategories);
+    try {
+      const res = await fetch('/api/admin/categories/reorder', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ orderedIds: nextCategories.map((c) => c.id) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save category order.');
+      }
+      if (auth.currentUser) {
+        await syncCategoriesToFirestore(nextCategories);
+      }
+      await fetchOverview(adminToken);
+    } catch (err) {
+      setCategories(previous);
+      throw err;
+    }
+  }
+
+  async function handleAssignProductsToCategory(targetCategory: Category, selectedProductIds: string[]) {
+    if (!adminToken) {
+      throw new Error('Admin session expired. Please sign in again.');
+    }
+    const targetName = targetCategory.name.trim();
+    const targetKey = targetName.toLowerCase();
+    const selectedSet = new Set(selectedProductIds);
+    const parentCategory = targetCategory.parentId
+      ? categories.find((c) => c.id === targetCategory.parentId)
+      : undefined;
+
+    const updatedProductsMap = new Map<string, Product>();
+
+    for (const product of products) {
+      const mainMatches = product.category.trim().toLowerCase() === targetKey;
+      const existingAlso = product.alsoShowIn || [];
+      const alsoMatches = existingAlso.some((c) => c.trim().toLowerCase() === targetKey);
+      const isCurrentlyAssigned = mainMatches || alsoMatches;
+      const shouldBeAssigned = selectedSet.has(product.id);
+
+      if (shouldBeAssigned === isCurrentlyAssigned) continue;
+
+      let nextMainCategory = product.category;
+      let nextAlsoShowIn = [...existingAlso];
+
+      if (shouldBeAssigned) {
+        if (!mainMatches && !alsoMatches) {
+          nextAlsoShowIn.push(targetName);
+        }
+      } else {
+        nextAlsoShowIn = nextAlsoShowIn.filter((c) => c.trim().toLowerCase() !== targetKey);
+        if (mainMatches) {
+          if (parentCategory) {
+            nextMainCategory = parentCategory.name;
+          } else if (nextAlsoShowIn.length > 0) {
+            nextMainCategory = nextAlsoShowIn[0];
+            nextAlsoShowIn = nextAlsoShowIn.slice(1);
+          } else {
+            nextMainCategory = 'Uncategorized';
+          }
+        }
+      }
+
+      const res = await fetch(`/api/admin/products/${product.id}`, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          category: nextMainCategory,
+          alsoShowIn: nextAlsoShowIn,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to update ${product.title}.`);
+      }
+      if (data.product) {
+        updatedProductsMap.set(product.id, data.product as Product);
+      } else {
+        updatedProductsMap.set(product.id, {
+          ...product,
+          category: nextMainCategory,
+          alsoShowIn: nextAlsoShowIn,
+        });
+      }
+    }
+
+    if (updatedProductsMap.size > 0) {
+      const nextProducts = products.map((p) => updatedProductsMap.get(p.id) || p);
+      persistProducts(nextProducts, true);
+      await fetchOverview(adminToken, { markLocalChanges: true });
     }
   }
 
@@ -2477,13 +2610,22 @@ export function AdminDashboard({
             {activeSection === 'Products' &&
               (productEditorOpen ? (
                 <AdminProductEditor
+                  key={
+                    editingProduct?.id ||
+                    (prefillProductCategories
+                      ? `new-${prefillProductCategories.mainCategory}-${prefillProductCategories.alsoShowIn.join(',')}`
+                      : 'new')
+                  }
                   editingProduct={editingProduct}
+                  initialMainCategory={prefillProductCategories?.mainCategory}
+                  initialAlsoShowIn={prefillProductCategories?.alsoShowIn}
                   categories={categories}
                   presetImages={PRESET_PRODUCT_IMAGES}
                   saving={productSaving}
                   onCancel={() => {
                     setProductEditorOpen(false);
                     setEditingProduct(null);
+                    setPrefillProductCategories(null);
                   }}
                   onSave={handleSaveProduct}
                   onCreateCategory={handleCreateCategoryByName}
@@ -2518,6 +2660,9 @@ export function AdminDashboard({
                 onCreateCategory={handleCreateCategoryByName}
                 onUpdateCategory={handleUpdateCategory}
                 onDeleteCategory={handleDeleteCategory}
+                onReorderCategories={handleReorderCategories}
+                onAssignProductsToCategory={handleAssignProductsToCategory}
+                onNewProductInCategory={handleNewProductInCategory}
                 onSyncCategoriesToFirestore={handleSyncCategoriesToFirestore}
                 onCreateProduct={handleCreateImportedProduct}
                 onEditProduct={openEditProduct}

@@ -30,6 +30,7 @@ interface StorefrontFooterProps {
   onFooterLinkAction: (item: FooterLinkItem) => void;
   onShopNow: () => void;
   onOpenWhatsApp: () => void;
+  whatsappHref?: string;
   hasMobileBottomBar?: boolean;
 }
 
@@ -49,6 +50,7 @@ export function StorefrontFooter({
   onFooterLinkAction,
   onShopNow,
   onOpenWhatsApp,
+  whatsappHref,
   hasMobileBottomBar = false,
 }: StorefrontFooterProps) {
   const design = footerConfig.footerDesign || 'classic';
@@ -199,9 +201,9 @@ export function StorefrontFooter({
             {footerConfig.showWhatsappRow && (
               <p className="leading-relaxed">
                 {footerConfig.whatsappLabel ? `${footerConfig.whatsappLabel} ` : ''}
-                {footerConfig.whatsappUrl ? (
+                {(footerConfig.whatsappUrl || whatsappHref) ? (
                   <a
-                    href={footerConfig.whatsappUrl}
+                    href={footerConfig.whatsappUrl || whatsappHref}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-medium hover:underline"
@@ -404,17 +406,32 @@ export function StorefrontFooter({
                 <div className="text-sm font-semibold truncate">{phone}</div>
               </div>
             </a>
-            <button
-              type="button"
-              onClick={onOpenWhatsApp}
-              className="flex items-center gap-3 p-3.5 rounded-xl border border-current/15 bg-white/5 hover:bg-white/10 transition-colors text-left cursor-pointer"
-            >
-              <MessageCircle className="w-5 h-5 shrink-0" />
-              <div className="min-w-0">
-                <div className="text-[11px] uppercase tracking-wider opacity-70">WhatsApp</div>
-                <div className="text-sm font-semibold truncate">{footerConfig.whatsappLinkText}</div>
-              </div>
-            </button>
+            {(whatsappHref || footerConfig.whatsappUrl) ? (
+              <a
+                href={whatsappHref || footerConfig.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3.5 rounded-xl border border-current/15 bg-white/5 hover:bg-white/10 transition-colors text-left cursor-pointer"
+              >
+                <MessageCircle className="w-5 h-5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-wider opacity-70">WhatsApp</div>
+                  <div className="text-sm font-semibold truncate">{footerConfig.whatsappLinkText}</div>
+                </div>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenWhatsApp}
+                className="flex items-center gap-3 p-3.5 rounded-xl border border-current/15 bg-white/5 hover:bg-white/10 transition-colors text-left cursor-pointer"
+              >
+                <MessageCircle className="w-5 h-5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-wider opacity-70">WhatsApp</div>
+                  <div className="text-sm font-semibold truncate">{footerConfig.whatsappLinkText}</div>
+                </div>
+              </button>
+            )}
             <a
               href={`mailto:${email}`}
               className="flex items-center gap-3 p-3.5 rounded-xl border border-current/15 bg-white/5 hover:bg-white/10 transition-colors"

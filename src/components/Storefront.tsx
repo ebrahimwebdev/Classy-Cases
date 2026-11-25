@@ -50,7 +50,11 @@ import { TrustHighlights } from './TrustHighlights';
 import { TrustedBySection } from './TrustedBySection';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { applyDocumentFavicon } from '../utils/branding';
-import { mergeFooterConfig, mergeHeaderConfig } from '../utils/headerFooterDefaults';
+import {
+  mergeFooterConfig,
+  mergeHeaderConfig,
+  normalizeWhatsAppUrl,
+} from '../utils/headerFooterDefaults';
 import {
   getCategoryAndDescendantNames,
   getRootCategoryFor,
@@ -686,6 +690,22 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     [settings]
   );
 
+  const whatsappHref = useMemo(
+    () =>
+      normalizeWhatsAppUrl(
+        headerConfig.whatsappUrl ||
+          footerConfig.whatsappUrl ||
+          footerConfig.socialLinks?.whatsapp,
+        settings?.phone
+      ),
+    [
+      headerConfig.whatsappUrl,
+      footerConfig.whatsappUrl,
+      footerConfig.socialLinks?.whatsapp,
+      settings?.phone,
+    ]
+  );
+
   function handleHeaderNavAction(item: HeaderNavLink) {
     if (item.action === 'home') {
       resetAllFilters();
@@ -820,6 +840,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         onOpenMobileMenu={() => setMobileMenuOpen(true)}
         onOpenOffers={handleOpenOffers}
         onOpenWhatsApp={handleOpenWhatsAppModal}
+        whatsappHref={whatsappHref}
       />
 
       {/* Main Content */}
@@ -899,6 +920,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 content: `Message or call our team at ${settings?.phone || '01799576210'} (${settings?.openingHours || '10:00 AM - 10:00 PM'}) for instant confirmation on camera cutouts and model compatibility for "${activeProduct.title}".`,
               })
             }
+            whatsappHref={whatsappHref}
             onShareToast={showToast}
           />
         ) : pendingProductKey && loading ? (
@@ -1123,6 +1145,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         onFooterLinkAction={handleFooterLinkAction}
         onShopNow={scrollToCatalog}
         onOpenWhatsApp={handleOpenWhatsAppModal}
+        whatsappHref={whatsappHref}
         hasMobileBottomBar={headerConfig.mobileBottomBarStyle !== 'off'}
       />
 
@@ -1132,6 +1155,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         wishlistCount={wishlistProducts.length}
         cartCount={cartCount}
         activeTab={myOrdersOpen ? 'account' : 'home'}
+        whatsappHref={whatsappHref}
         onAction={handleMobileBottomAction}
       />
 
@@ -1447,20 +1471,16 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
               {/* WhatsApp Support Link */}
               <div className="mt-5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setInfoModal({
-                      title: 'WhatsApp Support',
-                      content: `Message or call us on WhatsApp at ${settings?.phone || '01799576210'} (${settings?.openingHours || '10:00 AM - 10:00 PM'}) for instant case compatibility checks and order assistance.`,
-                    });
-                  }}
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileMenuOpen(false)}
                   className="inline-flex items-center gap-2 text-[14px] font-medium text-[#650108] hover:text-[#4A0106] cursor-pointer"
                 >
                   <MessageCircle className="w-4.5 h-4.5 stroke-[1.9] shrink-0" />
                   <span>Need help? Chat on WhatsApp</span>
-                </button>
+                </a>
               </div>
             </div>
           </aside>

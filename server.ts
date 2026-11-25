@@ -2128,6 +2128,48 @@ async function startServer() {
     }
   });
 
+  app.put('/api/admin/categories/reorder', requireAdmin, async (req, res) => {
+    const orderedIds = Array.isArray(req.body?.orderedIds)
+      ? req.body.orderedIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
+      : null;
+
+    if (!orderedIds || orderedIds.length === 0) {
+      res.status(400).json({ error: 'orderedIds array is required' });
+      return;
+    }
+
+    const byId = new Map(db.categories.map((c) => [c.id, c]));
+    const nextList: Category[] = [];
+    const seen = new Set<string>();
+
+    for (const id of orderedIds) {
+      const cat = byId.get(id);
+      if (cat && !seen.has(id)) {
+        seen.add(id);
+        nextList.push(cat);
+      }
+    }
+    for (const cat of db.categories) {
+      if (!seen.has(cat.id)) {
+        seen.add(cat.id);
+        nextList.push(cat);
+      }
+    }
+
+    try {
+      db.categories = nextList;
+      if (isSqlConfigured()) {
+        for (let i = 0; i < nextList.length; i += 1) {
+          await upsertCategoryToSql(nextList[i], i);
+        }
+      }
+      saveDatabase();
+      res.json({ categories: db.categories });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to reorder categories' });
+    }
+  });
+
   app.put('/api/admin/categories/:id', requireAdmin, async (req, res) => {
     const category = db.categories.find((c) => c.id === req.params.id);
     if (!category) {
@@ -3052,6 +3094,7 @@ async function startServer() {
       activeSlideId,
       autoAdvanceSeconds,
       mobileLayout: sanitizedMobileLayout,
+      updatedAtMs: Date.now(),
     };
 
     db.settings.heroVideos = {

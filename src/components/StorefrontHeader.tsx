@@ -87,6 +87,7 @@ interface StorefrontHeaderProps {
   onOpenMobileMenu: () => void;
   onOpenOffers: () => void;
   onOpenWhatsApp: () => void;
+  whatsappHref?: string;
 }
 
 export function StorefrontHeader({
@@ -115,6 +116,7 @@ export function StorefrontHeader({
   onOpenMobileMenu,
   onOpenOffers,
   onOpenWhatsApp,
+  whatsappHref,
 }: StorefrontHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [classicSearchOpen, setClassicSearchOpen] = useState(false);
@@ -454,14 +456,26 @@ export function StorefrontHeader({
             </nav>
 
             {headerConfig.whatsappInCategoryBar && (
-              <button
-                type="button"
-                onClick={onOpenWhatsApp}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>WhatsApp</span>
-              </button>
+              whatsappHref ? (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenWhatsApp}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp</span>
+                </button>
+              )
             )}
           </div>
         </div>
@@ -496,6 +510,7 @@ interface MobileBottomBarProps {
   wishlistCount: number;
   cartCount: number;
   activeTab?: MobileBottomBarItemId;
+  whatsappHref?: string;
   onAction: (id: MobileBottomBarItemId) => void;
 }
 
@@ -504,6 +519,7 @@ export function StorefrontMobileBottomBar({
   wishlistCount,
   cartCount,
   activeTab = 'home',
+  whatsappHref,
   onAction,
 }: MobileBottomBarProps) {
   if (headerConfig.mobileBottomBarStyle === 'off') return null;
@@ -565,13 +581,8 @@ export function StorefrontMobileBottomBar({
                 : 0;
 
           if (isCenter) {
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onAction(item.id)}
-                className="flex flex-col items-center justify-center -mt-5 cursor-pointer"
-              >
+            const centerInner = (
+              <>
                 <span className="relative w-12 h-12 rounded-full bg-[#650108] text-[#F2E8D2] shadow-lg flex items-center justify-center ring-4 ring-[#FAF4E6]">
                   {renderIcon(item.id, true)}
                   {badge > 0 && (
@@ -583,7 +594,62 @@ export function StorefrontMobileBottomBar({
                 <span className="text-[10px] font-semibold text-[#650108] mt-1 truncate max-w-full">
                   {item.label}
                 </span>
+              </>
+            );
+            if (item.id === 'whatsapp' && whatsappHref) {
+              return (
+                <a
+                  key={item.id}
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Chat on WhatsApp"
+                  className="flex flex-col items-center justify-center -mt-5 cursor-pointer"
+                >
+                  {centerInner}
+                </a>
+              );
+            }
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onAction(item.id)}
+                className="flex flex-col items-center justify-center -mt-5 cursor-pointer"
+              >
+                {centerInner}
               </button>
+            );
+          }
+
+          const tabInner = (
+            <>
+              <span className="relative">
+                {renderIcon(item.id)}
+                {badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-3.5 h-3.5 px-1 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
+                    {badge}
+                  </span>
+                )}
+              </span>
+              <span className="text-[10px] mt-0.5 truncate max-w-full">{item.label}</span>
+            </>
+          );
+
+          if (item.id === 'whatsapp' && whatsappHref) {
+            return (
+              <a
+                key={item.id}
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Chat on WhatsApp"
+                className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-colors cursor-pointer ${
+                  isActive ? 'text-[#650108] font-semibold' : 'text-[#6B4C4E] hover:text-[#650108]'
+                }`}
+              >
+                {tabInner}
+              </a>
             );
           }
 
@@ -596,15 +662,7 @@ export function StorefrontMobileBottomBar({
                 isActive ? 'text-[#650108] font-semibold' : 'text-[#6B4C4E] hover:text-[#650108]'
               }`}
             >
-              <span className="relative">
-                {renderIcon(item.id)}
-                {badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 min-w-3.5 h-3.5 px-1 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
-                    {badge}
-                  </span>
-                )}
-              </span>
-              <span className="text-[10px] mt-0.5 truncate max-w-full">{item.label}</span>
+              {tabInner}
             </button>
           );
         })}

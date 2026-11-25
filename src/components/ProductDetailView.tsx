@@ -43,6 +43,7 @@ interface ProductDetailViewProps {
     meta?: AddCartItemMeta
   ) => void;
   onOpenWhatsAppHelp: () => void;
+  whatsappHref?: string;
   onShareToast: (message: string) => void;
 }
 
@@ -60,6 +61,7 @@ export function ProductDetailView({
   onAddToCart,
   onBuyNow,
   onOpenWhatsAppHelp,
+  whatsappHref,
   onShareToast,
 }: ProductDetailViewProps) {
   const images = Array.from(
@@ -490,22 +492,44 @@ export function ProductDetailView({
               </div>
 
               {/* WhatsApp Need Help Choosing Card */}
-              <button
-                type="button"
-                onClick={onOpenWhatsAppHelp}
-                className="w-full border border-[#DFCFB0] bg-[#FAF4E6] rounded-xl px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F2E8D2] transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-[#650108]/10 text-[#650108] flex items-center justify-center shrink-0">
-                    <MessageCircle className="w-4 h-4" />
+              {whatsappHref ? (
+                <a
+                  href={`${whatsappHref}${whatsappHref.includes('?') ? '&' : '?'}text=${encodeURIComponent(
+                    `Hi! I need help choosing ${product.title}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full border border-[#DFCFB0] bg-[#FAF4E6] rounded-xl px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F2E8D2] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#650108]/10 text-[#650108] flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-[#650108]">Need help choosing?</div>
+                      <div className="text-xs text-[#6B4C4E]">Chat with us on WhatsApp</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-[#650108]">Need help choosing?</div>
-                    <div className="text-xs text-[#6B4C4E]">Chat with us on WhatsApp</div>
+                  <ChevronRight className="w-4 h-4 text-[#8E6F70] shrink-0" />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenWhatsAppHelp}
+                  className="w-full border border-[#DFCFB0] bg-[#FAF4E6] rounded-xl px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F2E8D2] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-[#650108]/10 text-[#650108] flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-[#650108]">Need help choosing?</div>
+                      <div className="text-xs text-[#6B4C4E]">Chat with us on WhatsApp</div>
+                    </div>
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#8E6F70] shrink-0" />
-              </button>
+                  <ChevronRight className="w-4 h-4 text-[#8E6F70] shrink-0" />
+                </button>
+              )}
             </div>
           </div>
         </div>

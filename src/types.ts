@@ -237,6 +237,7 @@ export interface HeroPlaybackSettings {
   activeSlideId: string;
   autoAdvanceSeconds: number;
   mobileLayout?: HeroMobileLayoutConfig;
+  updatedAtMs?: number;
 }
 
 export type HeaderStyleType = 'classic' | 'one-row' | 'two-row' | 'overlay';
@@ -272,6 +273,7 @@ export interface HeaderConfigSettings {
   headerStyle: HeaderStyleType;
   categoryPicturesInBar: boolean;
   whatsappInCategoryBar: boolean;
+  whatsappUrl?: string;
   showSearchIcon: boolean;
   showTrackOrderIcon: boolean;
   showWishlistIcon: boolean;

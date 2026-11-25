@@ -31,6 +31,7 @@ export const DEFAULT_HEADER_CONFIG: HeaderConfigSettings = {
   headerStyle: 'two-row',
   categoryPicturesInBar: false,
   whatsappInCategoryBar: false,
+  whatsappUrl: '',
   showSearchIcon: true,
   showTrackOrderIcon: true,
   showWishlistIcon: true,
@@ -228,6 +229,42 @@ const VALID_MOBILE_ITEM_IDS: MobileBottomBarItemId[] = [
   'account',
   'whatsapp',
 ];
+
+function sanitizeWhatsAppInput(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim().slice(0, 200);
+  if (!trimmed) return '';
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://')) {
+    return trimmed;
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith('javascript:') || lower.startsWith('data:')) {
+    return '';
+  }
+  return trimmed.replace(/[^\d+\-\s()]/g, '').trim().slice(0, 32);
+}
+
+export function normalizeWhatsAppUrl(raw?: string, fallbackPhone?: string): string {
+  const candidate = (raw || '').trim();
+  if (candidate) {
+    if (candidate.startsWith('https://') || candidate.startsWith('http://')) {
+      return candidate;
+    }
+    const digits = candidate.replace(/\D/g, '');
+    if (digits.length >= 6) {
+      const normalized =
+        digits.length === 11 && digits.startsWith('01') ? `88${digits}` : digits;
+      return `https://wa.me/${normalized}`;
+    }
+  }
+  const phoneDigits = (fallbackPhone || '01799576210').replace(/\D/g, '');
+  if (!phoneDigits) return 'https://wa.me/8801799576210';
+  const normalizedPhone =
+    phoneDigits.length === 11 && phoneDigits.startsWith('01')
+      ? `88${phoneDigits}`
+      : phoneDigits;
+  return `https://wa.me/${normalizedPhone}`;
+}
 const VALID_MENU_CAT_MODES: MenuCategoryMode[] = [
   'all',
   'featured',
@@ -333,6 +370,7 @@ export function mergeHeaderConfig(
     headerStyle,
     categoryPicturesInBar: Boolean(src.categoryPicturesInBar),
     whatsappInCategoryBar: Boolean(src.whatsappInCategoryBar),
+    whatsappUrl: sanitizeWhatsAppInput(src.whatsappUrl),
     showSearchIcon:
       src.showSearchIcon !== undefined
         ? Boolean(src.showSearchIcon)

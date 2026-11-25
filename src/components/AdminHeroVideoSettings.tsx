@@ -24,9 +24,9 @@ import {
   fetchAdminHeroSlides,
   fetchPublicHeroConfig,
   isValidHeroVideoUrl,
+  resolveLatestHeroState,
   sanitizeSlideId,
   saveHeroConfigToFirestore,
-  saveHeroVideoSlideToFirestore,
   saveCachedHeroState,
   seedDefaultHeroSlidesToFirestore,
   type HeroMobileLayoutConfig,
@@ -106,68 +106,76 @@ function formatAuthUiError(err: unknown): string {
   return msg || 'Google sign-in failed.';
 }
 
+async function capturePosterBlobFromVideoSource(src: string): Promise<Blob | null> {
+  if (typeof document === 'undefined') return null;
+  return await new Promise<Blob | null>((resolve) => {
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      video.crossOrigin = 'anonymous';
+    }
+
+    let settled = false;
+    const finish = (blob: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      video.removeAttribute('src');
+      video.load();
+      resolve(blob);
+    };
+
+    const timeoutId = window.setTimeout(() => finish(null), 5000);
+
+    const drawFrame = () => {
+      try {
+        const vw = video.videoWidth || 1280;
+        const vh = video.videoHeight || 720;
+        if (!vw || !vh) {
+          finish(null);
+          return;
+        }
+        const scale = Math.min(1, 1280 / vw);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(vw * scale));
+        canvas.height = Math.max(1, Math.round(vh * scale));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          finish(null);
+          return;
+        }
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => finish(blob), 'image/jpeg', 0.78);
+      } catch {
+        finish(null);
+      }
+    };
+
+    video.onloadedmetadata = () => {
+      const targetTime =
+        Number.isFinite(video.duration) && video.duration > 0.4
+          ? Math.min(0.35, video.duration * 0.15)
+          : 0;
+      if (targetTime > 0) {
+        video.currentTime = targetTime;
+      } else {
+        drawFrame();
+      }
+    };
+
+    video.onseeked = drawFrame;
+    video.onerror = () => finish(null);
+    video.src = src;
+  });
+}
+
 async function capturePosterBlobFromVideoFile(file: File): Promise<Blob | null> {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return null;
+  if (typeof URL === 'undefined') return null;
   const objectUrl = URL.createObjectURL(file);
   try {
-    return await new Promise<Blob | null>((resolve) => {
-      const video = document.createElement('video');
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = 'metadata';
-
-      let settled = false;
-      const finish = (blob: Blob | null) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeoutId);
-        video.removeAttribute('src');
-        video.load();
-        resolve(blob);
-      };
-
-      const timeoutId = window.setTimeout(() => finish(null), 5000);
-
-      video.onloadedmetadata = () => {
-        const targetTime =
-          Number.isFinite(video.duration) && video.duration > 0.4
-            ? Math.min(0.35, video.duration * 0.15)
-            : 0;
-        if (targetTime > 0) {
-          video.currentTime = targetTime;
-        } else {
-          drawFrame();
-        }
-      };
-
-      const drawFrame = () => {
-        try {
-          const vw = video.videoWidth || 1280;
-          const vh = video.videoHeight || 720;
-          if (!vw || !vh) {
-            finish(null);
-            return;
-          }
-          const scale = Math.min(1, 1280 / vw);
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.max(1, Math.round(vw * scale));
-          canvas.height = Math.max(1, Math.round(vh * scale));
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            finish(null);
-            return;
-          }
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => finish(blob), 'image/jpeg', 0.78);
-        } catch {
-          finish(null);
-        }
-      };
-
-      video.onseeked = drawFrame;
-      video.onerror = () => finish(null);
-      video.src = objectUrl;
-    });
+    return await capturePosterBlobFromVideoSource(objectUrl);
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -265,48 +273,32 @@ export function AdminHeroVideoSettings({
 
       const serverSlides = Array.isArray(serverRes?.slides) ? serverRes.slides : [];
       setHasServerDocs(serverSlides.length > 0);
+      setHasFirestoreDocs(remoteSlides.length > 0);
 
-      const mergedMobileLayout: HeroMobileLayoutConfig = {
-        ...DEFAULT_HERO_MOBILE_LAYOUT,
-        ...(serverRes?.config?.mobileLayout || {}),
-      };
+      const resolved = resolveLatestHeroState({
+        serverSlides,
+        serverConfig: serverRes?.config || null,
+        remoteSlides,
+        remoteConfig,
+      });
 
-      if (serverSlides.length > 0) {
-        setSlides(serverSlides);
-        setHasFirestoreDocs(remoteSlides.length > 0);
-        const preferred =
-          serverRes?.config?.activeSlideId &&
-          serverSlides.some((s) => s.id === serverRes.config?.activeSlideId)
-            ? serverRes.config.activeSlideId
-            : serverSlides[0].id;
-        setSelectedSlideId(preferred);
-        setHeroConfig({
-          ...(serverRes?.config || DEFAULT_HERO_CONFIG),
-          activeSlideId: preferred,
-          mobileLayout: mergedMobileLayout,
-        });
-      } else if (remoteSlides.length > 0) {
-        setSlides(remoteSlides);
-        setHasFirestoreDocs(true);
-        const preferred =
-          remoteConfig?.activeSlideId && remoteSlides.some((s) => s.id === remoteConfig.activeSlideId)
-            ? remoteConfig.activeSlideId
-            : remoteSlides[0].id;
-        setSelectedSlideId(preferred);
-        setHeroConfig({
-          ...(remoteConfig || DEFAULT_HERO_CONFIG),
-          activeSlideId: preferred,
-          mobileLayout: mergedMobileLayout,
-        });
-      } else {
-        setSlides(DEFAULT_HERO_VIDEO_SLIDES);
-        setHasFirestoreDocs(false);
-        setSelectedSlideId(DEFAULT_HERO_VIDEO_SLIDES[0].id);
-        setHeroConfig({
-          ...DEFAULT_HERO_CONFIG,
-          mobileLayout: mergedMobileLayout,
-        });
-      }
+      const nextSlides = resolved.slides;
+      const preferred =
+        resolved.config?.activeSlideId &&
+        nextSlides.some((s) => s.id === resolved.config?.activeSlideId)
+          ? resolved.config.activeSlideId
+          : nextSlides[0]?.id || DEFAULT_HERO_VIDEO_SLIDES[0].id;
+
+      setSlides(nextSlides);
+      setSelectedSlideId(preferred);
+      setHeroConfig({
+        ...(resolved.config || DEFAULT_HERO_CONFIG),
+        activeSlideId: preferred,
+        mobileLayout: {
+          ...DEFAULT_HERO_MOBILE_LAYOUT,
+          ...(resolved.config?.mobileLayout || {}),
+        },
+      });
     } catch (err) {
       setErrorMsg(formatFirestoreUiError(err));
     } finally {
@@ -369,6 +361,73 @@ export function AdminHeroVideoSettings({
     }
   }
 
+  async function uploadPosterBlob(blob: Blob | null, baseName: string): Promise<string> {
+    if (!blob || blob.size <= 0) return '';
+    try {
+      const posterRes = await fetch('/api/admin/hero-videos/poster', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': blob.type || 'image/jpeg',
+          'X-Filename': `${baseName.replace(/\.[^.]+$/, '')}-poster.jpg`,
+          'X-Requested-With': 'XMLHttpRequest',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: blob,
+      });
+      const posterData = await posterRes.json().catch(() => ({}));
+      if (posterRes.ok && posterData.url) {
+        return String(posterData.url);
+      }
+    } catch {
+      // ignore transient poster capture upload error
+    }
+    return '';
+  }
+
+  async function saveSlidesAndConfig(
+    targetSlides: HeroVideoSlide[],
+    targetConfig: HeroPlaybackConfig,
+    successMsg: string
+  ) {
+    setErrorMsg('');
+    const invalidSlide = targetSlides.find((s) => !isValidHeroVideoUrl(s.videoSrc));
+    if (invalidSlide) {
+      setErrorMsg(
+        `Video URL for "${invalidSlide.label}" must start with https://, /assets/videos/, or /media/hero-videos/.`
+      );
+      return;
+    }
+
+    setSavingFirestore(true);
+    try {
+      const saved = await persistToBackend(targetSlides, targetConfig);
+      const nextSlides = Array.isArray(saved.slides) ? saved.slides : targetSlides;
+      const nextConfig = saved.config || targetConfig;
+      setSlides(nextSlides);
+      setHeroConfig(nextConfig);
+
+      if (user) {
+        try {
+          await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig);
+          setHasFirestoreDocs(true);
+          notifySuccess(`${successMsg} Synced to Firebase Firestore.`);
+        } catch (fsErr) {
+          setErrorMsg(
+            `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
+          );
+          notifySuccess(successMsg);
+        }
+      } else {
+        notifySuccess(successMsg);
+      }
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setSavingFirestore(false);
+    }
+  }
+
   async function handleVideoFileUpload(file: File | undefined) {
     if (!file) return;
     setErrorMsg('');
@@ -410,36 +469,26 @@ export function AdminHeroVideoSettings({
         ? ''
         : selectedSlide.posterSrc;
 
-      if (capturedPosterBlob && capturedPosterBlob.size > 0) {
-        try {
-          const posterRes = await fetch('/api/admin/hero-videos/poster', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              'Content-Type': capturedPosterBlob.type || 'image/jpeg',
-              'X-Filename': `${file.name.replace(/\.[^.]+$/, '')}-poster.jpg`,
-              'X-Requested-With': 'XMLHttpRequest',
-              Authorization: `Bearer ${adminToken}`,
-            },
-            body: capturedPosterBlob,
-          });
-          const posterData = await posterRes.json().catch(() => ({}));
-          if (posterRes.ok && posterData.url) {
-            nextPosterSrc = String(posterData.url);
-          }
-        } catch {
-          // Keep cleared/empty poster if frame upload fails
-        }
+      const uploadedPosterUrl = await uploadPosterBlob(capturedPosterBlob, file.name);
+      if (uploadedPosterUrl) {
+        nextPosterSrc = uploadedPosterUrl;
       }
 
       const uploadedUrl = String(data.url);
+      const isInitialReplacement = !hasServerDocs && !hasFirestoreDocs;
       const updatedSlide: HeroVideoSlide = {
         ...selectedSlide,
         videoSrc: uploadedUrl,
         posterSrc: nextPosterSrc,
         active: true,
       };
-      const nextSlides = slides.map((s) => (s.id === selectedSlide.id ? updatedSlide : s));
+      const nextSlides = slides.map((s) => {
+        if (s.id === selectedSlide.id) return updatedSlide;
+        if (isInitialReplacement && s.videoSrc.startsWith('/assets/videos/')) {
+          return { ...s, active: false };
+        }
+        return s;
+      });
       const nextConfig: HeroPlaybackConfig = {
         ...heroConfig,
         activeSlideId: selectedSlide.id,
@@ -449,75 +498,90 @@ export function AdminHeroVideoSettings({
       setPreviewVideoError(false);
       await loadLibrary();
 
-      setSavingFirestore(true);
-      await persistToBackend(nextSlides, nextConfig);
-
-      if (user) {
-        try {
-          if (!hasFirestoreDocs) {
-            await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig);
-          } else {
-            await Promise.all([
-              saveHeroVideoSlideToFirestore(updatedSlide),
-              saveHeroConfigToFirestore(nextConfig),
-            ]);
-          }
-          setHasFirestoreDocs(true);
-          notifySuccess('Video uploaded, saved, and synced to Firebase Firestore.');
-        } catch (fsErr) {
-          setErrorMsg(
-            `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
-          );
-          notifySuccess('Video uploaded and set as starting hero video.');
-        }
-      } else {
-        notifySuccess('Video uploaded and set as starting hero video.');
-      }
+      await saveSlidesAndConfig(
+        nextSlides,
+        nextConfig,
+        'Video uploaded and set as starting hero video.'
+      );
     } catch (err) {
       setErrorMsg(formatFirestoreUiError(err));
     } finally {
       setUploadingVideo(false);
-      setSavingFirestore(false);
     }
   }
 
-  async function handleSaveSlideAndConfig() {
+  async function handleSelectLibraryVideo(vid: VideoLibraryItem) {
     setErrorMsg('');
-    if (!isValidHeroVideoUrl(selectedSlide.videoSrc)) {
-      setErrorMsg('Video URL must start with https://, /assets/videos/, or /media/hero-videos/.');
-      return;
-    }
+    const hasPresetPoster = PRESET_POSTERS.some((p) => p.url === selectedSlide.posterSrc);
+    let nextPosterSrc =
+      vid.source === 'uploaded' && hasPresetPoster ? '' : selectedSlide.posterSrc;
 
-    setSavingFirestore(true);
-    try {
-      await persistToBackend(slides, heroConfig);
-
-      if (user) {
-        try {
-          if (!hasFirestoreDocs) {
-            await seedDefaultHeroSlidesToFirestore(slides, heroConfig);
-          } else {
-            await Promise.all([
-              saveHeroVideoSlideToFirestore(selectedSlide),
-              saveHeroConfigToFirestore(heroConfig),
-            ]);
-          }
-          setHasFirestoreDocs(true);
-          notifySuccess(`Saved "${selectedSlide.label}" and synced to Firebase Firestore.`);
-        } catch (fsErr) {
-          setErrorMsg(
-            `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
-          );
-          notifySuccess(`Saved "${selectedSlide.label}" to storefront.`);
-        }
-      } else {
-        notifySuccess(`Saved "${selectedSlide.label}" and hero playback settings.`);
+    if (
+      vid.source === 'uploaded' &&
+      (!nextPosterSrc || hasPresetPoster) &&
+      vid.url.startsWith('/media/hero-videos/')
+    ) {
+      const blob = await capturePosterBlobFromVideoSource(vid.url).catch(() => null);
+      const uploadedPoster = await uploadPosterBlob(blob, vid.name);
+      if (uploadedPoster) {
+        nextPosterSrc = uploadedPoster;
       }
-    } catch (err) {
-      setErrorMsg(formatFirestoreUiError(err));
-    } finally {
-      setSavingFirestore(false);
     }
+
+    const updatedSlide: HeroVideoSlide = {
+      ...selectedSlide,
+      videoSrc: vid.url,
+      posterSrc: nextPosterSrc,
+      active: true,
+    };
+    const isInitialReplacement =
+      vid.source === 'uploaded' && !hasServerDocs && !hasFirestoreDocs;
+    const nextSlides = slides.map((s) => {
+      if (s.id === selectedSlide.id) return updatedSlide;
+      if (isInitialReplacement && s.videoSrc.startsWith('/assets/videos/')) {
+        return { ...s, active: false };
+      }
+      return s;
+    });
+    const nextConfig: HeroPlaybackConfig = {
+      ...heroConfig,
+      activeSlideId: selectedSlide.id,
+    };
+    setSlides(nextSlides);
+    setHeroConfig(nextConfig);
+    setPreviewVideoError(false);
+
+    await saveSlidesAndConfig(
+      nextSlides,
+      nextConfig,
+      `Selected "${vid.name}" for ${selectedSlide.label}.`
+    );
+  }
+
+  async function handleSetStartingSlide(slideId: string) {
+    const nextSlides = slides.map((s) =>
+      s.id === slideId ? { ...s, active: true } : s
+    );
+    const nextConfig: HeroPlaybackConfig = {
+      ...heroConfig,
+      activeSlideId: slideId,
+    };
+    setSlides(nextSlides);
+    setHeroConfig(nextConfig);
+    const label = nextSlides.find((s) => s.id === slideId)?.label || 'selected slide';
+    await saveSlidesAndConfig(
+      nextSlides,
+      nextConfig,
+      `Set "${label}" as starting hero video.`
+    );
+  }
+
+  async function handleSaveSlideAndConfig() {
+    await saveSlidesAndConfig(
+      slides,
+      heroConfig,
+      `Saved "${selectedSlide.label}" and hero playback settings.`
+    );
   }
 
   async function handleSyncAllSlidesToFirestore() {
@@ -638,25 +702,69 @@ export function AdminHeroVideoSettings({
       }
 
       const remainingLibrary = libraryVideos.filter((v) => v.url !== videoUrl);
-      const fallbackUrl = remainingLibrary[0]?.url || '';
-
-      const updatedSlides = slides.map((s) =>
-        s.videoSrc === videoUrl ? { ...s, videoSrc: fallbackUrl } : s
-      );
-      const slideChanged = updatedSlides.some((s, idx) => s.videoSrc !== slides[idx]?.videoSrc);
-      setSlides(updatedSlides);
       setLibraryVideos(remainingLibrary);
 
-      if (slideChanged && fallbackUrl) {
-        await persistToBackend(updatedSlides, heroConfig);
-        if (user && hasFirestoreDocs) {
-          await seedDefaultHeroSlidesToFirestore(updatedSlides, heroConfig).catch(() => {});
+      const affectedSlides = slides.filter((s) => s.videoSrc === videoUrl);
+      if (affectedSlides.length > 0) {
+        const unaffectedSlides = slides.filter((s) => s.videoSrc !== videoUrl);
+        if (unaffectedSlides.length > 0) {
+          const nextSlides = unaffectedSlides.map((s, idx) => ({ ...s, sortOrder: idx }));
+          const nextActiveId = nextSlides.some((s) => s.id === heroConfig.activeSlideId)
+            ? heroConfig.activeSlideId
+            : nextSlides[0].id;
+          const nextConfig: HeroPlaybackConfig = {
+            ...heroConfig,
+            activeSlideId: nextActiveId,
+          };
+          setSlides(nextSlides);
+          if (!nextSlides.some((s) => s.id === selectedSlideId)) {
+            setSelectedSlideId(nextSlides[0].id);
+          }
+          setHeroConfig(nextConfig);
+          await persistToBackend(nextSlides, nextConfig);
+          if (user && hasFirestoreDocs) {
+            await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig).catch(() => {});
+          }
+        } else {
+          const fallbackUploaded = remainingLibrary.find((v) => v.source === 'uploaded');
+          const fallbackUrl = fallbackUploaded?.url || remainingLibrary[0]?.url || '';
+          if (fallbackUrl) {
+            const first = slides[0];
+            const updatedSlide: HeroVideoSlide = {
+              ...first,
+              videoSrc: fallbackUrl,
+              posterSrc: PRESET_POSTERS.some((p) => p.url === first.posterSrc)
+                ? ''
+                : first.posterSrc,
+              sortOrder: 0,
+              active: true,
+            };
+            const nextSlides = [updatedSlide];
+            const nextConfig: HeroPlaybackConfig = {
+              ...heroConfig,
+              activeSlideId: updatedSlide.id,
+            };
+            setSlides(nextSlides);
+            setSelectedSlideId(updatedSlide.id);
+            setHeroConfig(nextConfig);
+            await persistToBackend(nextSlides, nextConfig);
+            if (user && hasFirestoreDocs) {
+              await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig).catch(() => {});
+            }
+          } else {
+            const cleared = slides.map((s) =>
+              s.videoSrc === videoUrl ? { ...s, videoSrc: '', posterSrc: '' } : s
+            );
+            setSlides(cleared);
+            setErrorMsg('Video deleted. Upload or paste a new video URL and click Save Hero Settings.');
+            return;
+          }
         }
       }
 
       notifySuccess(
         videoUrl.startsWith('/assets/videos/')
-          ? 'Built-in reel deleted from library.'
+          ? 'Built-in default video removed.'
           : 'Uploaded video deleted.'
       );
     } catch (err) {
@@ -665,6 +773,69 @@ export function AdminHeroVideoSettings({
       setDeletingVideoUrl(null);
     }
   }
+
+  async function handleRemoveAllDefaultVideos() {
+    const customSlides = slides.filter((s) => !s.videoSrc.startsWith('/assets/videos/'));
+    if (customSlides.length === 0) {
+      setErrorMsg('Upload or add your own custom video first before removing all default videos.');
+      return;
+    }
+    setErrorMsg('');
+    setSavingFirestore(true);
+    try {
+      const builtInUrls = Array.from(
+        new Set([
+          ...libraryVideos.filter((v) => v.source === 'bundled').map((v) => v.url),
+          ...slides
+            .filter((s) => s.videoSrc.startsWith('/assets/videos/'))
+            .map((s) => s.videoSrc),
+        ])
+      );
+      for (const url of builtInUrls) {
+        await fetch('/api/admin/hero-videos/file', {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({ url }),
+        }).catch(() => {});
+      }
+
+      const nextSlides = customSlides.map((s, idx) => ({ ...s, sortOrder: idx }));
+      const nextActiveId = nextSlides.some((s) => s.id === heroConfig.activeSlideId)
+        ? heroConfig.activeSlideId
+        : nextSlides[0].id;
+      const nextConfig: HeroPlaybackConfig = {
+        ...heroConfig,
+        activeSlideId: nextActiveId,
+      };
+      setSlides(nextSlides);
+      setSelectedSlideId(nextActiveId);
+      setHeroConfig(nextConfig);
+      setLibraryVideos((prev) => prev.filter((v) => v.source !== 'bundled'));
+
+      await persistToBackend(nextSlides, nextConfig);
+      if (user) {
+        await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig).catch(() => {});
+        setHasFirestoreDocs(true);
+      }
+      notifySuccess('Removed all default videos. Storefront will only play your custom hero video.');
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setSavingFirestore(false);
+    }
+  }
+
+  const hasCustomSlide = slides.some(
+    (s) => Boolean(s.videoSrc) && !s.videoSrc.startsWith('/assets/videos/')
+  );
+  const hasBuiltInDefault =
+    slides.some((s) => s.videoSrc.startsWith('/assets/videos/')) ||
+    libraryVideos.some((v) => v.source === 'bundled');
 
   return (
     <div className="space-y-5">
@@ -991,10 +1162,9 @@ export function AdminHeroVideoSettings({
                 {heroConfig.activeSlideId !== selectedSlide.id && (
                   <button
                     type="button"
-                    onClick={() =>
-                      setHeroConfig((prev) => ({ ...prev, activeSlideId: selectedSlide.id }))
-                    }
-                    className="px-2.5 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25"
+                    disabled={savingFirestore}
+                    onClick={() => void handleSetStartingSlide(selectedSlide.id)}
+                    className="px-2.5 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25 disabled:opacity-50"
                   >
                     Set as Starting Slide
                   </button>
@@ -1117,9 +1287,21 @@ export function AdminHeroVideoSettings({
               {/* Selectable Video Library */}
               {libraryVideos.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    Select from Available Videos
-                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      Select from Available Videos (auto-saves immediately)
+                    </span>
+                    {hasCustomSlide && hasBuiltInDefault && (
+                      <button
+                        type="button"
+                        disabled={savingFirestore}
+                        onClick={() => void handleRemoveAllDefaultVideos()}
+                        className="px-2 py-1 rounded-md border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 text-[10px] font-semibold hover:bg-rose-100 dark:hover:bg-rose-500/25 disabled:opacity-50"
+                      >
+                        Remove Default Videos
+                      </button>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {libraryVideos.map((vid) => {
                       const active = selectedSlide.videoSrc === vid.url;
@@ -1135,15 +1317,8 @@ export function AdminHeroVideoSettings({
                         >
                           <button
                             type="button"
-                            onClick={() => {
-                              const shouldClearDefaultPoster =
-                                vid.source === 'uploaded' &&
-                                PRESET_POSTERS.some((p) => p.url === selectedSlide.posterSrc);
-                              updateSelectedSlide({
-                                videoSrc: vid.url,
-                                ...(shouldClearDefaultPoster ? { posterSrc: '' } : {}),
-                              });
-                            }}
+                            disabled={savingFirestore}
+                            onClick={() => void handleSelectLibraryVideo(vid)}
                             className="flex items-center gap-2 min-w-0 flex-1 text-left"
                           >
                             <Play className="w-3.5 h-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />

@@ -42,6 +42,7 @@ export interface HeroPlaybackConfig {
   activeSlideId: string;
   autoAdvanceSeconds: number;
   mobileLayout?: HeroMobileLayoutConfig;
+  updatedAtMs?: number;
 }
 
 export const DEFAULT_HERO_MOBILE_LAYOUT: HeroMobileLayoutConfig = {
@@ -139,6 +140,132 @@ export function saveCachedHeroState(
   } catch {
     // ignore storage quota errors
   }
+}
+
+export function areUntouchedDefaultSlides(slides: HeroVideoSlide[]): boolean {
+  if (slides.length !== DEFAULT_HERO_VIDEO_SLIDES.length) return false;
+  return slides.every(
+    (s, idx) =>
+      s.id === DEFAULT_HERO_VIDEO_SLIDES[idx].id &&
+      s.videoSrc === DEFAULT_HERO_VIDEO_SLIDES[idx].videoSrc &&
+      s.active === DEFAULT_HERO_VIDEO_SLIDES[idx].active
+  );
+}
+
+export function resolveLatestHeroState(params: {
+  serverSlides: HeroVideoSlide[];
+  serverConfig: HeroPlaybackConfig | null;
+  remoteSlides: HeroVideoSlide[];
+  remoteConfig: HeroPlaybackConfig | null;
+}): {
+  slides: HeroVideoSlide[];
+  config: HeroPlaybackConfig | null;
+  source: 'server' | 'firestore' | 'default';
+} {
+  const { serverSlides, serverConfig, remoteSlides, remoteConfig } = params;
+  const hasServer = serverSlides.length > 0;
+  const hasRemote = remoteSlides.length > 0;
+
+  const mergedMobileLayout: HeroMobileLayoutConfig = {
+    ...DEFAULT_HERO_MOBILE_LAYOUT,
+    ...(serverConfig?.mobileLayout || {}),
+    ...(remoteConfig?.mobileLayout || {}),
+  };
+
+  const withMergedLayout = (cfg: HeroPlaybackConfig | null): HeroPlaybackConfig | null => {
+    if (!cfg) {
+      return serverConfig?.mobileLayout
+        ? { ...DEFAULT_HERO_CONFIG, mobileLayout: mergedMobileLayout }
+        : null;
+    }
+    return {
+      ...cfg,
+      mobileLayout: {
+        ...DEFAULT_HERO_MOBILE_LAYOUT,
+        ...(remoteConfig?.mobileLayout || {}),
+        ...(serverConfig?.mobileLayout || {}),
+        ...(cfg.mobileLayout || {}),
+      },
+    };
+  };
+
+  if (hasServer && !hasRemote) {
+    return {
+      slides: serverSlides,
+      config: withMergedLayout(serverConfig),
+      source: 'server',
+    };
+  }
+
+  if (!hasServer && hasRemote) {
+    return {
+      slides: remoteSlides,
+      config: withMergedLayout(remoteConfig),
+      source: 'firestore',
+    };
+  }
+
+  if (hasServer && hasRemote) {
+    const serverTs =
+      typeof serverConfig?.updatedAtMs === 'number' && Number.isFinite(serverConfig.updatedAtMs)
+        ? serverConfig.updatedAtMs
+        : 0;
+    const remoteTs =
+      typeof remoteConfig?.updatedAtMs === 'number' && Number.isFinite(remoteConfig.updatedAtMs)
+        ? remoteConfig.updatedAtMs
+        : 0;
+
+    if (serverTs > 0 && remoteTs > 0) {
+      if (remoteTs > serverTs) {
+        return {
+          slides: remoteSlides,
+          config: withMergedLayout(remoteConfig),
+          source: 'firestore',
+        };
+      }
+      return {
+        slides: serverSlides,
+        config: withMergedLayout(serverConfig),
+        source: 'server',
+      };
+    }
+
+    const serverDefault = areUntouchedDefaultSlides(serverSlides);
+    const remoteDefault = areUntouchedDefaultSlides(remoteSlides);
+
+    if (!serverDefault && remoteDefault) {
+      return {
+        slides: serverSlides,
+        config: withMergedLayout(serverConfig),
+        source: 'server',
+      };
+    }
+    if (serverDefault && !remoteDefault) {
+      return {
+        slides: remoteSlides,
+        config: withMergedLayout(remoteConfig),
+        source: 'firestore',
+      };
+    }
+    if (remoteTs > serverTs) {
+      return {
+        slides: remoteSlides,
+        config: withMergedLayout(remoteConfig),
+        source: 'firestore',
+      };
+    }
+    return {
+      slides: serverSlides,
+      config: withMergedLayout(serverConfig),
+      source: 'server',
+    };
+  }
+
+  return {
+    slides: DEFAULT_HERO_VIDEO_SLIDES,
+    config: withMergedLayout(serverConfig || remoteConfig || DEFAULT_HERO_CONFIG),
+    source: 'default',
+  };
 }
 
 export function isValidHeroVideoUrl(url: string): boolean {
@@ -245,12 +372,20 @@ export async function fetchPublicHeroConfig(): Promise<HeroPlaybackConfig | null
     const snap = await getDoc(doc(db, HERO_CONFIG_COLLECTION, HERO_CONFIG_DOC_ID));
     if (!snap.exists()) return null;
     const data = snap.data() as Record<string, unknown>;
+    const rawTs = data.updatedAt as { toMillis?: () => number; seconds?: number } | undefined;
+    const updatedAtMs =
+      typeof rawTs?.toMillis === 'function'
+        ? rawTs.toMillis()
+        : typeof rawTs?.seconds === 'number'
+          ? rawTs.seconds * 1000
+          : undefined;
     return {
       activeSlideId: typeof data.activeSlideId === 'string' ? data.activeSlideId : '',
       autoAdvanceSeconds:
         typeof data.autoAdvanceSeconds === 'number' && Number.isFinite(data.autoAdvanceSeconds)
           ? Math.min(30, Math.max(3, Math.round(data.autoAdvanceSeconds)))
           : DEFAULT_HERO_CONFIG.autoAdvanceSeconds,
+      updatedAtMs,
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
@@ -345,8 +480,19 @@ export async function seedDefaultHeroSlidesToFirestore(
   slides: HeroVideoSlide[],
   config: HeroPlaybackConfig
 ): Promise<void> {
+  const keepIds = new Set(slides.map((s) => sanitizeSlideId(s.id)));
   for (const slide of slides) {
     await saveHeroVideoSlideToFirestore(slide);
+  }
+  try {
+    const existingSnap = await getDocs(collection(db, HERO_VIDEOS_COLLECTION));
+    for (const docSnap of existingSnap.docs) {
+      if (!keepIds.has(docSnap.id)) {
+        await deleteHeroVideoSlideFromFirestore(docSnap.id);
+      }
+    }
+  } catch {
+    // Non-fatal if list/cleanup fails
   }
   await saveHeroConfigToFirestore(config);
 }

@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Barcode,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -10,6 +13,7 @@ import {
   CloudUpload,
   CornerDownRight,
   FolderPlus,
+  GripVertical,
   Image as ImageIcon,
   Info,
   Layers,
@@ -20,6 +24,7 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  Search,
   ShieldCheck,
   SlidersHorizontal,
   SquarePen,
@@ -81,6 +86,9 @@ interface AdminInventoryCatalogViewsProps {
   onCreateCategory: (payload: CategoryFormPayload | string) => Promise<void>;
   onUpdateCategory?: (id: string, payload: Partial<CategoryFormPayload>) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
+  onReorderCategories?: (nextCategories: Category[]) => Promise<void>;
+  onAssignProductsToCategory?: (category: Category, selectedProductIds: string[]) => Promise<void>;
+  onNewProductInCategory?: (category: Category) => void;
   onSyncCategoriesToFirestore?: () => Promise<void>;
   onCreateProduct: (payload: ProductEditorPayload) => Promise<void>;
   onEditProduct: (product: Product) => void;
@@ -178,6 +186,9 @@ export function AdminInventoryCatalogViews({
   onCreateCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onReorderCategories,
+  onAssignProductsToCategory,
+  onNewProductInCategory,
   onSyncCategoriesToFirestore,
   onCreateProduct,
   onEditProduct,
@@ -189,6 +200,18 @@ export function AdminInventoryCatalogViews({
   const [syncingFirestoreCats, setSyncingFirestoreCats] = useState(false);
   const [togglingCatId, setTogglingCatId] = useState<string | null>(null);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
+  const [reorderingCats, setReorderingCats] = useState(false);
+  const [draggedCatId, setDraggedCatId] = useState<string | null>(null);
+  const [dropTargetCatId, setDropTargetCatId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
+
+  // Assign products to category/sub-category modal
+  const [assignModalCategory, setAssignModalCategory] = useState<Category | null>(null);
+  const [assignSelectedIds, setAssignSelectedIds] = useState<Set<string>>(new Set());
+  const [assignSearch, setAssignSearch] = useState('');
+  const [assignFilterTab, setAssignFilterTab] = useState<'all' | 'assigned' | 'brand'>('all');
+  const [assignSaving, setAssignSaving] = useState(false);
+  const [assignError, setAssignError] = useState('');
 
   // Add / Edit Category Modal state
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
@@ -490,6 +513,130 @@ export function AdminInventoryCatalogViews({
     }
   }
 
+  function buildReorderedSiblingList(
+    sourceId: string,
+    targetId: string,
+    position: 'before' | 'after'
+  ): Category[] | null {
+    const sourceCat = categories.find((c) => c.id === sourceId);
+    const targetCat = categories.find((c) => c.id === targetId);
+    if (!sourceCat || !targetCat || sourceId === targetId) return null;
+
+    const sourceParentKey = sourceCat.parentId || '';
+    const targetParentKey = targetCat.parentId || '';
+
+    // Allow dropping a sub-category directly onto its parent row to move it first among children
+    if (sourceParentKey && targetCat.id === sourceParentKey) {
+      const siblings = categories.filter((c) => (c.parentId || '') === sourceParentKey);
+      const reorderedSiblings = [sourceCat, ...siblings.filter((c) => c.id !== sourceId)];
+      let siblingIdx = 0;
+      return categories.map((c) =>
+        (c.parentId || '') === sourceParentKey ? reorderedSiblings[siblingIdx++] : c
+      );
+    }
+
+    // If dragging a top-level category over a sub-category row, resolve target to its top-level ancestor
+    let effectiveTargetId = targetId;
+    if (!sourceParentKey && targetParentKey) {
+      let ancestor: Category | undefined = targetCat;
+      const visited = new Set<string>();
+      while (ancestor?.parentId && !visited.has(ancestor.id)) {
+        visited.add(ancestor.id);
+        ancestor = categories.find((c) => c.id === ancestor?.parentId);
+      }
+      if (!ancestor || ancestor.id === sourceId) return null;
+      effectiveTargetId = ancestor.id;
+    } else if (sourceParentKey !== targetParentKey) {
+      return null;
+    }
+
+    const siblings = categories.filter((c) => (c.parentId || '') === sourceParentKey);
+    const withoutSource = siblings.filter((c) => c.id !== sourceId);
+    const targetIdx = withoutSource.findIndex((c) => c.id === effectiveTargetId);
+    if (targetIdx === -1) return null;
+    const insertIdx = position === 'after' ? targetIdx + 1 : targetIdx;
+    const reorderedSiblings = [
+      ...withoutSource.slice(0, insertIdx),
+      sourceCat,
+      ...withoutSource.slice(insertIdx),
+    ];
+
+    const unchanged = siblings.every((c, idx) => c.id === reorderedSiblings[idx]?.id);
+    if (unchanged) return null;
+
+    let siblingPointer = 0;
+    return categories.map((c) =>
+      (c.parentId || '') === sourceParentKey ? reorderedSiblings[siblingPointer++] : c
+    );
+  }
+
+  async function commitCategoryReorder(nextCategories: Category[] | null) {
+    if (!nextCategories || !onReorderCategories || reorderingCats) return;
+    setCatActionError('');
+    setReorderingCats(true);
+    try {
+      await onReorderCategories(nextCategories);
+    } catch (err) {
+      setCatActionError(formatCategoryActionError(err, 'Failed to save category order.'));
+    } finally {
+      setReorderingCats(false);
+    }
+  }
+
+  async function handleNudgeCategory(cat: Category, direction: -1 | 1) {
+    const parentKey = cat.parentId || '';
+    const siblings = categories.filter((c) => (c.parentId || '') === parentKey);
+    const currentIdx = siblings.findIndex((c) => c.id === cat.id);
+    const swapIdx = currentIdx + direction;
+    if (currentIdx === -1 || swapIdx < 0 || swapIdx >= siblings.length) return;
+    const target = siblings[swapIdx];
+    const nextList = buildReorderedSiblingList(
+      cat.id,
+      target.id,
+      direction === -1 ? 'before' : 'after'
+    );
+    await commitCategoryReorder(nextList);
+  }
+
+  function openAssignProductsModal(cat: Category) {
+    const catKey = cat.name.trim().toLowerCase();
+    const initialSelected = new Set<string>();
+    for (const p of products) {
+      const directMain = p.category.trim().toLowerCase() === catKey;
+      const inAlso = (p.alsoShowIn || []).some((c) => c.trim().toLowerCase() === catKey);
+      if (directMain || inAlso) {
+        initialSelected.add(p.id);
+      }
+    }
+    setAssignModalCategory(cat);
+    setAssignSelectedIds(initialSelected);
+    setAssignSearch('');
+    setAssignFilterTab('all');
+    setAssignError('');
+  }
+
+  async function handleSaveAssignedProducts() {
+    if (!assignModalCategory || !onAssignProductsToCategory) return;
+    setAssignError('');
+    setAssignSaving(true);
+    try {
+      await onAssignProductsToCategory(
+        assignModalCategory,
+        Array.from(assignSelectedIds)
+      );
+      setCatSyncMsg(
+        `Updated products inside "${assignModalCategory.name}" (${assignSelectedIds.size} selected).`
+      );
+      setAssignModalCategory(null);
+    } catch (err) {
+      setAssignError(
+        formatCategoryActionError(err, 'Failed to save product assignments.')
+      );
+    } finally {
+      setAssignSaving(false);
+    }
+  }
+
   async function handleImportSingleOrCsv(e: React.FormEvent) {
     e.preventDefault();
     if (!importTitle.trim()) return;
@@ -730,166 +877,318 @@ export function AdminInventoryCatalogViews({
         )}
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
-          <div className="px-6 pt-5 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Categories</h2>
+          <div className="px-6 pt-5 pb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Categories</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Drag <span className="font-semibold">⋮⋮</span> or use ↑↓ arrows to reorder brands &amp; sub-categories. Click <span className="font-semibold">+ Products</span> on any row to add products.
+              </p>
+            </div>
+            {reorderingCats && (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Saving order...
+              </span>
+            )}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left">
+            <table className="w-full min-w-[740px] text-left">
               <thead className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 <tr>
-                  <th className="py-2.5 pl-6 pr-4 font-medium">Category</th>
+                  <th className="py-2.5 pl-4 pr-4 font-medium">Category</th>
                   <th className="py-2.5 px-4 font-medium">Products</th>
                   <th className="py-2.5 px-4 font-medium">Google category</th>
                   <th className="py-2.5 px-3 font-medium w-10">
                     <span className="sr-only">Featured</span>
                   </th>
                   <th className="py-2.5 px-4 font-medium">Status</th>
-                  <th className="py-2.5 pl-3 pr-6 font-medium text-right w-24">
+                  <th className="py-2.5 pl-3 pr-6 font-medium text-right">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {buildHierarchicalCategories(categories).map(({ category: cat, depth, parentName }) => {
-                  const treeNames = getCategoryAndDescendantNames(categories, cat.name);
-                  const count = products.filter(
-                    (p) =>
-                      treeNames.has(p.category.trim().toLowerCase()) ||
-                      (p.alsoShowIn || []).some((c) => treeNames.has(c.trim().toLowerCase()))
-                  ).length;
-                  const isActive = cat.active !== false;
-                  const isFeatured = cat.featured !== false;
-                  const busy = togglingCatId === cat.id || deletingCatId === cat.id;
+                {(() => {
+                  const hierarchical = buildHierarchicalCategories(categories);
+                  return hierarchical.map(({ category: cat, depth, parentName }) => {
+                    const treeNames = getCategoryAndDescendantNames(categories, cat.name);
+                    const count = products.filter(
+                      (p) =>
+                        treeNames.has(p.category.trim().toLowerCase()) ||
+                        (p.alsoShowIn || []).some((c) => treeNames.has(c.trim().toLowerCase()))
+                    ).length;
+                    const isActive = cat.active !== false;
+                    const isFeatured = cat.featured !== false;
+                    const busy = togglingCatId === cat.id || deletingCatId === cat.id || reorderingCats;
+                    const parentKey = cat.parentId || '';
+                    const siblings = categories.filter((c) => (c.parentId || '') === parentKey);
+                    const siblingIndex = siblings.findIndex((c) => c.id === cat.id);
+                    const canMoveUp = siblingIndex > 0;
+                    const canMoveDown = siblingIndex >= 0 && siblingIndex < siblings.length - 1;
+                    const isDragging = draggedCatId === cat.id;
+                    const isDropBefore = dropTargetCatId === cat.id && dropPosition === 'before';
+                    const isDropAfter = dropTargetCatId === cat.id && dropPosition === 'after';
+                    const draggedCat = draggedCatId ? categories.find((c) => c.id === draggedCatId) : undefined;
+                    const canDropHere = Boolean(
+                      draggedCat &&
+                        draggedCat.id !== cat.id &&
+                        ((draggedCat.parentId || '') === parentKey ||
+                          (!draggedCat.parentId && depth > 0) ||
+                          draggedCat.parentId === cat.id)
+                    );
 
-                  return (
-                    <tr key={cat.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3.5 pl-6 pr-4">
-                        <div
-                          className="flex items-center gap-3.5"
-                          style={depth > 0 ? { paddingLeft: `${Math.min(depth, 3) * 20}px` } : undefined}
-                        >
-                          {depth > 0 && (
-                            <CornerDownRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-                          )}
-                          <CategoryBrandBadge category={cat} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">
-                                {cat.name}
-                              </span>
-                              {depth > 0 && (
-                                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium">
-                                  Sub-category
+                    return (
+                      <tr
+                        key={cat.id}
+                        draggable={Boolean(onReorderCategories) && !reorderingCats}
+                        onDragStart={(e) => {
+                          if (!onReorderCategories) return;
+                          setDraggedCatId(cat.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', cat.id);
+                        }}
+                        onDragOver={(e) => {
+                          if (!draggedCatId || draggedCatId === cat.id || !canDropHere) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const nextPos: 'before' | 'after' =
+                            e.clientY - rect.top > rect.height / 2 ? 'after' : 'before';
+                          if (dropTargetCatId !== cat.id || dropPosition !== nextPos) {
+                            setDropTargetCatId(cat.id);
+                            setDropPosition(nextPos);
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                            if (dropTargetCatId === cat.id) {
+                              setDropTargetCatId(null);
+                              setDropPosition(null);
+                            }
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const sourceId = draggedCatId || e.dataTransfer.getData('text/plain');
+                          const pos = dropPosition || 'before';
+                          setDraggedCatId(null);
+                          setDropTargetCatId(null);
+                          setDropPosition(null);
+                          if (!sourceId || sourceId === cat.id) return;
+                          const nextList = buildReorderedSiblingList(sourceId, cat.id, pos);
+                          void commitCategoryReorder(nextList);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedCatId(null);
+                          setDropTargetCatId(null);
+                          setDropPosition(null);
+                        }}
+                        className={`transition-colors ${
+                          isDragging
+                            ? 'opacity-45 bg-indigo-50/70 dark:bg-indigo-500/10'
+                            : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'
+                        } ${isDropBefore ? 'shadow-[inset_0_2px_0_0_#5B68EB]' : ''} ${
+                          isDropAfter ? 'shadow-[inset_0_-2px_0_0_#5B68EB]' : ''
+                        }`}
+                      >
+                        <td className="py-3.5 pl-4 pr-4">
+                          <div
+                            className="flex items-center gap-2.5"
+                            style={depth > 0 ? { paddingLeft: `${Math.min(depth, 3) * 18}px` } : undefined}
+                          >
+                            {onReorderCategories && (
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <span
+                                  className="p-1 rounded-md text-slate-300 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300 cursor-grab active:cursor-grabbing"
+                                  title="Drag up or down to reorder"
+                                  aria-label={`Drag ${cat.name} to reorder`}
+                                >
+                                  <GripVertical className="w-3.5 h-3.5" />
                                 </span>
-                              )}
-                              {cat.isDefault && (
-                                <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold">
-                                  Default
-                                </span>
-                              )}
-                            </div>
-                            {parentName && (
-                              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                Inside {parentName}
+                                {siblings.length > 1 && (
+                                  <div className="flex flex-col">
+                                    <button
+                                      type="button"
+                                      disabled={!canMoveUp || reorderingCats}
+                                      onClick={() => void handleNudgeCategory(cat, -1)}
+                                      className="p-0.5 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                                      title={`Move ${cat.name} up`}
+                                      aria-label={`Move ${cat.name} up`}
+                                    >
+                                      <ArrowUp className="w-2.5 h-2.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={!canMoveDown || reorderingCats}
+                                      onClick={() => void handleNudgeCategory(cat, 1)}
+                                      className="p-0.5 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 disabled:opacity-25 disabled:pointer-events-none cursor-pointer"
+                                      title={`Move ${cat.name} down`}
+                                      aria-label={`Move ${cat.name} down`}
+                                    >
+                                      <ArrowDown className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 tabular-nums">
-                        <span className={`text-[13px] ${count === 0 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {count} {count === 1 ? 'product' : 'products'}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <button
-                          type="button"
-                          onClick={() => openEditCategoryModal(cat, true)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
-                            cat.googleCategory
-                              ? 'border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 max-w-[200px] truncate'
-                              : 'border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-200'
-                          }`}
-                          title={cat.googleCategory || 'Click to set Google category'}
-                        >
-                          <span className="font-bold text-slate-400 dark:text-slate-500">G</span>
-                          <span className="truncate">{cat.googleCategory || 'Not set'}</span>
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-3 text-center">
-                        <button
-                          type="button"
-                          disabled={busy || !onUpdateCategory}
-                          onClick={() =>
-                            handleQuickToggleCategory(cat, { featured: !isFeatured })
-                          }
-                          className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
-                          title={isFeatured ? 'Featured on storefront' : 'Click to feature'}
-                          aria-label={`Toggle featured for ${cat.name}`}
-                        >
-                          <Star
-                            className={`w-4 h-4 ${
-                              isFeatured
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-400 dark:text-slate-500 hover:text-amber-400'
-                            }`}
-                          />
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <button
-                          type="button"
-                          disabled={busy || !onUpdateCategory}
-                          onClick={() => handleQuickToggleCategory(cat, { active: !isActive })}
-                          className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
-                            isActive
-                              ? 'bg-emerald-100/80 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200/70'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                          }`}
-                          title="Click to toggle category status"
-                        >
-                          {isActive ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-                      <td className="py-3.5 pl-3 pr-6 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openNewCategoryModal(cat.id)}
-                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer"
-                            aria-label={`Add sub-category inside ${cat.name}`}
-                            title={`Add sub-category inside ${cat.name}`}
-                          >
-                            <FolderPlus className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openEditCategoryModal(cat)}
-                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition-colors cursor-pointer"
-                            aria-label={`Edit ${cat.name}`}
-                            title="Edit category"
-                          >
-                            <SquarePen className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleRemoveCategory(cat)}
-                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
-                            aria-label={`Remove ${cat.name}`}
-                            title="Delete category"
-                          >
-                            {deletingCatId === cat.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="w-4 h-4" />
+                            {depth > 0 && (
+                              <CornerDownRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                             )}
+                            <CategoryBrandBadge category={cat} />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                  {cat.name}
+                                </span>
+                                {depth > 0 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium">
+                                    Sub-category
+                                  </span>
+                                )}
+                                {cat.isDefault && (
+                                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                              {parentName && (
+                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                  Inside {parentName}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 tabular-nums">
+                          {onAssignProductsToCategory ? (
+                            <button
+                              type="button"
+                              onClick={() => openAssignProductsModal(cat)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium transition-colors cursor-pointer ${
+                                count === 0
+                                  ? 'border border-dashed border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-500/10'
+                                  : 'bg-slate-100/80 dark:bg-slate-800/70 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 hover:text-indigo-700 dark:hover:text-indigo-300'
+                              }`}
+                              title={`Assign products to ${cat.name}`}
+                            >
+                              <span>
+                                {count} {count === 1 ? 'product' : 'products'}
+                              </span>
+                              <Plus className="w-3 h-3 opacity-70" />
+                            </button>
+                          ) : (
+                            <span
+                              className={`text-[13px] ${
+                                count === 0
+                                  ? 'text-slate-400 dark:text-slate-500'
+                                  : 'text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              {count} {count === 1 ? 'product' : 'products'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            type="button"
+                            onClick={() => openEditCategoryModal(cat, true)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                              cat.googleCategory
+                                ? 'border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 max-w-[200px] truncate'
+                                : 'border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                            title={cat.googleCategory || 'Click to set Google category'}
+                          >
+                            <span className="font-bold text-slate-400 dark:text-slate-500">G</span>
+                            <span className="truncate">{cat.googleCategory || 'Not set'}</span>
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="py-3.5 px-3 text-center">
+                          <button
+                            type="button"
+                            disabled={busy || !onUpdateCategory}
+                            onClick={() =>
+                              handleQuickToggleCategory(cat, { featured: !isFeatured })
+                            }
+                            className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
+                            title={isFeatured ? 'Featured on storefront' : 'Click to feature'}
+                            aria-label={`Toggle featured for ${cat.name}`}
+                          >
+                            <Star
+                              className={`w-4 h-4 ${
+                                isFeatured
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-400 dark:text-slate-500 hover:text-amber-400'
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <button
+                            type="button"
+                            disabled={busy || !onUpdateCategory}
+                            onClick={() => handleQuickToggleCategory(cat, { active: !isActive })}
+                            className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
+                              isActive
+                                ? 'bg-emerald-100/80 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200/70'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                            title="Click to toggle category status"
+                          >
+                            {isActive ? 'Active' : 'Inactive'}
+                          </button>
+                        </td>
+                        <td className="py-3.5 pl-3 pr-6 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            {onAssignProductsToCategory && (
+                              <button
+                                type="button"
+                                onClick={() => openAssignProductsModal(cat)}
+                                className="px-2 py-1 rounded-lg text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/15 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                title={`Add or manage products in ${cat.name}`}
+                              >
+                                <Package className="w-3.5 h-3.5" />
+                                <span>+ Products</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => openNewCategoryModal(cat.id)}
+                              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                              aria-label={`Add sub-category inside ${cat.name}`}
+                              title={`Add sub-category inside ${cat.name}`}
+                            >
+                              <FolderPlus className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditCategoryModal(cat)}
+                              className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition-colors cursor-pointer"
+                              aria-label={`Edit ${cat.name}`}
+                              title="Edit category"
+                            >
+                              <SquarePen className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleRemoveCategory(cat)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
+                              aria-label={`Remove ${cat.name}`}
+                              title="Delete category"
+                            >
+                              {deletingCatId === cat.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  });
+                })()}
                 {categories.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-10 text-center text-xs text-slate-400 dark:text-slate-500">
@@ -1324,6 +1623,305 @@ export function AdminInventoryCatalogViews({
             </div>
           </div>
         )}
+
+        {/* Assign Products to Category / Sub-category Modal */}
+        {assignModalCategory && (() => {
+          const parentCat = assignModalCategory.parentId
+            ? categories.find((c) => c.id === assignModalCategory.parentId)
+            : undefined;
+          const parentKey = parentCat?.name.trim().toLowerCase() || '';
+          const catKey = assignModalCategory.name.trim().toLowerCase();
+          const searchTerm = assignSearch.trim().toLowerCase();
+
+          const parentBrandCount = parentCat
+            ? products.filter((p) => {
+                const pCat = p.category.trim().toLowerCase();
+                return (
+                  pCat === parentKey ||
+                  (p.alsoShowIn || []).some((c) => c.trim().toLowerCase() === parentKey)
+                );
+              }).length
+            : 0;
+
+          const matchingProducts = products
+            .filter((p) => {
+              if (assignFilterTab === 'assigned' && !assignSelectedIds.has(p.id)) {
+                return false;
+              }
+              if (assignFilterTab === 'brand' && parentCat) {
+                const pCat = p.category.trim().toLowerCase();
+                const inParent =
+                  pCat === parentKey ||
+                  (p.alsoShowIn || []).some((c) => c.trim().toLowerCase() === parentKey);
+                if (!inParent) return false;
+              }
+              if (!searchTerm) return true;
+              return (
+                p.title.toLowerCase().includes(searchTerm) ||
+                p.sku.toLowerCase().includes(searchTerm) ||
+                p.category.toLowerCase().includes(searchTerm) ||
+                (p.brand || '').toLowerCase().includes(searchTerm)
+              );
+            })
+            .sort((a, b) => {
+              const aAssigned = assignSelectedIds.has(a.id) ? 0 : 1;
+              const bAssigned = assignSelectedIds.has(b.id) ? 0 : 1;
+              if (aAssigned !== bAssigned) return aAssigned - bAssigned;
+              if (parentCat) {
+                const aSameBrand = a.category.trim().toLowerCase() === parentKey ? 0 : 1;
+                const bSameBrand = b.category.trim().toLowerCase() === parentKey ? 0 : 1;
+                if (aSameBrand !== bSameBrand) return aSameBrand - bSameBrand;
+              }
+              return a.title.localeCompare(b.title);
+            });
+
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="assign-products-modal-title"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+              >
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                  <div>
+                    <h2
+                      id="assign-products-modal-title"
+                      className="text-base font-bold text-slate-900 dark:text-slate-100"
+                    >
+                      Products in {assignModalCategory.name}
+                    </h2>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {parentCat
+                        ? `Sub-category inside ${parentCat.name} · Checking products keeps their Main Category intact.`
+                        : 'Select products to show under this category.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAssignModalCategory(null)}
+                    className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    aria-label="Close modal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-800 space-y-2.5 bg-slate-50/50 dark:bg-slate-950/30 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        autoFocus
+                        value={assignSearch}
+                        onChange={(e) => setAssignSearch(e.target.value)}
+                        placeholder="Search products by name, model, or SKU..."
+                        className="w-full pl-8 pr-3 py-2 text-xs text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    {onNewProductInCategory && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetCat = assignModalCategory;
+                          setAssignModalCategory(null);
+                          onNewProductInCategory(targetCat);
+                        }}
+                        className="px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/15 hover:bg-indigo-100 dark:hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>New Product Here</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setAssignFilterTab('all')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors ${
+                          assignFilterTab === 'all'
+                            ? 'bg-slate-900 dark:bg-indigo-600 text-white'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        All ({products.length})
+                      </button>
+                      {parentCat && (
+                        <button
+                          type="button"
+                          onClick={() => setAssignFilterTab('brand')}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors ${
+                            assignFilterTab === 'brand'
+                              ? 'bg-slate-900 dark:bg-indigo-600 text-white'
+                              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {parentCat.name} ({parentBrandCount})
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setAssignFilterTab('assigned')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-colors ${
+                          assignFilterTab === 'assigned'
+                            ? 'bg-slate-900 dark:bg-indigo-600 text-white'
+                            : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        Selected ({assignSelectedIds.size})
+                      </button>
+                    </div>
+
+                    {matchingProducts.length > 0 && (
+                      <div className="flex items-center gap-2 text-[11px] font-semibold">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAssignSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              for (const p of matchingProducts) next.add(p.id);
+                              return next;
+                            })
+                          }
+                          className="text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                        >
+                          Select visible
+                        </button>
+                        <span className="text-slate-300 dark:text-slate-700">|</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAssignSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              for (const p of matchingProducts) next.delete(p.id);
+                              return next;
+                            })
+                          }
+                          className="text-slate-500 dark:text-slate-400 hover:underline cursor-pointer"
+                        >
+                          Clear visible
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                  {matchingProducts.map((product) => {
+                    const checked = assignSelectedIds.has(product.id);
+                    const otherSubs = (product.alsoShowIn || []).filter(
+                      (c) => c.trim().toLowerCase() !== catKey
+                    );
+                    return (
+                      <label
+                        key={product.id}
+                        className={`flex items-center gap-3 px-6 py-3 cursor-pointer transition-colors ${
+                          checked
+                            ? 'bg-indigo-50/50 dark:bg-indigo-500/10'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                        }`}
+                      >
+                        <span
+                          className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                            checked
+                              ? 'bg-[#5B68EB] border-[#5B68EB] text-white'
+                              : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                          }`}
+                        >
+                          {checked && <Check className="w-3 h-3" />}
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setAssignSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(product.id)) {
+                                next.delete(product.id);
+                              } else {
+                                next.add(product.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="sr-only"
+                        />
+                        <img
+                          src={product.image}
+                          alt={product.title}
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {product.title}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                              Main: {product.category}
+                            </span>
+                            {product.sku && <span>· {product.sku}</span>}
+                            {otherSubs.length > 0 && (
+                              <span className="truncate max-w-[200px]">
+                                · Also in {otherSubs.join(', ')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums shrink-0">
+                          {formatTaka(product.price)}
+                        </span>
+                      </label>
+                    );
+                  })}
+
+                  {matchingProducts.length === 0 && (
+                    <div className="py-12 px-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                      No matching products found. Try clearing your search filter or click &ldquo;+ New Product Here&rdquo;.
+                    </div>
+                  )}
+                </div>
+
+                {assignError && (
+                  <div className="mx-6 my-2 px-3.5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2 shrink-0">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{assignError}</span>
+                  </div>
+                )}
+
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-slate-900 shrink-0">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                      {assignSelectedIds.size}
+                    </span>{' '}
+                    {assignSelectedIds.size === 1 ? 'product' : 'products'} assigned to{' '}
+                    {assignModalCategory.name}
+                  </span>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setAssignModalCategory(null)}
+                      className="px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={assignSaving}
+                      onClick={() => void handleSaveAssignedProducts()}
+                      className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#5B68EB] hover:bg-[#4C58D6] text-white disabled:bg-slate-300 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      {assignSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>Save Products</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }

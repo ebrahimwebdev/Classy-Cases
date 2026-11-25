@@ -13,6 +13,7 @@ import {
   fetchPublicHeroConfig,
   fetchPublicHeroSlides,
   loadCachedHeroState,
+  resolveLatestHeroState,
   saveCachedHeroState,
   type HeroMobileLayoutConfig,
   type HeroPlaybackConfig,
@@ -32,11 +33,12 @@ function forcePlayVideo(videoEl: HTMLVideoElement | null) {
   videoEl.playsInline = true;
   videoEl.setAttribute('muted', '');
   videoEl.setAttribute('playsinline', '');
+  videoEl.setAttribute('webkit-playsinline', 'true');
   if (videoEl.paused) {
     const playPromise = videoEl.play();
     if (playPromise !== undefined) {
       playPromise.catch(() => {
-        // Browser autoplay policy fallback: keep poster visible cleanly
+        // Browser autoplay policy fallback: will resume on first pointer/touch or metadata ready
       });
     }
   }
@@ -48,7 +50,6 @@ export function HeroBanner({
   onInspectProduct,
 }: HeroBannerProps) {
   const initialCacheRef = useRef(loadCachedHeroState());
-  const hasCachedHeroRef = useRef(Boolean(initialCacheRef.current?.slides?.length));
   const [slides, setSlides] = useState<HeroVideoSlide[]>(
     () => initialCacheRef.current?.slides || []
   );
@@ -74,6 +75,7 @@ export function HeroBanner({
     return 0;
   });
   const [videoFailed, setVideoFailed] = useState<Record<string, boolean>>({});
+  const [posterFailed, setPosterFailed] = useState<Record<string, boolean>>({});
   const [activeVideoCanPlay, setActiveVideoCanPlay] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hasAppliedInitialSelectionRef = useRef<boolean>(
@@ -143,6 +145,7 @@ export function HeroBanner({
         activeSlideId: incomingActiveId || nextSlides[0]?.id || '',
         autoAdvanceSeconds: nextAutoAdvance,
         mobileLayout: nextMobileLayout,
+        updatedAtMs: activeConfig?.updatedAtMs,
       });
     },
     []
@@ -151,46 +154,29 @@ export function HeroBanner({
   const loadPersistedHeroSlides = useCallback(
     async (forceSelectActiveId = false) => {
       try {
-        const parallelFirestore = !hasCachedHeroRef.current;
-        const serverPromise = fetch('/api/hero-videos')
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null) as Promise<{
-          slides?: HeroVideoSlide[];
-          config?: HeroPlaybackConfig | null;
-        } | null>;
+        const [serverRes, remoteSlides, remoteConfig] = await Promise.all([
+          fetch('/api/hero-videos')
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null) as Promise<{
+            slides?: HeroVideoSlide[];
+            config?: HeroPlaybackConfig | null;
+          } | null>,
+          fetchPublicHeroSlides().catch(() => []),
+          fetchPublicHeroConfig().catch(() => null),
+        ]);
 
-        const remoteSlidesPromise = parallelFirestore
-          ? fetchPublicHeroSlides().catch(() => [])
-          : null;
-        const remoteConfigPromise = parallelFirestore
-          ? fetchPublicHeroConfig().catch(() => null)
-          : null;
-
-        const serverRes = await serverPromise;
         const serverSlides = Array.isArray(serverRes?.slides)
           ? serverRes.slides.filter((s) => s.active !== false)
           : [];
 
-        if (serverSlides.length > 0) {
-          applyResolvedHero(
-            serverSlides,
-            serverRes?.config || null,
-            forceSelectActiveId
-          );
-          return;
-        }
+        const resolved = resolveLatestHeroState({
+          serverSlides,
+          serverConfig: serverRes?.config || null,
+          remoteSlides,
+          remoteConfig,
+        });
 
-        const [remoteSlides, remoteConfig] = await Promise.all([
-          remoteSlidesPromise || fetchPublicHeroSlides().catch(() => []),
-          remoteConfigPromise || fetchPublicHeroConfig().catch(() => null),
-        ]);
-
-        const nextSlides =
-          remoteSlides.length > 0 ? remoteSlides : DEFAULT_HERO_VIDEO_SLIDES;
-        const activeConfig: HeroPlaybackConfig | null =
-          remoteConfig || serverRes?.config || null;
-
-        applyResolvedHero(nextSlides, activeConfig, forceSelectActiveId);
+        applyResolvedHero(resolved.slides, resolved.config, forceSelectActiveId);
       } catch {
         setHeroReady((ready) => {
           if (!ready) {
@@ -234,9 +220,13 @@ export function HeroBanner({
 
   // Enforce DOM muted/playsInline attributes synchronously and trigger playback immediately
   useLayoutEffect(() => {
-    setActiveVideoCanPlay(false);
-    if (!heroReady || videoFailed[currentSlide.id]) return;
-    forcePlayVideo(videoRef.current);
+    const el = videoRef.current;
+    if (!heroReady || videoFailed[currentSlide.id]) {
+      setActiveVideoCanPlay(false);
+      return;
+    }
+    setActiveVideoCanPlay(Boolean(el && el.readyState >= 2));
+    forcePlayVideo(el);
   }, [heroReady, safeIndex, currentSlide.id, currentSlide.videoSrc, videoFailed]);
 
   useEffect(() => {
@@ -245,8 +235,20 @@ export function HeroBanner({
         forcePlayVideo(videoRef.current);
       }
     }
+    function handleFirstInteraction() {
+      const el = videoRef.current;
+      if (el && el.paused) {
+        forcePlayVideo(el);
+      }
+    }
     document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pointerdown', handleFirstInteraction, { passive: true });
+    window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+    };
   }, []);
 
   // Auto-advance slides continuously
@@ -295,44 +297,68 @@ export function HeroBanner({
   const showMobileCtaRow =
     mobileLayout.showExploreButton || (mobileLayout.showProductButton && Boolean(matchedProduct));
 
+  const hasValidPoster =
+    Boolean(currentSlide.posterSrc) && !posterFailed[currentSlide.id];
+
   return (
     <section
       aria-label="Featured Video Showcase Hero"
-      className="relative w-full overflow-hidden"
+      className="relative w-full overflow-hidden bg-[#1B0204]"
     >
       {/* Full-Bleed Video Backdrop */}
       <div
-        className={`relative w-full min-h-[250px] sm:min-h-[450px] lg:min-h-[520px] flex ${mobileAlignClass}`}
+        className={`relative w-full min-h-[250px] sm:min-h-[450px] lg:min-h-[520px] flex bg-[#1B0204] ${mobileAlignClass}`}
       >
         {!heroReady ? (
           <div
             aria-hidden="true"
-            className="absolute inset-0 w-full h-full bg-[#240306]"
+            className="absolute inset-0 w-full h-full bg-[#1B0204]"
           />
         ) : videoFailed[currentSlide.id] || !currentSlide.videoSrc ? (
-          <img
-            src={
-              currentSlide.posterSrc ||
-              '/src/assets/images/hero_magsafe_showcase_1795548420846.jpg'
-            }
-            alt={currentSlide.posterAlt || currentSlide.headline}
-            referrerPolicy="no-referrer"
-            className="absolute inset-0 w-full h-full object-cover object-center"
-          />
+          hasValidPoster ? (
+            <img
+              src={currentSlide.posterSrc}
+              alt={currentSlide.posterAlt || currentSlide.headline}
+              referrerPolicy="no-referrer"
+              onError={() =>
+                setPosterFailed((prev) => ({ ...prev, [currentSlide.id]: true }))
+              }
+              className="absolute inset-0 w-full h-full object-cover object-center"
+            />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#2B0407] via-[#1B0204] to-[#0E0102]"
+            />
+          )
         ) : (
           <>
+            {hasValidPoster && (
+              <img
+                src={currentSlide.posterSrc}
+                alt={currentSlide.posterAlt || currentSlide.headline}
+                referrerPolicy="no-referrer"
+                onError={() =>
+                  setPosterFailed((prev) => ({ ...prev, [currentSlide.id]: true }))
+                }
+                className="absolute inset-0 w-full h-full object-cover object-center"
+              />
+            )}
             <video
               key={currentSlide.videoSrc}
               ref={videoRef}
               src={currentSlide.videoSrc}
-              poster={currentSlide.posterSrc || undefined}
+              poster={hasValidPoster ? currentSlide.posterSrc : undefined}
               autoPlay
               muted
               loop
               playsInline
               preload="auto"
               onLoadedMetadata={(e) => forcePlayVideo(e.currentTarget)}
-              onLoadedData={(e) => forcePlayVideo(e.currentTarget)}
+              onLoadedData={(e) => {
+                setActiveVideoCanPlay(true);
+                forcePlayVideo(e.currentTarget);
+              }}
               onCanPlay={(e) => {
                 setActiveVideoCanPlay(true);
                 forcePlayVideo(e.currentTarget);
@@ -341,7 +367,9 @@ export function HeroBanner({
               onError={() =>
                 setVideoFailed((prev) => ({ ...prev, [currentSlide.id]: true }))
               }
-              className="absolute inset-0 w-full h-full object-cover object-center"
+              className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-300 ${
+                !hasValidPoster || activeVideoCanPlay ? 'opacity-100' : 'opacity-0'
+              }`}
             />
             {activeVideoCanPlay &&
               nextSlide &&
@@ -360,7 +388,13 @@ export function HeroBanner({
           </>
         )}
 
-        {/* Editorial Contrast Scrims (hidden on mobile phones per user request) */}
+        {/* Mobile Contrast Scrim (subtle dark base so hero text never sits on blank beige during buffering) */}
+        <div
+          aria-hidden="true"
+          className="sm:hidden pointer-events-none absolute inset-0 bg-gradient-to-t from-[#140203]/70 via-[#140203]/20 to-[#140203]/10"
+        />
+
+        {/* Desktop Editorial Contrast Scrims */}
         <div
           aria-hidden="true"
           className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-r from-[#1A0203]/80 via-[#1A0203]/45 to-[#1A0203]/20"

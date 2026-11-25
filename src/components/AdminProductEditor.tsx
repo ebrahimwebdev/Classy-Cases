@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Bold,
   Box,
+  Check,
   ChevronDown,
   ClipboardCheck,
   DollarSign,
@@ -38,6 +39,9 @@ import type {
 } from '../types';
 import {
   buildHierarchicalCategories,
+  getCategoryByName,
+  getRootCategoryFor,
+  getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
 import type { CategoryFormPayload } from './AdminInventoryCatalogViews';
@@ -83,6 +87,8 @@ interface AdminProductEditorProps {
   editingProduct: Product | null;
   categories: Category[];
   presetImages: PresetImageOption[];
+  initialMainCategory?: string;
+  initialAlsoShowIn?: string[];
   saving?: boolean;
   onCancel: () => void;
   onSave: (payload: ProductEditorPayload) => Promise<void>;
@@ -164,6 +170,8 @@ export function AdminProductEditor({
   editingProduct,
   categories,
   presetImages,
+  initialMainCategory,
+  initialAlsoShowIn,
   saving = false,
   onCancel,
   onSave,
@@ -256,11 +264,13 @@ export function AdminProductEditor({
   const [showPresetPicker, setShowPresetPicker] = useState(false);
 
   const [mainCategory, setMainCategory] = useState(
-    editingProduct?.category || categories[0]?.name || 'Motorola'
+    editingProduct?.category || initialMainCategory || categories[0]?.name || 'Motorola'
   );
-  const [alsoShowIn, setAlsoShowIn] = useState<string[]>(editingProduct?.alsoShowIn || []);
+  const [alsoShowIn, setAlsoShowIn] = useState<string[]>(
+    editingProduct?.alsoShowIn || initialAlsoShowIn || []
+  );
   const [brand, setBrand] = useState(
-    editingProduct?.brand || editingProduct?.category || categories[0]?.name || ''
+    editingProduct?.brand || editingProduct?.category || initialMainCategory || categories[0]?.name || ''
   );
   const [addingCategory, setAddingCategory] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState('');
@@ -435,6 +445,18 @@ export function AdminProductEditor({
     updateVariantOptions(next);
   }
 
+  function toggleAlsoShowInCategory(categoryName: string) {
+    const clean = categoryName.trim();
+    if (!clean) return;
+    setAlsoShowIn((prev) => {
+      const exists = prev.some((c) => c.trim().toLowerCase() === clean.toLowerCase());
+      if (exists) {
+        return prev.filter((c) => c.trim().toLowerCase() !== clean.toLowerCase());
+      }
+      return [...prev, clean];
+    });
+  }
+
   async function handleQuickAddCategory() {
     const trimmed = quickCategoryName.trim();
     if (!trimmed || !onCreateCategory) return;
@@ -445,7 +467,19 @@ export function AdminProductEditor({
           ? { name: trimmed, parentId: quickCategoryParentId }
           : trimmed
       );
-      setMainCategory(trimmed);
+      if (quickCategoryParentId) {
+        const parentCat = categories.find((c) => c.id === quickCategoryParentId);
+        if (parentCat) {
+          setMainCategory(parentCat.name);
+        }
+        setAlsoShowIn((prev) =>
+          prev.some((c) => c.trim().toLowerCase() === trimmed.toLowerCase())
+            ? prev
+            : [...prev, trimmed]
+        );
+      } else {
+        setMainCategory(trimmed);
+      }
       setQuickCategoryName('');
       setQuickCategoryParentId('');
       setAddingCategory(false);
@@ -1614,129 +1648,285 @@ export function AdminProductEditor({
             </section>
 
             {/* Category & Brand Card */}
-            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3.5 text-xs">
-              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                <Tag className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                <h2 className="text-xs font-bold">Category &amp; Brand</h2>
-              </div>
+            {(() => {
+              const selectedMainCatObj = getCategoryByName(categories, mainCategory);
+              const rootBrandCatObj =
+                getRootCategoryFor(categories, mainCategory) || selectedMainCatObj;
+              const relatedSubcategories = rootBrandCatObj
+                ? getSubcategories(categories, rootBrandCatObj.id)
+                : [];
+              const otherHierarchical = buildHierarchicalCategories(categories).filter(
+                ({ category: c }) =>
+                  c.name.trim().toLowerCase() !== mainCategory.trim().toLowerCase() &&
+                  !relatedSubcategories.some((sub) => sub.id === c.id)
+              );
+              const selectedSubNames = new Set(
+                alsoShowIn.map((c) => c.trim().toLowerCase())
+              );
 
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
-                  <span>Main category</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={mainCategory}
-                    onChange={(e) => setMainCategory(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                  >
-                    {buildHierarchicalCategories(categories).map(({ category: c, depth }) => (
-                      <option key={c.id} value={c.name}>
-                        {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setAddingCategory((v) => !v)}
-                    title="Add new category"
-                    className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+              return (
+                <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <Tag className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                    <h2 className="text-xs font-bold">Category &amp; Brand</h2>
+                  </div>
 
-                {addingCategory && (
-                  <div className="mt-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
-                    <select
-                      value={quickCategoryParentId}
-                      onChange={(e) => setQuickCategoryParentId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-[11px]"
-                    >
-                      <option value="">Top-level phone brand</option>
-                      {getTopLevelCategories(categories).map((parentCat) => (
-                        <option key={parentCat.id} value={parentCat.id}>
-                          Sub-category under {parentCat.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={quickCategoryName}
-                        onChange={(e) => setQuickCategoryName(e.target.value)}
-                        placeholder={
-                          quickCategoryParentId
-                            ? 'Sub-category name (e.g. Edge 50 Series)...'
-                            : 'New category name...'
-                        }
-                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                      />
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                      <span>Main category</span>
+                      <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={mainCategory}
+                        onChange={(e) => setMainCategory(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                      >
+                        {buildHierarchicalCategories(categories).map(({ category: c, depth }) => (
+                          <option key={c.id} value={c.name}>
+                            {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
+                          </option>
+                        ))}
+                      </select>
                       <button
                         type="button"
-                        onClick={handleQuickAddCategory}
-                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold"
+                        onClick={() => {
+                          setQuickCategoryParentId(rootBrandCatObj?.id || '');
+                          setAddingCategory((v) => !v);
+                        }}
+                        title="Add new category or sub-category"
+                        className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
                       >
-                        Save
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {selectedMainCatObj?.parentId && rootBrandCatObj && rootBrandCatObj.id !== selectedMainCatObj.id && (
+                      <div className="mt-1.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-500/10 text-[11px] text-indigo-700 dark:text-indigo-300">
+                        <span>Parent brand: <strong>{rootBrandCatObj.name}</strong></span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const prevSub = mainCategory;
+                            setMainCategory(rootBrandCatObj.name);
+                            setAlsoShowIn((prev) =>
+                              prev.some((c) => c.toLowerCase() === prevSub.toLowerCase())
+                                ? prev
+                                : [...prev, prevSub]
+                            );
+                          }}
+                          className="font-semibold underline hover:no-underline cursor-pointer"
+                        >
+                          Keep {rootBrandCatObj.name} as Main
+                        </button>
+                      </div>
+                    )}
+
+                    {addingCategory && (
+                      <div className="mt-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
+                        <select
+                          value={quickCategoryParentId}
+                          onChange={(e) => setQuickCategoryParentId(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-[11px]"
+                        >
+                          <option value="">Top-level phone brand</option>
+                          {getTopLevelCategories(categories).map((parentCat) => (
+                            <option key={parentCat.id} value={parentCat.id}>
+                              Sub-category under {parentCat.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            value={quickCategoryName}
+                            onChange={(e) => setQuickCategoryName(e.target.value)}
+                            placeholder={
+                              quickCategoryParentId
+                                ? 'Sub-category name (e.g. Edge 50 Series)...'
+                                : 'New category name...'
+                            }
+                            className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleQuickAddCategory}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Multi-select Sub-categories under current Brand */}
+                  {relatedSubcategories.length > 0 && rootBrandCatObj && (
+                    <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                          Sub-categories under {rootBrandCatObj.name}
+                        </span>
+                        <div className="flex items-center gap-2 text-[10.5px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const subNames = relatedSubcategories
+                                .map((s) => s.name)
+                                .filter((n) => n.toLowerCase() !== mainCategory.toLowerCase());
+                              setAlsoShowIn((prev) =>
+                                Array.from(new Set([...prev, ...subNames]))
+                              );
+                            }}
+                            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const relatedSet = new Set(
+                                relatedSubcategories.map((s) => s.name.trim().toLowerCase())
+                              );
+                              setAlsoShowIn((prev) =>
+                                prev.filter((c) => !relatedSet.has(c.trim().toLowerCase()))
+                              );
+                            }}
+                            className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-medium hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto pr-0.5">
+                        {relatedSubcategories.map((sub) => {
+                          const isMain =
+                            sub.name.trim().toLowerCase() === mainCategory.trim().toLowerCase();
+                          const isChecked =
+                            isMain || selectedSubNames.has(sub.name.trim().toLowerCase());
+
+                          return (
+                            <button
+                              key={sub.id}
+                              type="button"
+                              disabled={isMain}
+                              onClick={() => toggleAlsoShowInCategory(sub.name)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium transition-colors cursor-pointer ${
+                                isChecked
+                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-200'
+                                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+                              } ${isMain ? 'opacity-85 cursor-default' : ''}`}
+                            >
+                              <span
+                                className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                                  isChecked
+                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    : 'border-slate-300 dark:border-slate-600'
+                                }`}
+                              >
+                                {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                              </span>
+                              <span>{sub.name}</span>
+                              {isMain && <span className="text-[9.5px] opacity-75">(Main)</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10.5px] text-slate-400 dark:text-slate-500">
+                        Pick any sub-categories where this product should appear alongside {rootBrandCatObj.name}.
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Also show in (Other categories / sub-categories)
+                    </label>
+                    {alsoShowIn.filter(
+                      (c) =>
+                        !relatedSubcategories.some(
+                          (sub) => sub.name.trim().toLowerCase() === c.trim().toLowerCase()
+                        )
+                    ).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {alsoShowIn
+                          .filter(
+                            (c) =>
+                              !relatedSubcategories.some(
+                                (sub) => sub.name.trim().toLowerCase() === c.trim().toLowerCase()
+                              )
+                          )
+                          .map((extraCat) => (
+                            <span
+                              key={extraCat}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-medium"
+                            >
+                              <span>{extraCat}</span>
+                              <button
+                                type="button"
+                                onClick={() => toggleAlsoShowInCategory(extraCat)}
+                                aria-label={`Remove ${extraCat}`}
+                                className="text-slate-400 hover:text-rose-600 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                      </div>
+                    )}
+                    <select
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) toggleAlsoShowInCategory(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                    >
+                      <option value="">+ Add another category or sub-category...</option>
+                      {otherHierarchical.map(({ category: c, depth }) => {
+                        const already = selectedSubNames.has(c.name.trim().toLowerCase());
+                        return (
+                          <option key={c.id} value={c.name}>
+                            {already ? '✓ ' : ''}
+                            {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                      Brand
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={brand}
+                        onChange={(e) => setBrand(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="">Select brand</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                        <option value="Syndee">Syndee</option>
+                        <option value="Classy Cases">Classy Cases</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setBrand(rootBrandCatObj?.name || mainCategory)}
+                        title="Match main category"
+                        className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Also show in
-                </label>
-                <select
-                  value={alsoShowIn[0] || ''}
-                  onChange={(e) =>
-                    setAlsoShowIn(e.target.value ? [e.target.value] : [])
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
-                >
-                  <option value="">None</option>
-                  {buildHierarchicalCategories(categories)
-                    .filter(({ category: c }) => c.name !== mainCategory)
-                    .map(({ category: c, depth }) => (
-                      <option key={c.id} value={c.name}>
-                        {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
-                  Brand
-                </label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                  >
-                    <option value="">Select brand</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                    <option value="Syndee">Syndee</option>
-                    <option value="Classy Cases">Classy Cases</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setBrand(mainCategory)}
-                    title="Match main category"
-                    className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </section>
+                </section>
+              );
+            })()}
           </div>
         </div>
       )}

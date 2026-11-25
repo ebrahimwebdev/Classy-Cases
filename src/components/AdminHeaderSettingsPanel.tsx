@@ -31,6 +31,7 @@ import type {
 import {
   DEFAULT_HEADER_CONFIG,
   DEFAULT_MOBILE_BOTTOM_BAR_ITEMS,
+  normalizeWhatsAppUrl,
 } from '../utils/headerFooterDefaults';
 import { AdminLivePreviewPane } from './AdminLivePreviewPane';
 
@@ -580,6 +581,31 @@ export function AdminHeaderSettingsPanel({
                 );
               })}
             </div>
+
+            {(hc.mobileBottomBarItems.some((item) => item.id === 'whatsapp' && item.enabled) ||
+              hc.whatsappInCategoryBar) && (
+              <div className="mt-3 p-3 rounded-lg border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-500/10 space-y-1.5">
+                <label className="block text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+                  Direct WhatsApp Number or Chat Link
+                </label>
+                <input
+                  type="text"
+                  value={hc.whatsappUrl || ''}
+                  onChange={(e) => updateHeader({ whatsappUrl: e.target.value })}
+                  placeholder={fc.whatsappUrl || form.phone || '01799576210 or https://wa.me/8801799576210'}
+                  className="w-full px-3 py-1.5 text-xs border border-emerald-200 dark:border-emerald-500/30 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-[10.5px] text-emerald-800/80 dark:text-emerald-300/80 truncate">
+                  Opens directly:{' '}
+                  <span className="font-mono">
+                    {normalizeWhatsAppUrl(
+                      hc.whatsappUrl || fc.whatsappUrl || fc.socialLinks?.whatsapp,
+                      form.phone
+                    )}
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

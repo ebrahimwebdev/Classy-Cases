@@ -678,7 +678,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     <button
                       type="button"
                       onClick={() => applyCategorySelection('All')}
-                      className="text-[13px] font-semibold text-[#650108]/80 hover:text-[#650108] underline underline-offset-4 whitespace-nowrap cursor-pointer"
+                      className="text-[13px] font-semibold text-[#650108]/80 hover:text-[#650108] whitespace-nowrap cursor-pointer"
                     >
                       Search all brands
                     </button>
@@ -696,7 +696,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     <button
                       type="button"
                       onClick={() => setViewAll((v) => !v)}
-                      className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] underline underline-offset-4 items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
+                      className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -787,7 +787,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     content: `Reach our support desk directly on WhatsApp or call ${settings?.phone || '01799576210'} (${settings?.openingHours || '10:00 AM - 10:00 PM'}). Pickup & Studio Address: ${settings?.address || 'Tilapara, Ekuria, Dhaka Jute Mills'}.`,
                   })
                 }
-                className="text-[#F2E8D2] font-medium hover:underline"
+                className="text-[#F2E8D2] font-medium hover:text-white transition-colors"
               >
                 Chat with us ({settings?.phone || '01799576210'})
               </button>
@@ -795,7 +795,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <button
               type="button"
               onClick={scrollToCatalog}
-              className="inline-flex items-center gap-1 text-[13px] sm:text-sm font-semibold text-[#F2E8D2] underline underline-offset-4 hover:opacity-80"
+              className="inline-flex items-center gap-1 text-[13px] sm:text-sm font-semibold text-[#F2E8D2] hover:opacity-80"
             >
               <span>Shop now</span>
               <ArrowUpRight className="w-4 h-4" />
@@ -1223,7 +1223,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   className="inline-flex items-center gap-2 text-[14px] font-medium text-[#650108] hover:text-[#4A0106] cursor-pointer"
                 >
                   <MessageCircle className="w-4.5 h-4.5 stroke-[1.9] shrink-0" />
-                  <span className="underline underline-offset-4">Need help? Chat on WhatsApp</span>
+                  <span>Need help? Chat on WhatsApp</span>
                 </button>
               </div>
             </div>
@@ -1256,7 +1256,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   <button
                     type="button"
                     onClick={clearAllFavorites}
-                    className="text-xs font-medium text-[#6B4C4E] hover:text-[#650108] underline underline-offset-4 cursor-pointer"
+                    className="text-xs font-medium text-[#6B4C4E] hover:text-[#650108] cursor-pointer"
                   >
                     Clear all
                   </button>

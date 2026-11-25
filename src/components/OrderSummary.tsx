@@ -94,7 +94,7 @@ export function OrderSummary({
           <button
             type="button"
             onClick={() => setShowShippingEstimator((v) => !v)}
-            className="text-xs font-semibold text-[#650108] underline underline-offset-4 hover:opacity-80 shrink-0"
+            className="text-xs font-semibold text-[#650108] hover:opacity-80 shrink-0"
           >
             {showShippingEstimator ? 'Hide estimate' : 'Estimate total'}
           </button>

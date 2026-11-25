@@ -84,7 +84,7 @@ export function CatalogShowcaseSections({
           <button
             type="button"
             onClick={() => onViewAll('All')}
-            className="hidden sm:inline-block text-xs font-semibold uppercase tracking-[1.6px] text-[#650108] underline underline-offset-4 hover:opacity-75 whitespace-nowrap cursor-pointer"
+            className="hidden sm:inline-block text-xs font-semibold uppercase tracking-[1.6px] text-[#650108] hover:opacity-75 whitespace-nowrap cursor-pointer"
           >
             view all
           </button>
@@ -132,7 +132,7 @@ export function CatalogShowcaseSections({
           <button
             type="button"
             onClick={() => onViewAll(phoneCaseBrand)}
-            className="hidden sm:inline-block text-xs font-semibold uppercase tracking-[1.6px] text-[#650108] underline underline-offset-4 hover:opacity-75 whitespace-nowrap cursor-pointer"
+            className="hidden sm:inline-block text-xs font-semibold uppercase tracking-[1.6px] text-[#650108] hover:opacity-75 whitespace-nowrap cursor-pointer"
           >
             view all
           </button>

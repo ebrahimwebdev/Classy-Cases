@@ -42,6 +42,7 @@
 
 .font-brand {
   font-family: var(--font-serif);
+  font-style: italic;
 }
 
 .no-scrollbar::-webkit-scrollbar {

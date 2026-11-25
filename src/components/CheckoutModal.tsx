@@ -393,7 +393,7 @@ export function CheckoutModal({
             <span className="w-5 h-5 rounded-full border border-[#C9B38D] bg-[#FFFDF8] flex items-center justify-center text-[#650108]">
               <Check className="w-3 h-3 stroke-[2.2]" />
             </span>
-            <span className="underline underline-offset-4">Cart</span>
+            <span>Cart</span>
           </button>
 
           <span className="w-6 h-px bg-[#C9B38D]" aria-hidden="true" />
@@ -567,7 +567,7 @@ export function CheckoutModal({
                       className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#650108] hover:opacity-75"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span className="underline underline-offset-4">Add a note</span>
+                      <span>Add a note</span>
                     </button>
                   ) : (
                     <div className="space-y-1.5">
@@ -824,7 +824,7 @@ export function CheckoutModal({
                     if (onEditCart) onEditCart();
                     else resetAndClose();
                   }}
-                  className="text-[13px] font-semibold text-[#650108] underline underline-offset-4 hover:opacity-75"
+                  className="text-[13px] font-semibold text-[#650108] hover:opacity-75"
                 >
                   Edit cart
                 </button>
@@ -971,7 +971,7 @@ export function CheckoutModal({
                   className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#650108] hover:opacity-75"
                 >
                   <Tag className="w-4 h-4 text-[#650108]" />
-                  <span className="underline underline-offset-4">Have a coupon code?</span>
+                  <span>Have a coupon code?</span>
                 </button>
 
                 {couponOpen && (

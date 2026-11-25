@@ -856,7 +856,7 @@ export function MyOrdersSection({
                         <button
                           type="button"
                           onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
-                          className="text-xs font-semibold text-[#6B4C4E] hover:text-[#650108] underline underline-offset-4"
+                          className="text-xs font-semibold text-[#6B4C4E] hover:text-[#650108]"
                         >
                           {isExpanded ? 'Hide Receipt Details' : 'View Delivery & Receipt Details'}
                         </button>

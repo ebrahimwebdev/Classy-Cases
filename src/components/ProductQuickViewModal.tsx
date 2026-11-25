@@ -430,7 +430,7 @@ export function ProductQuickViewModal({
                   <button
                     type="button"
                     onClick={() => onOpenFullDetails(product)}
-                    className="text-xs font-semibold text-[#650108] hover:underline inline-flex items-center gap-1"
+                    className="text-xs font-semibold text-[#650108] hover:opacity-75 inline-flex items-center gap-1 transition-opacity"
                   >
                     <span>Full Details</span>
                     <ArrowRight className="w-3 h-3" />

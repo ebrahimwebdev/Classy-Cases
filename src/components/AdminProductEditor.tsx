@@ -36,6 +36,7 @@ import type {
   ProductVariant,
   ProductVariantOption,
 } from '../types';
+import { buildHierarchicalCategories } from '../utils/categoryTree';
 
 export interface PresetImageOption {
   label: string;
@@ -1613,9 +1614,9 @@ export function AdminProductEditor({
                     onChange={(e) => setMainCategory(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                   >
-                    {categories.map((c) => (
+                    {buildHierarchicalCategories(categories).map(({ category: c, depth }) => (
                       <option key={c.id} value={c.name}>
-                        {c.name}
+                        {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
                       </option>
                     ))}
                   </select>
@@ -1661,11 +1662,11 @@ export function AdminProductEditor({
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
                 >
                   <option value="">None</option>
-                  {categories
-                    .filter((c) => c.name !== mainCategory)
-                    .map((c) => (
+                  {buildHierarchicalCategories(categories)
+                    .filter(({ category: c }) => c.name !== mainCategory)
+                    .map(({ category: c, depth }) => (
                       <option key={c.id} value={c.name}>
-                        {c.name}
+                        {depth > 0 ? `${'  '.repeat(depth)}↳ ${c.name}` : c.name}
                       </option>
                     ))}
                 </select>

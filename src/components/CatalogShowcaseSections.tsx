@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { PhoneCaseProduct } from '../models/phoneCase';
 import type { Category } from '../types';
+import { getCategoryAndDescendantNames, getTopLevelCategories } from '../utils/categoryTree';
 import { PhoneCaseCard } from './PhoneCaseGrid';
 import { MobileHorizontalTrack, MOBILE_SLIDE_CARD_CLASS } from './MobileHorizontalTrack';
 
@@ -49,19 +50,23 @@ export function CatalogShowcaseSections({
     return sorted.slice(0, 10);
   }, [products]);
 
+  const topLevelCategories = useMemo(
+    () => getTopLevelCategories(categories),
+    [categories]
+  );
+
   const phoneCaseProducts = useMemo(() => {
+    const names = getCategoryAndDescendantNames(categories, phoneCaseBrand);
     const filtered =
       phoneCaseBrand === 'All'
         ? products
         : products.filter(
             (p) =>
-              p.category.toLowerCase() === phoneCaseBrand.toLowerCase() ||
-              (p.alsoShowIn || []).some(
-                (c) => c.toLowerCase() === phoneCaseBrand.toLowerCase()
-              )
+              names.has(p.category.trim().toLowerCase()) ||
+              (p.alsoShowIn || []).some((c) => names.has(c.trim().toLowerCase()))
           );
     return filtered.slice(0, 10);
-  }, [products, phoneCaseBrand]);
+  }, [products, categories, phoneCaseBrand]);
 
   if (loading && products.length === 0) {
     return null;
@@ -157,7 +162,7 @@ export function CatalogShowcaseSections({
           >
             All Brands
           </button>
-          {categories.map((cat) => {
+          {topLevelCategories.map((cat) => {
             const active = phoneCaseBrand.toLowerCase() === cat.name.toLowerCase();
             return (
               <button

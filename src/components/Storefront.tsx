@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
+  ChevronDown,
   Heart,
   Mail,
   Menu,
@@ -34,6 +35,7 @@ import { PhoneCaseGrid } from './PhoneCaseGrid';
 import { ProductDetailView } from './ProductDetailView';
 import { ProductQuickViewModal } from './ProductQuickViewModal';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
+import { CatalogFilterBar, type CatalogSortOption } from './CatalogFilterBar';
 import { CatalogShowcaseSections } from './CatalogShowcaseSections';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
@@ -42,6 +44,12 @@ import { TrustHighlights } from './TrustHighlights';
 import { TrustedBySection } from './TrustedBySection';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { applyDocumentFavicon } from '../utils/branding';
+import {
+  getCategoryAndDescendantNames,
+  getRootCategoryFor,
+  getSubcategories,
+  getTopLevelCategories,
+} from '../utils/categoryTree';
 
 export interface PublicStoreSettings {
   storeName: string;
@@ -97,6 +105,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [loading, setLoading] = useState(() => !hasCachedCatalog);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedModel, setSelectedModel] = useState<string>('All');
+  const [sortBy, setSortBy] = useState<CatalogSortOption>('featured');
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewAll, setViewAll] = useState(false);
   const [carouselPage, setCarouselPage] = useState(0);
@@ -128,6 +139,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [wishlist, setWishlist] = useState<string[]>(readStoredFavorites);
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [expandedDrawerCatIds, setExpandedDrawerCatIds] = useState<Record<string, boolean>>({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [deliveryArea, setDeliveryArea] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
   const [infoModal, setInfoModal] = useState<{ title: string; content: string } | null>(null);
@@ -206,31 +218,120 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  const effectiveCategories = useMemo<Category[]>(() => {
+    if (categories.length > 0) return categories;
+    const seen = new Map<string, Category>();
+    for (const p of products) {
+      const name = p.category?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) {
+        const brandKey =
+          key === 'motorola' || key === 'vivo' || key === 'xiaomi' ? key : 'custom';
+        seen.set(key, {
+          id: `derived-${key}`,
+          name,
+          slug: key.replace(/[^a-z0-9]+/g, '-'),
+          brandKey,
+          featured: true,
+        });
+      }
+    }
+    return Array.from(seen.values());
+  }, [categories, products]);
+
+  const topLevelCategories = useMemo(
+    () => getTopLevelCategories(effectiveCategories),
+    [effectiveCategories]
+  );
+
+  const activeCategoryRoot = useMemo(
+    () => getRootCategoryFor(effectiveCategories, selectedCategory),
+    [effectiveCategories, selectedCategory]
+  );
+
+  const availableModels = useMemo(() => {
+    const modelSet = new Set<string>();
+    const categoryNames = getCategoryAndDescendantNames(effectiveCategories, selectedCategory);
+    for (const p of products) {
+      const matchesBrand =
+        selectedCategory === 'All' ||
+        categoryNames.has(p.category.trim().toLowerCase()) ||
+        (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+      if (!matchesBrand) continue;
+      for (const m of p.brandModels || []) {
+        const trimmed = m.trim();
+        if (trimmed) modelSet.add(trimmed);
+      }
+    }
+    return Array.from(modelSet).sort((a, b) => a.localeCompare(b));
+  }, [products, effectiveCategories, selectedCategory]);
+
   function applyCategorySelection(nextCategory: string) {
     setSelectedCategory(nextCategory);
     setCarouselPage(0);
+    if (selectedModel !== 'All') {
+      const categoryNames = getCategoryAndDescendantNames(effectiveCategories, nextCategory);
+      const nextBrandHasModel = products.some((p) => {
+        const matchesBrand =
+          nextCategory === 'All' ||
+          categoryNames.has(p.category.trim().toLowerCase()) ||
+          (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+        return (
+          matchesBrand &&
+          (p.brandModels || []).some((m) => m.trim().toLowerCase() === selectedModel.toLowerCase())
+        );
+      });
+      if (!nextBrandHasModel) {
+        setSelectedModel('All');
+      }
+    }
   }
 
   function resetAllFilters() {
     setSelectedCategory('All');
+    setSelectedModel('All');
+    setSortBy('featured');
+    setInStockOnly(false);
     setSearchQuery('');
     setViewAll(false);
     setCarouselPage(0);
   }
 
   const filteredProducts = useMemo(() => {
+    const categoryNames = getCategoryAndDescendantNames(effectiveCategories, selectedCategory);
     const filtered = products.filter((p) => {
       const matchesCategory =
         selectedCategory === 'All' ||
-        p.category.toLowerCase() === selectedCategory.toLowerCase() ||
-        (p.alsoShowIn || []).some((c) => c.toLowerCase() === selectedCategory.toLowerCase());
-      return matchesCategory && matchesPhoneCaseSearch(p, searchQuery);
+        categoryNames.has(p.category.trim().toLowerCase()) ||
+        (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+      const matchesModel =
+        selectedModel === 'All' ||
+        (p.brandModels || []).some((m) => m.trim().toLowerCase() === selectedModel.toLowerCase());
+      const matchesStock = !inStockOnly || p.stock > 0;
+      return matchesCategory && matchesModel && matchesStock && matchesPhoneCaseSearch(p, searchQuery);
     });
 
-    return [...filtered].sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)));
-  }, [products, selectedCategory, searchQuery]);
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'price_asc') return a.price - b.price;
+      if (sortBy === 'price_desc') return b.price - a.price;
+      if (sortBy === 'discount_desc') {
+        return (
+          b.discountPercent - a.discountPercent ||
+          Number(Boolean(b.featured)) - Number(Boolean(a.featured))
+        );
+      }
+      if (sortBy === 'name_asc') return a.title.localeCompare(b.title);
+      return Number(Boolean(b.featured)) - Number(Boolean(a.featured));
+    });
+  }, [products, effectiveCategories, selectedCategory, selectedModel, inStockOnly, sortBy, searchQuery]);
 
-  const hasActiveFilters = selectedCategory !== 'All' || searchQuery.trim() !== '';
+  const hasActiveFilters =
+    selectedCategory !== 'All' ||
+    selectedModel !== 'All' ||
+    inStockOnly ||
+    sortBy !== 'featured' ||
+    searchQuery.trim() !== '';
 
   const searchSuggestions = useMemo(
     () => extractSearchSuggestions(products, searchQuery, 8),
@@ -609,7 +710,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             {/* Featured Categories (collapsed during active top search so filtered results appear right away) */}
             {searchQuery.trim() === '' && (
               <FeaturedCategoriesSlider
-                categories={categories}
+                categories={effectiveCategories}
                 selectedCategory={selectedCategory}
                 failedCatImages={failedCatImages}
                 onImageError={(catId) =>
@@ -628,7 +729,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             {searchQuery.trim() === '' && (
               <CatalogShowcaseSections
                 products={products}
-                categories={categories}
+                categories={effectiveCategories}
                 wishlist={wishlist}
                 loading={loading}
                 desktopColumns={desktopColumns}
@@ -703,6 +804,31 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   )}
                 </div>
               </div>
+
+              <CatalogFilterBar
+                categories={effectiveCategories}
+                products={products}
+                selectedCategory={selectedCategory}
+                selectedModel={selectedModel}
+                availableModels={availableModels}
+                sortBy={sortBy}
+                inStockOnly={inStockOnly}
+                searchQuery={searchQuery}
+                onSelectCategory={applyCategorySelection}
+                onSelectModel={(model) => {
+                  setSelectedModel(model);
+                  setCarouselPage(0);
+                }}
+                onSortChange={(nextSort) => {
+                  setSortBy(nextSort);
+                  setCarouselPage(0);
+                }}
+                onToggleInStockOnly={() => {
+                  setInStockOnly((prev) => !prev);
+                  setCarouselPage(0);
+                }}
+                onSearchChange={handleSearchChange}
+              />
 
               <PhoneCaseGrid
                 products={displayedProducts}
@@ -1036,9 +1162,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   setCheckoutOpen(false);
                   setActiveProduct(null);
                   setMyOrdersOpen(false);
-                  setSelectedCategory('All');
-                  setSearchQuery('');
-                  setViewAll(false);
+                  resetAllFilters();
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className="font-brand text-2xl font-semibold tracking-tight text-[#650108] text-left"
@@ -1104,9 +1228,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     setCheckoutOpen(false);
                     setActiveProduct(null);
                     setMyOrdersOpen(false);
-                    setSelectedCategory('All');
-                    setSearchQuery('');
-                    setViewAll(false);
+                    resetAllFilters();
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
@@ -1117,7 +1239,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setSelectedCategory('All');
+                    applyCategorySelection('All');
                     setViewAll(true);
                     scrollToCatalog();
                   }}
@@ -1129,36 +1251,104 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setSelectedCategory('All');
-                    setCarouselPage(0);
+                    applyCategorySelection('All');
                     scrollToCatalog();
                   }}
                   className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
                 >
                   All categories
                 </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      setCheckoutOpen(false);
-                      setActiveProduct(null);
-                      setMyOrdersOpen(false);
-                      setSelectedCategory(cat.name);
-                      setCarouselPage(0);
-                      setTimeout(() => {
-                        document
-                          .getElementById('new-arrivals-section')
-                          ?.scrollIntoView({ behavior: 'smooth' });
-                      }, 40);
-                    }}
-                    className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+                {topLevelCategories.map((cat) => {
+                  const subCategories = getSubcategories(effectiveCategories, cat.id);
+                  const hasSubs = subCategories.length > 0;
+                  const isBranchActive = activeCategoryRoot?.id === cat.id;
+                  const isExactActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+                  const isExpanded = expandedDrawerCatIds[cat.id] ?? isBranchActive;
+
+                  return (
+                    <div key={cat.id}>
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMobileMenuOpen(false);
+                            setCheckoutOpen(false);
+                            setActiveProduct(null);
+                            setMyOrdersOpen(false);
+                            applyCategorySelection(cat.name);
+                            setTimeout(() => {
+                              document
+                                .getElementById('new-arrivals-section')
+                                ?.scrollIntoView({ behavior: 'smooth' });
+                            }, 40);
+                          }}
+                          className={`flex-1 text-left py-3.5 text-[15px] transition-colors cursor-pointer ${
+                            isExactActive || isBranchActive
+                              ? 'font-semibold text-[#650108]'
+                              : 'font-medium text-[#2B1416] hover:text-[#650108]'
+                          }`}
+                        >
+                          {cat.name}
+                        </button>
+
+                        {hasSubs && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedDrawerCatIds((prev) => ({
+                                ...prev,
+                                [cat.id]: !isExpanded,
+                              }))
+                            }
+                            aria-expanded={isExpanded}
+                            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${cat.name} sub-categories`}
+                            className="p-2 -mr-1 rounded-lg text-[#6B4C4E] hover:text-[#650108] hover:bg-[#650108]/10 transition-colors cursor-pointer"
+                          >
+                            <ChevronDown
+                              className={`w-4 h-4 transition-transform duration-150 ${
+                                isExpanded ? 'rotate-180 text-[#650108]' : ''
+                              }`}
+                            />
+                          </button>
+                        )}
+                      </div>
+
+                      {hasSubs && isExpanded && (
+                        <div className="pl-3 pb-2.5 ml-1.5 border-l border-[#DFCFB0] space-y-0.5">
+                          {subCategories.map((sub) => {
+                            const subActive =
+                              selectedCategory.toLowerCase() === sub.name.toLowerCase();
+                            return (
+                              <button
+                                key={sub.id}
+                                type="button"
+                                onClick={() => {
+                                  setMobileMenuOpen(false);
+                                  setCheckoutOpen(false);
+                                  setActiveProduct(null);
+                                  setMyOrdersOpen(false);
+                                  applyCategorySelection(sub.name);
+                                  setTimeout(() => {
+                                    document
+                                      .getElementById('new-arrivals-section')
+                                      ?.scrollIntoView({ behavior: 'smooth' });
+                                  }, 40);
+                                }}
+                                className={`w-full text-left py-2 px-2.5 rounded-lg text-[13.5px] transition-colors cursor-pointer ${
+                                  subActive
+                                    ? 'font-semibold text-[#650108] bg-[#650108]/8'
+                                    : 'font-normal text-[#5A2D30] hover:text-[#650108] hover:bg-[#EADEC2]/50'
+                                }`}
+                              >
+                                {sub.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </nav>
 
               {/* Action Buttons */}

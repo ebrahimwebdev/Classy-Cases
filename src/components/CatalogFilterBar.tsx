@@ -1,6 +1,12 @@
-import React from 'react';
-import { ArrowUpDown, Check, ChevronDown, Search, Smartphone, X } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { ArrowUpDown, Check, ChevronDown, CornerDownRight, Search, Smartphone, X } from 'lucide-react';
 import type { Category, Product } from '../types';
+import {
+  getCategoryAndDescendantNames,
+  getRootCategoryFor,
+  getSubcategories,
+  getTopLevelCategories,
+} from '../utils/categoryTree';
 
 export type CatalogSortOption =
   | 'featured'
@@ -40,6 +46,25 @@ export function CatalogFilterBar({
   onToggleInStockOnly,
   onSearchChange,
 }: CatalogFilterBarProps) {
+  const topLevelCategories = useMemo(() => getTopLevelCategories(categories), [categories]);
+  const activeRoot = useMemo(
+    () => getRootCategoryFor(categories, selectedCategory),
+    [categories, selectedCategory]
+  );
+  const activeSubcategories = useMemo(
+    () => (activeRoot ? getSubcategories(categories, activeRoot.id) : []),
+    [categories, activeRoot]
+  );
+
+  function countProductsInTree(categoryName: string): number {
+    const names = getCategoryAndDescendantNames(categories, categoryName);
+    return products.filter(
+      (p) =>
+        names.has(p.category.trim().toLowerCase()) ||
+        (p.alsoShowIn || []).some((c) => names.has(c.trim().toLowerCase()))
+    ).length;
+  }
+
   return (
     <div className="mb-6 space-y-3">
       {/* Row 1: Brand / Category Segmented Tabs + Search */}
@@ -62,22 +87,19 @@ export function CatalogFilterBar({
           >
             All ({products.length})
           </button>
-          {categories.map((cat) => {
-            const catActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
-            const catCount = products.filter(
-              (p) =>
-                p.category.toLowerCase() === cat.name.toLowerCase() ||
-                (p.alsoShowIn || []).some((c) => c.toLowerCase() === cat.name.toLowerCase())
-            ).length;
+          {topLevelCategories.map((cat) => {
+            const isExactActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+            const isBranchActive = activeRoot?.id === cat.id;
+            const catCount = countProductsInTree(cat.name);
             return (
               <button
                 key={cat.id}
                 type="button"
                 role="tab"
-                aria-selected={catActive}
-                onClick={() => onSelectCategory(catActive ? 'All' : cat.name)}
+                aria-selected={isBranchActive}
+                onClick={() => onSelectCategory(isExactActive ? 'All' : cat.name)}
                 className={`px-3.5 py-2 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors tabular-nums cursor-pointer ${
-                  catActive
+                  isBranchActive
                     ? 'bg-[#650108] text-[#F2E8D2] shadow-xs'
                     : 'text-[#5A2D30] hover:text-[#650108]'
                 }`}
@@ -110,6 +132,53 @@ export function CatalogFilterBar({
           )}
         </div>
       </div>
+
+      {/* Sub-category strip when the active category has child sub-categories */}
+      {activeRoot && activeSubcategories.length > 0 && (
+        <div
+          role="tablist"
+          aria-label={`${activeRoot.name} sub-categories`}
+          className="flex flex-wrap items-center gap-2 pt-1"
+        >
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[1.2px] text-[#6B4C4E] mr-1">
+            <CornerDownRight className="w-3.5 h-3.5 text-[#650108]" aria-hidden="true" />
+            <span>{activeRoot.name}:</span>
+          </span>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={selectedCategory.toLowerCase() === activeRoot.name.toLowerCase()}
+            onClick={() => onSelectCategory(activeRoot.name)}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-colors tabular-nums cursor-pointer ${
+              selectedCategory.toLowerCase() === activeRoot.name.toLowerCase()
+                ? 'bg-[#650108] border-[#650108] text-[#F2E8D2]'
+                : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+            }`}
+          >
+            All {activeRoot.name} ({countProductsInTree(activeRoot.name)})
+          </button>
+          {activeSubcategories.map((sub) => {
+            const subActive = selectedCategory.toLowerCase() === sub.name.toLowerCase();
+            const subCount = countProductsInTree(sub.name);
+            return (
+              <button
+                key={sub.id}
+                type="button"
+                role="tab"
+                aria-selected={subActive}
+                onClick={() => onSelectCategory(subActive ? activeRoot.name : sub.name)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium whitespace-nowrap transition-colors tabular-nums cursor-pointer ${
+                  subActive
+                    ? 'bg-[#650108] border-[#650108] text-[#F2E8D2]'
+                    : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+                }`}
+              >
+                {sub.name} ({subCount})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Row 2: Phone Model Selector, Availability Toggle, and Sort Control */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2.5 border-t border-[#DFCFB0]/70">

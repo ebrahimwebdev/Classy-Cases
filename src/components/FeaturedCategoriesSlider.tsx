@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Category } from '../types';
+import { getRootCategoryFor, getTopLevelCategories } from '../utils/categoryTree';
 import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogos';
 
 interface FeaturedCategoriesSliderProps {
@@ -18,8 +19,12 @@ export function FeaturedCategoriesSlider({
   onSelectCategory,
 }: FeaturedCategoriesSliderProps) {
   const featuredCategories = useMemo(
-    () => categories.filter((c) => c.featured !== false),
+    () => getTopLevelCategories(categories).filter((c) => c.featured !== false),
     [categories]
+  );
+  const activeRoot = useMemo(
+    () => getRootCategoryFor(categories, selectedCategory),
+    [categories, selectedCategory]
   );
 
   const shouldSlide = featuredCategories.length >= 2;
@@ -94,7 +99,7 @@ export function FeaturedCategoriesSlider({
       {!shouldSlide ? (
         <div className="max-w-[1180px] mx-auto px-4 sm:px-8 flex justify-center">
           {featuredCategories.map((cat) => {
-            const isActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+            const isActive = activeRoot?.id === cat.id || selectedCategory.toLowerCase() === cat.name.toLowerCase();
             return (
               <button
                 key={cat.id}
@@ -178,7 +183,7 @@ export function FeaturedCategoriesSlider({
         >
           <div ref={trackRef} className="flex w-max items-start will-change-transform">
             {repeatedCategories.map((cat, idx) => {
-              const isActive = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+              const isActive = activeRoot?.id === cat.id || selectedCategory.toLowerCase() === cat.name.toLowerCase();
               return (
                 <div key={`${cat.id}-slide-${idx}`} className="shrink-0 pr-3.5 sm:pr-5">
                   <button

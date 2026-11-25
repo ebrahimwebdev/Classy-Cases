@@ -7,6 +7,8 @@ import {
   ChevronDown,
   ChevronUp,
   CloudUpload,
+  CornerDownRight,
+  FolderPlus,
   Image as ImageIcon,
   Info,
   Layers,
@@ -28,6 +30,7 @@ import {
 } from 'lucide-react';
 import { formatTaka } from '../models/phoneCase';
 import type { Category, Product } from '../types';
+import { buildHierarchicalCategories, getCategoryAndDescendantNames } from '../utils/categoryTree';
 import type { ProductEditorPayload } from './AdminProductEditor';
 
 export type InventoryCatalogSection =
@@ -248,12 +251,12 @@ export function AdminInventoryCatalogViews({
     });
   }, [products, stockFilter]);
 
-  function openNewCategoryModal() {
+  function openNewCategoryModal(defaultParentId = '') {
     setEditingCategory(null);
     setCatName('');
     setCatSlug('');
     setCatSlugTouched(false);
-    setCatParentId('');
+    setCatParentId(defaultParentId);
     setCatDescription('');
     setCatSeoOpen(false);
     setCatGoogleCategory('');
@@ -575,7 +578,7 @@ export function AdminInventoryCatalogViews({
             </button>
             <button
               type="button"
-              onClick={openNewCategoryModal}
+              onClick={() => openNewCategoryModal()}
               className="px-4 py-2 rounded-xl bg-[#5B68EB] hover:bg-[#4C58D6] text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -622,27 +625,38 @@ export function AdminInventoryCatalogViews({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {categories.map((cat) => {
+                {buildHierarchicalCategories(categories).map(({ category: cat, depth, parentName }) => {
+                  const treeNames = getCategoryAndDescendantNames(categories, cat.name);
                   const count = products.filter(
                     (p) =>
-                      p.category.toLowerCase() === cat.name.toLowerCase() ||
-                      (p.alsoShowIn || []).some((c) => c.toLowerCase() === cat.name.toLowerCase())
+                      treeNames.has(p.category.trim().toLowerCase()) ||
+                      (p.alsoShowIn || []).some((c) => treeNames.has(c.trim().toLowerCase()))
                   ).length;
                   const isActive = cat.active !== false;
                   const isFeatured = cat.featured !== false;
-                  const parentName = cat.parentId ? parentNameMap.get(cat.parentId) : undefined;
                   const busy = togglingCatId === cat.id || deletingCatId === cat.id;
 
                   return (
-                    <tr key={cat.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={cat.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
                       <td className="py-3.5 pl-6 pr-4">
-                        <div className="flex items-center gap-3.5">
+                        <div
+                          className="flex items-center gap-3.5"
+                          style={depth > 0 ? { paddingLeft: `${Math.min(depth, 3) * 20}px` } : undefined}
+                        >
+                          {depth > 0 && (
+                            <CornerDownRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                          )}
                           <CategoryBrandBadge category={cat} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">
                                 {cat.name}
                               </span>
+                              {depth > 0 && (
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-[10px] font-medium">
+                                  Sub-category
+                                </span>
+                              )}
                               {cat.isDefault && (
                                 <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold">
                                   Default
@@ -714,6 +728,15 @@ export function AdminInventoryCatalogViews({
                       </td>
                       <td className="py-3.5 pl-3 pr-6 text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openNewCategoryModal(cat.id)}
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                            aria-label={`Add sub-category inside ${cat.name}`}
+                            title={`Add sub-category inside ${cat.name}`}
+                          >
+                            <FolderPlus className="w-4 h-4" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => openEditCategoryModal(cat)}
@@ -845,11 +868,16 @@ export function AdminInventoryCatalogViews({
                           className="w-full px-3.5 py-2.5 text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                         >
                           <option value="">None — a top-level category</option>
-                          {categories
-                            .filter((c) => !editingCategory || c.id !== editingCategory.id)
-                            .map((c) => (
+                          {buildHierarchicalCategories(categories)
+                            .filter(({ category: c }) => {
+                              if (!editingCategory) return true;
+                              if (c.id === editingCategory.id) return false;
+                              const desc = getCategoryAndDescendantNames(categories, editingCategory.name);
+                              return !desc.has(c.name.trim().toLowerCase());
+                            })
+                            .map(({ category: c, depth }) => (
                               <option key={c.id} value={c.id}>
-                                {c.name}
+                                {depth > 0 ? `${'— '.repeat(depth)}${c.name}` : c.name}
                               </option>
                             ))}
                         </select>

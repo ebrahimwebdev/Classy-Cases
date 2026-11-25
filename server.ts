@@ -2048,7 +2048,10 @@ async function startServer() {
     }
     if (typeof body.active === 'boolean') category.active = body.active;
     if (typeof body.featured === 'boolean') category.featured = body.featured;
-    if (typeof body.parentId === 'string') category.parentId = body.parentId.trim();
+    if (typeof body.parentId === 'string') {
+      const nextParentId = body.parentId.trim();
+      category.parentId = nextParentId === category.id ? '' : nextParentId;
+    }
     if (typeof body.description === 'string') category.description = body.description.trim();
     if (typeof body.googleCategory === 'string') category.googleCategory = body.googleCategory.trim();
     if (typeof body.seoTitle === 'string') category.seoTitle = body.seoTitle.trim();
@@ -2081,11 +2084,20 @@ async function startServer() {
       res.status(404).json({ error: 'Category not found' });
       return;
     }
+    const deletedId = db.categories[idx].id;
     try {
       if (isSqlConfigured()) {
-        await deleteCategoryFromSql(req.params.id);
+        await deleteCategoryFromSql(deletedId);
       }
       db.categories.splice(idx, 1);
+      for (const child of db.categories) {
+        if (child.parentId === deletedId) {
+          child.parentId = '';
+          if (isSqlConfigured()) {
+            await upsertCategoryToSql(child);
+          }
+        }
+      }
       saveDatabase();
       res.json({ ok: true });
     } catch (err) {

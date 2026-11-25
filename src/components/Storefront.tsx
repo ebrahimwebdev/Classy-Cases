@@ -4,7 +4,6 @@ import {
   ArrowUp,
   ArrowUpRight,
   Heart,
-  LayoutDashboard,
   Mail,
   Menu,
   MessageCircle,
@@ -74,6 +73,16 @@ interface StorefrontProps {
 }
 
 export function Storefront({ onOpenAdmin }: StorefrontProps) {
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        onOpenAdmin();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onOpenAdmin]);
   const [settings, setSettings] = useState<PublicStoreSettings | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const {
@@ -461,17 +470,6 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   {cartCount}
                 </span>
               )}
-            </button>
-
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              title="Store Admin"
-              aria-label="Open Store Admin"
-              className="ml-1 w-8 h-8 sm:w-auto sm:h-9 sm:px-3 rounded-lg border border-[#650108]/35 text-[13px] font-semibold text-[#650108] hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap shrink-0 inline-flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <LayoutDashboard className="w-[17px] h-[17px] stroke-[1.75] shrink-0" />
-              <span className="hidden sm:inline">Admin</span>
             </button>
           </div>
           </div>
@@ -922,11 +920,6 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   className="hover:text-white font-medium"
                 >
                   Terms & Conditions
-                </button>
-              </li>
-              <li>
-                <button type="button" onClick={onOpenAdmin} className="hover:text-white font-medium text-[#F2E8D2]">
-                  Store Admin Portal
                 </button>
               </li>
             </ul>

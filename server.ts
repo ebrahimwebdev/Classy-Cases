@@ -374,6 +374,7 @@ function getSessionSecret(): string {
   if (envSecret) return envSecret;
   if (!db.sessionSecret) {
     db.sessionSecret = crypto.randomBytes(32).toString('hex');
+    saveDatabase();
   }
   return db.sessionSecret;
 }
@@ -470,7 +471,7 @@ function createSessionToken(): string {
     JSON.stringify({
       role: 'admin',
       iat: Date.now(),
-      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      exp: Date.now() + 90 * 24 * 60 * 60 * 1000,
       nonce: crypto.randomBytes(8).toString('hex'),
     })
   ).toString('base64url');
@@ -543,7 +544,7 @@ function verifyCustomerOrderToken(token: string): string | null {
 }
 
 const ADMIN_COOKIE_NAME = 'cc_admin_session';
-const ADMIN_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+const ADMIN_COOKIE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 
 function parseCookies(req: Request): Record<string, string> {
   const header = req.headers.cookie;

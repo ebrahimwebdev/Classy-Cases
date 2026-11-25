@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -208,27 +208,56 @@ export function AdminDashboard({
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponPct, setNewCouponPct] = useState('10');
 
+  const adminTokenRef = useRef<string | null>(adminToken);
   useEffect(() => {
+    adminTokenRef.current = adminToken;
+  }, [adminToken]);
+
+  useEffect(() => {
+    let active = true;
     async function checkAuth() {
+      const tokenToUse = adminTokenRef.current;
       try {
         const res = await fetch('/api/admin/auth/status', {
           credentials: 'same-origin',
-          headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : undefined,
+          headers: tokenToUse ? { Authorization: `Bearer ${tokenToUse}` } : undefined,
         });
+        if (!res.ok) return;
         const data = await res.json();
+        if (!active) return;
         setNeedsSetup(Boolean(data.needsSetup));
         if (data.authenticated && typeof data.token === 'string') {
           setAdminToken(data.token);
-        } else if (!data.authenticated && adminToken) {
+        } else if (data.authenticated === false && tokenToUse) {
           setAdminToken(null);
         }
       } catch {
-        // ignore transient network check error
+        // Ignore transient network errors so admin stays signed in
       } finally {
-        setAuthLoading(false);
+        if (active) setAuthLoading(false);
       }
     }
-    checkAuth();
+
+    void checkAuth();
+
+    const intervalId = window.setInterval(() => {
+      if (adminTokenRef.current) {
+        void checkAuth();
+      }
+    }, 15 * 60 * 1000);
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible' && adminTokenRef.current) {
+        void checkAuth();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   async function fetchOverview(token: string, options?: { markLocalChanges?: boolean }) {

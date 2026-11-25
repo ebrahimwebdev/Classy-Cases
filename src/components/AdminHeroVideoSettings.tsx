@@ -106,6 +106,73 @@ function formatAuthUiError(err: unknown): string {
   return msg || 'Google sign-in failed.';
 }
 
+async function capturePosterBlobFromVideoFile(file: File): Promise<Blob | null> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return null;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise<Blob | null>((resolve) => {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'metadata';
+
+      let settled = false;
+      const finish = (blob: Blob | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        video.removeAttribute('src');
+        video.load();
+        resolve(blob);
+      };
+
+      const timeoutId = window.setTimeout(() => finish(null), 5000);
+
+      video.onloadedmetadata = () => {
+        const targetTime =
+          Number.isFinite(video.duration) && video.duration > 0.4
+            ? Math.min(0.35, video.duration * 0.15)
+            : 0;
+        if (targetTime > 0) {
+          video.currentTime = targetTime;
+        } else {
+          drawFrame();
+        }
+      };
+
+      const drawFrame = () => {
+        try {
+          const vw = video.videoWidth || 1280;
+          const vh = video.videoHeight || 720;
+          if (!vw || !vh) {
+            finish(null);
+            return;
+          }
+          const scale = Math.min(1, 1280 / vw);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(vw * scale));
+          canvas.height = Math.max(1, Math.round(vh * scale));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            finish(null);
+            return;
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => finish(blob), 'image/jpeg', 0.78);
+        } catch {
+          finish(null);
+        }
+      };
+
+      video.onseeked = drawFrame;
+      video.onerror = () => finish(null);
+      video.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 export function AdminHeroVideoSettings({
   adminToken,
   categories = [],
@@ -127,12 +194,17 @@ export function AdminHeroVideoSettings({
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [bannerMsg, setBannerMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [previewVideoError, setPreviewVideoError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedSlide = useMemo(
     () => slides.find((s) => s.id === selectedSlideId) || slides[0] || DEFAULT_HERO_VIDEO_SLIDES[0],
     [slides, selectedSlideId]
   );
+
+  useEffect(() => {
+    setPreviewVideoError(false);
+  }, [selectedSlide.id, selectedSlide.videoSrc]);
 
   const loadLibrary = useCallback(async () => {
     try {
@@ -199,7 +271,21 @@ export function AdminHeroVideoSettings({
         ...(serverRes?.config?.mobileLayout || {}),
       };
 
-      if (remoteSlides.length > 0) {
+      if (serverSlides.length > 0) {
+        setSlides(serverSlides);
+        setHasFirestoreDocs(remoteSlides.length > 0);
+        const preferred =
+          serverRes?.config?.activeSlideId &&
+          serverSlides.some((s) => s.id === serverRes.config?.activeSlideId)
+            ? serverRes.config.activeSlideId
+            : serverSlides[0].id;
+        setSelectedSlideId(preferred);
+        setHeroConfig({
+          ...(serverRes?.config || DEFAULT_HERO_CONFIG),
+          activeSlideId: preferred,
+          mobileLayout: mergedMobileLayout,
+        });
+      } else if (remoteSlides.length > 0) {
         setSlides(remoteSlides);
         setHasFirestoreDocs(true);
         const preferred =
@@ -209,19 +295,7 @@ export function AdminHeroVideoSettings({
         setSelectedSlideId(preferred);
         setHeroConfig({
           ...(remoteConfig || DEFAULT_HERO_CONFIG),
-          mobileLayout: mergedMobileLayout,
-        });
-      } else if (serverSlides.length > 0) {
-        setSlides(serverSlides);
-        setHasFirestoreDocs(false);
-        const preferred =
-          serverRes?.config?.activeSlideId &&
-          serverSlides.some((s) => s.id === serverRes.config?.activeSlideId)
-            ? serverRes.config.activeSlideId
-            : serverSlides[0].id;
-        setSelectedSlideId(preferred);
-        setHeroConfig({
-          ...(serverRes?.config || DEFAULT_HERO_CONFIG),
+          activeSlideId: preferred,
           mobileLayout: mergedMobileLayout,
         });
       } else {
@@ -312,37 +386,81 @@ export function AdminHeroVideoSettings({
 
     setUploadingVideo(true);
     try {
-      const res = await fetch('/api/admin/hero-videos/upload', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': file.type || 'video/mp4',
-          'X-Filename': file.name,
-          'X-Requested-With': 'XMLHttpRequest',
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: file,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) {
+      const [uploadRes, capturedPosterBlob] = await Promise.all([
+        fetch('/api/admin/hero-videos/upload', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': file.type || 'video/mp4',
+            'X-Filename': file.name,
+            'X-Requested-With': 'XMLHttpRequest',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: file,
+        }),
+        capturePosterBlobFromVideoFile(file).catch(() => null),
+      ]);
+
+      const data = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !data.url) {
         throw new Error(data.error || 'Video upload failed.');
       }
 
+      let nextPosterSrc = PRESET_POSTERS.some((p) => p.url === selectedSlide.posterSrc)
+        ? ''
+        : selectedSlide.posterSrc;
+
+      if (capturedPosterBlob && capturedPosterBlob.size > 0) {
+        try {
+          const posterRes = await fetch('/api/admin/hero-videos/poster', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': capturedPosterBlob.type || 'image/jpeg',
+              'X-Filename': `${file.name.replace(/\.[^.]+$/, '')}-poster.jpg`,
+              'X-Requested-With': 'XMLHttpRequest',
+              Authorization: `Bearer ${adminToken}`,
+            },
+            body: capturedPosterBlob,
+          });
+          const posterData = await posterRes.json().catch(() => ({}));
+          if (posterRes.ok && posterData.url) {
+            nextPosterSrc = String(posterData.url);
+          }
+        } catch {
+          // Keep cleared/empty poster if frame upload fails
+        }
+      }
+
       const uploadedUrl = String(data.url);
-      const updatedSlide: HeroVideoSlide = { ...selectedSlide, videoSrc: uploadedUrl };
+      const updatedSlide: HeroVideoSlide = {
+        ...selectedSlide,
+        videoSrc: uploadedUrl,
+        posterSrc: nextPosterSrc,
+        active: true,
+      };
       const nextSlides = slides.map((s) => (s.id === selectedSlide.id ? updatedSlide : s));
+      const nextConfig: HeroPlaybackConfig = {
+        ...heroConfig,
+        activeSlideId: selectedSlide.id,
+      };
       setSlides(nextSlides);
+      setHeroConfig(nextConfig);
+      setPreviewVideoError(false);
       await loadLibrary();
 
       setSavingFirestore(true);
-      await persistToBackend(nextSlides, heroConfig);
+      await persistToBackend(nextSlides, nextConfig);
 
       if (user) {
         try {
           if (!hasFirestoreDocs) {
-            await seedDefaultHeroSlidesToFirestore(nextSlides, heroConfig);
+            await seedDefaultHeroSlidesToFirestore(nextSlides, nextConfig);
           } else {
-            await saveHeroVideoSlideToFirestore(updatedSlide);
+            await Promise.all([
+              saveHeroVideoSlideToFirestore(updatedSlide),
+              saveHeroConfigToFirestore(nextConfig),
+            ]);
           }
           setHasFirestoreDocs(true);
           notifySuccess('Video uploaded, saved, and synced to Firebase Firestore.');
@@ -350,10 +468,10 @@ export function AdminHeroVideoSettings({
           setErrorMsg(
             `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
           );
-          notifySuccess('Video uploaded and saved to storefront.');
+          notifySuccess('Video uploaded and set as starting hero video.');
         }
       } else {
-        notifySuccess('Video uploaded and saved to storefront.');
+        notifySuccess('Video uploaded and set as starting hero video.');
       }
     } catch (err) {
       setErrorMsg(formatFirestoreUiError(err));
@@ -424,8 +542,9 @@ export function AdminHeroVideoSettings({
   function handleAddNewSlide() {
     const index = slides.length + 1;
     const newId = sanitizeSlideId(`hero-slide-${Date.now().toString().slice(-5)}`);
+    const uploadedVid = libraryVideos.find((v) => v.source === 'uploaded');
     const defaultVideo =
-      libraryVideos[0]?.url || DEFAULT_HERO_VIDEO_SLIDES[0].videoSrc;
+      uploadedVid?.url || libraryVideos[0]?.url || DEFAULT_HERO_VIDEO_SLIDES[0].videoSrc;
     const newSlide: HeroVideoSlide = {
       id: newId,
       label: `Hero Reel ${index}`,
@@ -433,7 +552,7 @@ export function AdminHeroVideoSettings({
       headline: 'New arrival showcase.',
       description: 'Precision molded protection with slim ergonomic feel.',
       videoSrc: defaultVideo,
-      posterSrc: PRESET_POSTERS[0].url,
+      posterSrc: '',
       posterAlt: 'Hero video showcase slide',
       categoryTarget: 'All',
       featuredProductId: products[0]?.id || '',
@@ -443,6 +562,7 @@ export function AdminHeroVideoSettings({
     };
     setSlides((prev) => [...prev, newSlide]);
     setSelectedSlideId(newId);
+    setHeroConfig((prev) => ({ ...prev, activeSlideId: newId }));
   }
 
   async function handleDeleteSlide(slideId: string) {
@@ -867,7 +987,19 @@ export function AdminHeroVideoSettings({
                 </h3>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {heroConfig.activeSlideId !== selectedSlide.id && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setHeroConfig((prev) => ({ ...prev, activeSlideId: selectedSlide.id }))
+                    }
+                    className="px-2.5 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-[11px] font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25"
+                  >
+                    Set as Starting Slide
+                  </button>
+                )}
+
                 <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
@@ -895,27 +1027,42 @@ export function AdminHeroVideoSettings({
             </div>
 
             {/* Live Hero Video Preview */}
-            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#240306] relative aspect-[16/7]">
-              {selectedSlide.videoSrc ? (
-                <video
-                  key={selectedSlide.videoSrc}
-                  src={selectedSlide.videoSrc}
-                  poster={selectedSlide.posterSrc || undefined}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  controls
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-xs text-slate-300">
-                  Select or upload a video to preview
+            <div className="space-y-2">
+              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#240306] relative aspect-[16/7]">
+                {selectedSlide.videoSrc ? (
+                  <video
+                    key={selectedSlide.videoSrc}
+                    src={selectedSlide.videoSrc}
+                    poster={selectedSlide.posterSrc || undefined}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    controls
+                    onLoadStart={() => setPreviewVideoError(false)}
+                    onLoadedData={() => setPreviewVideoError(false)}
+                    onCanPlay={() => setPreviewVideoError(false)}
+                    onError={() => setPreviewVideoError(true)}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-xs text-slate-300">
+                    Select or upload a video to preview
+                  </div>
+                )}
+                <div className="pointer-events-none absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/60 text-[11px] font-medium text-white">
+                  Live Hero Video Preview
+                </div>
+              </div>
+
+              {previewVideoError && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    Video file (<code className="font-mono">{selectedSlide.videoSrc}</code>) could not be loaded on the server. Please upload your video again or paste an HTTPS video URL, then click <strong>Save Hero Settings</strong>.
+                  </span>
                 </div>
               )}
-              <div className="pointer-events-none absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/60 text-[11px] font-medium text-white">
-                Live Hero Video Preview
-              </div>
             </div>
 
             {/* Upload or Paste Video URL */}
@@ -988,7 +1135,15 @@ export function AdminHeroVideoSettings({
                         >
                           <button
                             type="button"
-                            onClick={() => updateSelectedSlide({ videoSrc: vid.url })}
+                            onClick={() => {
+                              const shouldClearDefaultPoster =
+                                vid.source === 'uploaded' &&
+                                PRESET_POSTERS.some((p) => p.url === selectedSlide.posterSrc);
+                              updateSelectedSlide({
+                                videoSrc: vid.url,
+                                ...(shouldClearDefaultPoster ? { posterSrc: '' } : {}),
+                              });
+                            }}
                             className="flex items-center gap-2 min-w-0 flex-1 text-left"
                           >
                             <Play className="w-3.5 h-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />

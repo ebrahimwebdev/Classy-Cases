@@ -964,11 +964,68 @@ async function startServer() {
     return dir;
   };
 
+  const getPublicHeroVideosDir = () => {
+    return path.resolve(process.cwd(), 'public', 'media', 'hero-videos');
+  };
+
+  const getDistHeroVideosDir = () => {
+    return path.resolve(process.cwd(), 'dist', 'media', 'hero-videos');
+  };
+
+  const writeHeroMediaMirrors = (filename: string, rawBuffer: Buffer) => {
+    const primaryDir = ensureHeroVideosDir();
+    fs.writeFileSync(path.join(primaryDir, filename), rawBuffer);
+
+    const mirrorDirs = [getPublicHeroVideosDir()];
+    const distRoot = path.resolve(process.cwd(), 'dist');
+    if (fs.existsSync(distRoot)) {
+      mirrorDirs.push(getDistHeroVideosDir());
+    }
+    for (const mirrorDir of mirrorDirs) {
+      try {
+        if (!fs.existsSync(mirrorDir)) {
+          fs.mkdirSync(mirrorDir, { recursive: true });
+        }
+        fs.writeFileSync(path.join(mirrorDir, filename), rawBuffer);
+      } catch {
+        // Ignore read-only mirror directories in restricted runtimes
+      }
+    }
+  };
+
   app.use('/media/hero-videos', (req, res, next) => {
     express.static(ensureHeroVideosDir(), {
       maxAge: '7d',
       fallthrough: true,
     })(req, res, next);
+  });
+
+  app.use('/media/hero-videos', (req, res, next) => {
+    const pubDir = getPublicHeroVideosDir();
+    if (!fs.existsSync(pubDir)) {
+      next();
+      return;
+    }
+    express.static(pubDir, {
+      maxAge: '7d',
+      fallthrough: true,
+    })(req, res, next);
+  });
+
+  app.use('/media/hero-videos', (req, res, next) => {
+    const distDirHero = getDistHeroVideosDir();
+    if (!fs.existsSync(distDirHero)) {
+      next();
+      return;
+    }
+    express.static(distDirHero, {
+      maxAge: '7d',
+      fallthrough: true,
+    })(req, res, next);
+  });
+
+  app.use('/media/hero-videos', (_req, res) => {
+    res.status(404).json({ error: 'Hero video file not found' });
   });
 
   app.use(
@@ -2750,33 +2807,45 @@ async function startServer() {
       // ignore bundled dir read error
     }
 
-    try {
-      const uploadedDir = ensureHeroVideosDir();
-      const uploadedFiles = fs
-        .readdirSync(uploadedDir)
-        .filter((file) => /\.(mp4|webm|mov|ogv)$/i.test(file))
-        .map((file) => {
-          const stat = fs.statSync(path.join(uploadedDir, file));
-          return {
+    const seenUrls = new Set<string>();
+    const uploadedEntries: Array<{
+      name: string;
+      url: string;
+      source: 'uploaded';
+      sizeBytes: number;
+      mtimeMs: number;
+    }> = [];
+
+    for (const dir of [ensureHeroVideosDir(), getPublicHeroVideosDir()]) {
+      try {
+        if (!fs.existsSync(dir)) continue;
+        for (const file of fs.readdirSync(dir)) {
+          if (!/\.(mp4|webm|mov|ogv)$/i.test(file)) continue;
+          const url = `/media/hero-videos/${file}`;
+          if (seenUrls.has(url)) continue;
+          seenUrls.add(url);
+          const stat = fs.statSync(path.join(dir, file));
+          uploadedEntries.push({
             name: file,
-            url: `/media/hero-videos/${file}`,
-            source: 'uploaded' as const,
+            url,
+            source: 'uploaded',
             sizeBytes: stat.size,
             mtimeMs: stat.mtimeMs,
-          };
-        })
-        .sort((a, b) => b.mtimeMs - a.mtimeMs);
-
-      for (const entry of uploadedFiles) {
-        items.push({
-          name: entry.name,
-          url: entry.url,
-          source: entry.source,
-          sizeBytes: entry.sizeBytes,
-        });
+          });
+        }
+      } catch {
+        // ignore uploaded dir read error
       }
-    } catch {
-      // ignore uploaded dir read error
+    }
+
+    uploadedEntries.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    for (const entry of uploadedEntries) {
+      items.push({
+        name: entry.name,
+        url: entry.url,
+        source: entry.source,
+        sizeBytes: entry.sizeBytes,
+      });
     }
 
     res.json({ videos: items });
@@ -2818,8 +2887,7 @@ async function startServer() {
 
       const filename = `${Date.now()}-${baseSlug}.${ext}`;
       try {
-        const destDir = ensureHeroVideosDir();
-        fs.writeFileSync(path.join(destDir, filename), rawBuffer);
+        writeHeroMediaMirrors(filename, rawBuffer);
         res.status(201).json({
           url: `/media/hero-videos/${filename}`,
           filename,
@@ -2828,6 +2896,51 @@ async function startServer() {
       } catch (err) {
         res.status(500).json({
           error: err instanceof Error ? err.message : 'Failed to store uploaded video file',
+        });
+      }
+    }
+  );
+
+  app.post(
+    '/api/admin/hero-videos/poster',
+    requireAdmin,
+    express.raw({
+      type: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/octet-stream'],
+      limit: '2mb',
+    }),
+    (req, res) => {
+      const rawBuffer = req.body;
+      if (!Buffer.isBuffer(rawBuffer) || rawBuffer.length === 0) {
+        res.status(400).json({ error: 'No poster image payload was received.' });
+        return;
+      }
+
+      const rawName = String(req.headers['x-filename'] || 'hero-poster.jpg').trim();
+      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const ext = contentType.includes('png')
+        ? 'png'
+        : contentType.includes('webp')
+          ? 'webp'
+          : 'jpg';
+      const baseSlug =
+        rawName
+          .replace(/\.[^.]+$/, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 36) || 'hero-poster';
+
+      const filename = `poster-${Date.now()}-${baseSlug}.${ext}`;
+      try {
+        writeHeroMediaMirrors(filename, rawBuffer);
+        res.status(201).json({
+          url: `/media/hero-videos/${filename}`,
+          filename,
+          sizeBytes: rawBuffer.length,
+        });
+      } catch (err) {
+        res.status(500).json({
+          error: err instanceof Error ? err.message : 'Failed to store hero poster image',
         });
       }
     }
@@ -3010,16 +3123,14 @@ async function startServer() {
       return;
     }
 
-    const destDir = ensureHeroVideosDir();
-    const targetPath = path.resolve(destDir, fileName);
-    if (!targetPath.startsWith(destDir + path.sep)) {
-      res.status(400).json({ error: 'Invalid file path.' });
-      return;
-    }
-
+    const candidateDirs = [ensureHeroVideosDir(), getPublicHeroVideosDir(), getDistHeroVideosDir()];
     try {
-      if (fs.existsSync(targetPath)) {
-        fs.unlinkSync(targetPath);
+      for (const dir of candidateDirs) {
+        const targetPath = path.resolve(dir, fileName);
+        if (!targetPath.startsWith(dir + path.sep)) continue;
+        if (fs.existsSync(targetPath)) {
+          fs.unlinkSync(targetPath);
+        }
       }
       res.json({ ok: true, deletedUrl: `/media/hero-videos/${fileName}` });
     } catch (err) {

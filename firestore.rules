@@ -27,7 +27,8 @@ service cloud.firestore {
       return isSignedIn()
         && request.auth.token.email_verified == true
         && (request.auth.token.email == 'ibrahimzadran.info@gmail.com'
-          || request.auth.token.email == 'mdebrahim.contact@gmail.com');
+          || request.auth.token.email == 'mdebrahim.contact@gmail.com'
+          || request.auth.token.email == 'official.fashionlife@gmail.com');
     }
 
     function isAdmin() {

@@ -79,6 +79,9 @@ export function HeroBanner({
   const hasAppliedInitialSelectionRef = useRef<boolean>(
     Boolean(initialCacheRef.current?.slides?.length)
   );
+  const lastSyncedActiveIdRef = useRef<string>(
+    initialCacheRef.current?.config?.activeSlideId || ''
+  );
   const lastSlidesJsonRef = useRef<string>(
     initialCacheRef.current?.slides ? JSON.stringify(initialCacheRef.current.slides) : ''
   );
@@ -90,7 +93,8 @@ export function HeroBanner({
       forceSelectActiveId = false
     ) => {
       const nextJson = JSON.stringify(nextSlides);
-      if (nextJson !== lastSlidesJsonRef.current) {
+      const slidesChanged = nextJson !== lastSlidesJsonRef.current;
+      if (slidesChanged) {
         lastSlidesJsonRef.current = nextJson;
         setSlides(nextSlides);
         setVideoFailed((prev) => (Object.keys(prev).length === 0 ? prev : {}));
@@ -111,18 +115,32 @@ export function HeroBanner({
           : DEFAULT_HERO_CONFIG.autoAdvanceSeconds;
       setAutoAdvanceSeconds((prev) => (prev === nextAutoAdvance ? prev : nextAutoAdvance));
 
-      if (activeConfig?.activeSlideId && (!hasAppliedInitialSelectionRef.current || forceSelectActiveId)) {
-        const matchIdx = nextSlides.findIndex(
-          (s) => s.id === activeConfig.activeSlideId
-        );
+      const incomingActiveId = activeConfig?.activeSlideId || '';
+      const activeIdChanged =
+        Boolean(incomingActiveId) && incomingActiveId !== lastSyncedActiveIdRef.current;
+
+      if (
+        incomingActiveId &&
+        (!hasAppliedInitialSelectionRef.current ||
+          forceSelectActiveId ||
+          activeIdChanged ||
+          slidesChanged)
+      ) {
+        const matchIdx = nextSlides.findIndex((s) => s.id === incomingActiveId);
         if (matchIdx >= 0) {
           setActiveIndex(matchIdx);
+        } else if (slidesChanged) {
+          setActiveIndex(0);
         }
+        lastSyncedActiveIdRef.current = incomingActiveId;
+        hasAppliedInitialSelectionRef.current = true;
+      } else if (slidesChanged && !hasAppliedInitialSelectionRef.current) {
+        setActiveIndex(0);
         hasAppliedInitialSelectionRef.current = true;
       }
 
       saveCachedHeroState(nextSlides, {
-        activeSlideId: activeConfig?.activeSlideId || nextSlides[0]?.id || '',
+        activeSlideId: incomingActiveId || nextSlides[0]?.id || '',
         autoAdvanceSeconds: nextAutoAdvance,
         mobileLayout: nextMobileLayout,
       });

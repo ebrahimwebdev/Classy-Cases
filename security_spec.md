@@ -2,7 +2,7 @@
 
 ## Data Invariants
 1. Public visitors can only read active `heroVideos` (`resource.data.active == true`), active `categories` (`resource.data.active == true`), and the `heroConfig/default` document; inactive drafts and `admins` records are restricted to verified admins.
-2. Only verified store administrators (`request.auth != null && request.auth.token.email_verified == true`) whose UID is in `/admins/{uid}` or whose verified email matches a bootstrapped store owner (`ibrahimzadran.info@gmail.com` or `mdebrahim.contact@gmail.com`) may create, update, or delete `heroVideos`, `heroConfig`, or `categories`.
+2. Only verified store administrators (`request.auth != null && request.auth.token.email_verified == true`) whose UID is in `/admins/{uid}` or whose verified email matches a bootstrapped store owner (`ibrahimzadran.info@gmail.com`, `mdebrahim.contact@gmail.com`, or `official.fashionlife@gmail.com`) may create, update, or delete `heroVideos`, `heroConfig`, or `categories`.
 3. Every write must satisfy strict key checks (`hasAll` + `hasOnly`), type/length bounds matching `firebase-blueprint.json`, safe media URL schemes (`https://`, `/assets/`, `/src/assets/`, `/media/`, or verified image data URI for categories — never `javascript:` or SVG), immutable `createdAt`, and server-enforced `request.time` timestamps and `updatedByUid == request.auth.uid`.
 4. Sub-categories (`parentId != ""`) cannot reference themselves (`parentId != categoryId`), must use a valid ID format, and must point to an existing parent category (`existsAfter` in `/categories/{parentId}`) to prevent orphaned or cyclic sub-categories.
 5. Unauthenticated users or non-admin signed-in users cannot escalate privileges by writing `/admins/{uid}`.

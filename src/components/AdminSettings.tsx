@@ -538,7 +538,7 @@ export function AdminSettings({
 
         {/* Settings Content */}
         <main className="flex-1 p-5 sm:p-8 overflow-y-auto">
-          <div className="max-w-5xl mx-auto space-y-5">
+          <div className={`${activeTab === 'Header' || activeTab === 'Footer' ? 'max-w-7xl' : 'max-w-5xl'} mx-auto space-y-5`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{activeTab}</h1>
               <div className="flex items-center gap-3">
@@ -1404,6 +1404,7 @@ export function AdminSettings({
                 activeTab={activeTab as ExtendedSettingsTab}
                 form={form}
                 setForm={setForm}
+                categories={categories}
                 onOpenStorefront={onOpenStorefront}
                 onStatusMessage={(msg) => {
                   setSavedBanner(msg);

@@ -239,6 +239,28 @@ export interface HeroPlaybackSettings {
   mobileLayout?: HeroMobileLayoutConfig;
 }
 
+export type HeaderStyleType = 'classic' | 'two-row' | 'overlay';
+export type MobileBottomBarStyleType = 'classic' | 'floating' | 'center-button' | 'off';
+export type MobileBottomBarItemId =
+  | 'home'
+  | 'offers'
+  | 'wishlist'
+  | 'cart'
+  | 'categories'
+  | 'shop'
+  | 'search'
+  | 'account'
+  | 'whatsapp';
+
+export interface MobileBottomBarItem {
+  id: MobileBottomBarItemId;
+  label: string;
+  enabled: boolean;
+}
+
+export type MenuCategoryMode = 'all' | 'featured' | 'featured_plus_picks' | 'only_picks';
+export type PhoneMenuMode = 'all' | 'same';
+
 export interface HeaderNavLink {
   id: string;
   label: string;
@@ -247,20 +269,59 @@ export interface HeaderNavLink {
 }
 
 export interface HeaderConfigSettings {
-  announcementEnabled: boolean;
-  announcementText: string;
-  announcementBgColor: string;
-  announcementTextColor: string;
+  headerStyle: HeaderStyleType;
+  categoryPicturesInBar: boolean;
+  whatsappInCategoryBar: boolean;
+  showSearchIcon: boolean;
+  showTrackOrderIcon: boolean;
+  showWishlistIcon: boolean;
+  showCartIcon: boolean;
+  showOffersIcon: boolean;
+  mobileBottomBarStyle: MobileBottomBarStyleType;
+  mobileBottomBarItems: MobileBottomBarItem[];
+  menuCategoryMode: MenuCategoryMode;
+  pickedCategoryIds: string[];
+  phoneMenuMode: PhoneMenuMode;
+  topBarEnabled: boolean;
+  topBarMessages: string[];
+  topBarBgColor: string;
+  topBarTextColor: string;
+  topBarShowOnMobile: boolean;
   headerBgColor: string;
   headerTextColor: string;
   stickyHeader: boolean;
-  showSearchBar: boolean;
   searchPlaceholder: string;
-  showMyOrdersButton: boolean;
   myOrdersLabel: string;
-  showFavoritesButton: boolean;
-  showCartButton: boolean;
   navLinks: HeaderNavLink[];
+}
+
+export type FooterDesignType =
+  | 'classic'
+  | 'columns'
+  | 'dark'
+  | 'boxed'
+  | 'contact-strip'
+  | 'compact';
+
+export type FooterBlockType =
+  | 'about'
+  | 'contact'
+  | 'social'
+  | 'help'
+  | 'company'
+  | 'newsletter'
+  | 'payment-badges'
+  | 'trust-badges'
+  | 'copyright'
+  | 'custom';
+
+export interface FooterBlockConfig {
+  id: string;
+  type: FooterBlockType;
+  title: string;
+  enabled: boolean;
+  customBody?: string;
+  customLinks?: FooterLinkItem[];
 }
 
 export interface FooterLinkItem {
@@ -279,7 +340,16 @@ export interface FooterSocialLinks {
   x: string;
 }
 
+export interface FooterPaymentBadgesConfig {
+  cod: boolean;
+  bkash: boolean;
+  nagad: boolean;
+  card: boolean;
+}
+
 export interface FooterConfigSettings {
+  footerDesign: FooterDesignType;
+  blocks: FooterBlockConfig[];
   footerBgColor: string;
   footerTextColor: string;
   showBrandLogo: boolean;
@@ -288,20 +358,21 @@ export interface FooterConfigSettings {
   whatsappLabel: string;
   whatsappLinkText: string;
   whatsappUrl: string;
+  showOpeningHours: boolean;
   showShopNowCta: boolean;
   shopNowLabel: string;
-  showSocialLinks: boolean;
   socialHeading: string;
   socialLinks: FooterSocialLinks;
   helpColumnTitle: string;
   helpLinks: FooterLinkItem[];
   companyColumnTitle: string;
   companyLinks: FooterLinkItem[];
-  showNewsletter: boolean;
   newsletterTitle: string;
   newsletterDescription: string;
   newsletterPlaceholder: string;
   newsletterButtonText: string;
+  paymentBadges: FooterPaymentBadgesConfig;
+  trustBadges: string[];
   copyrightText: string;
   showScrollToTop: boolean;
 }

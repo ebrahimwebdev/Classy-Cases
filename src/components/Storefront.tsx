@@ -1,12 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
-  ArrowUp,
-  ArrowUpRight,
   ChevronDown,
   Heart,
   Mail,
-  Menu,
   MessageCircle,
   Package,
   Search,
@@ -29,6 +26,7 @@ import type {
   FooterLinkItem,
   HeaderConfigSettings,
   HeaderNavLink,
+  MobileBottomBarItemId,
   OrderItem,
   Product,
 } from '../types';
@@ -59,6 +57,12 @@ import {
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
+import { StorefrontFooter } from './StorefrontFooter';
+import {
+  resolveHeaderCategories,
+  StorefrontHeader,
+  StorefrontMobileBottomBar,
+} from './StorefrontHeader';
 import { fetchPublicCategoriesFromFirestore } from '../services/categoryFirestore';
 
 export interface PublicStoreSettings {
@@ -708,66 +712,68 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     }
   }
 
-  const activeSocialItems = [
-    {
-      key: 'facebook',
-      label: 'Facebook',
-      url: footerConfig.socialLinks.facebook,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-          <path d="M13.5 21v-7.5h2.5l.4-3h-2.9V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.1H8v3h2.2V21h3.3Z" />
-        </svg>
-      ),
-    },
-    {
-      key: 'instagram',
-      label: 'Instagram',
-      url: footerConfig.socialLinks.instagram,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
-          <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-        </svg>
-      ),
-    },
-    {
-      key: 'tiktok',
-      label: 'TikTok',
-      url: footerConfig.socialLinks.tiktok,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.87a8.16 8.16 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.3Z" />
-        </svg>
-      ),
-    },
-    {
-      key: 'youtube',
-      label: 'YouTube',
-      url: footerConfig.socialLinks.youtube,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-          <path d="M21.58 7.19a2.75 2.75 0 0 0-1.94-1.95C17.93 4.75 12 4.75 12 4.75s-5.93 0-7.64.49A2.75 2.75 0 0 0 2.42 7.2 28.8 28.8 0 0 0 2 12a28.8 28.8 0 0 0 .42 4.81 2.75 2.75 0 0 0 1.94 1.95c1.71.49 7.64.49 7.64.49s5.93 0 7.64-.49a2.75 2.75 0 0 0 1.94-1.95A28.8 28.8 0 0 0 22 12a28.8 28.8 0 0 0-.42-4.81ZM10 15.1V8.9L15.4 12 10 15.1Z" />
-        </svg>
-      ),
-    },
-    {
-      key: 'whatsapp',
-      label: 'WhatsApp',
-      url: footerConfig.socialLinks.whatsapp,
-      icon: <MessageCircle className="w-4 h-4" aria-hidden="true" />,
-    },
-    {
-      key: 'x',
-      label: 'X (Twitter)',
-      url: footerConfig.socialLinks.x,
-      icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117Z" />
-        </svg>
-      ),
-    },
-  ].filter((item) => Boolean(item.url && item.url.trim()));
+  const drawerCategories = useMemo(
+    () =>
+      headerConfig.phoneMenuMode === 'same'
+        ? resolveHeaderCategories(effectiveCategories, headerConfig)
+        : topLevelCategories,
+    [effectiveCategories, headerConfig, topLevelCategories]
+  );
+
+  function handleOpenOffers() {
+    navigateHome();
+    applyCategorySelection('All');
+    setSortBy('discount_desc');
+    setViewAll(true);
+    setTimeout(() => {
+      document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 30);
+  }
+
+  function handleOpenWhatsAppModal() {
+    setInfoModal({
+      title: 'WhatsApp Support',
+      content: `Reach our support desk directly on WhatsApp or call ${settings?.phone || '01799576210'} (${settings?.openingHours || '10:00 AM - 10:00 PM'}). Pickup & Studio Address: ${settings?.address || 'Tilapara, Ekuria, Dhaka Jute Mills'}.`,
+    });
+  }
+
+  function handleMobileBottomAction(id: MobileBottomBarItemId) {
+    switch (id) {
+      case 'home':
+        resetAllFilters();
+        navigateHome(true);
+        break;
+      case 'offers':
+        handleOpenOffers();
+        break;
+      case 'wishlist':
+        setWishlistOpen(true);
+        break;
+      case 'cart':
+        openDrawer();
+        break;
+      case 'categories':
+        setMobileMenuOpen(true);
+        break;
+      case 'shop':
+        applyCategorySelection('All');
+        setViewAll(true);
+        scrollToCatalog();
+        break;
+      case 'search':
+        setMobileMenuOpen(true);
+        break;
+      case 'account':
+        openMyOrders();
+        break;
+      case 'whatsapp':
+        handleOpenWhatsAppModal();
+        break;
+    }
+  }
+
+  const isHomeBannerVisible =
+    !checkoutOpen && !myOrdersOpen && !activeProduct && searchQuery.trim() === '';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F2E8D2] text-[#2B1416] overflow-x-clip">
@@ -780,204 +786,41 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       )}
 
       {/* Top Navigation Header */}
-      <header
-        className={`${headerConfig.stickyHeader ? 'sticky top-0' : 'relative'} z-30`}
-        style={{
-          backgroundColor: headerConfig.headerBgColor,
-          color: headerConfig.headerTextColor,
+      <StorefrontHeader
+        headerConfig={headerConfig}
+        storeName={settings?.storeName || 'Classy Cases'}
+        logoUrl={settings?.logoUrl}
+        logoImgFailed={logoImgFailed}
+        onLogoError={() => setLogoImgFailed(true)}
+        phone={settings?.phone || '01799576210'}
+        categories={effectiveCategories}
+        selectedCategory={selectedCategory}
+        products={products}
+        searchQuery={searchQuery}
+        searchSuggestions={searchSuggestions}
+        wishlistCount={wishlistProducts.length}
+        cartCount={cartCount}
+        hasSavedOrders={hasSavedOrders}
+        myOrdersOpen={myOrdersOpen}
+        isHomeBannerVisible={isHomeBannerVisible}
+        onSearchChange={handleSearchChange}
+        onSubmitSearch={scrollToCatalog}
+        onSelectProduct={(productId) => {
+          const found = products.find((p) => p.id === productId);
+          if (found) navigateProduct(found);
         }}
-      >
-        {headerConfig.announcementEnabled && headerConfig.announcementText && (
-          <div
-            className="px-4 py-1.5 text-center text-xs font-medium tracking-wide"
-            style={{
-              backgroundColor: headerConfig.announcementBgColor,
-              color: headerConfig.announcementTextColor,
-            }}
-          >
-            {headerConfig.announcementText}
-          </div>
-        )}
-
-        <div className="border-b border-[#E6D9BE]">
-          <div className="max-w-[1180px] mx-auto px-4 sm:px-8 min-h-14 sm:min-h-[76px] py-2 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-6">
-            {/* Zone 1: Mobile Menu Icon + Brand Wordmark */}
-            <div className="flex items-center gap-1.5 sm:gap-5 min-w-0">
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                aria-label="Open menu"
-                className="md:hidden w-8 h-8 -ml-1.5 rounded-lg hover:bg-black/5 transition-colors shrink-0 inline-flex items-center justify-center cursor-pointer"
-                style={{ color: headerConfig.headerTextColor }}
-              >
-                <Menu className="w-[22px] h-[22px] stroke-[1.8]" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  resetAllFilters();
-                  navigateHome(true);
-                }}
-                className="font-brand text-xl sm:text-[26px] font-semibold tracking-tight whitespace-nowrap shrink-0 cursor-pointer flex items-center"
-                style={{ color: headerConfig.headerTextColor }}
-              >
-                {settings?.logoUrl && !logoImgFailed ? (
-                  <img
-                    src={settings.logoUrl}
-                    alt={settings.storeName || 'Classy Cases'}
-                    referrerPolicy="no-referrer"
-                    onError={() => setLogoImgFailed(true)}
-                    className="h-8 sm:h-10 w-auto max-w-[165px] sm:max-w-[180px] object-contain"
-                  />
-                ) : (
-                  settings?.storeName || 'Classy Cases'
-                )}
-              </button>
-
-              {headerConfig.navLinks.length > 0 && (
-                <nav
-                  aria-label="Header navigation"
-                  className="hidden lg:flex items-center gap-4 text-[13px] font-medium"
-                >
-                  {headerConfig.navLinks.map((link) =>
-                    link.action === 'url' && link.url ? (
-                      <a
-                        key={link.id}
-                        href={link.url}
-                        target={link.url.startsWith('http') ? '_blank' : undefined}
-                        rel={link.url.startsWith('http') ? 'noopener noreferrer' : undefined}
-                        className="whitespace-nowrap hover:opacity-75 transition-opacity"
-                        style={{ color: headerConfig.headerTextColor }}
-                      >
-                        {link.label}
-                      </a>
-                    ) : (
-                      <button
-                        key={link.id}
-                        type="button"
-                        onClick={() => handleHeaderNavAction(link)}
-                        className="whitespace-nowrap hover:opacity-75 transition-opacity cursor-pointer"
-                        style={{ color: headerConfig.headerTextColor }}
-                      >
-                        {link.label}
-                      </button>
-                    )
-                  )}
-                </nav>
-              )}
-            </div>
-
-          {/* Zone 2: Search Bar */}
-          {headerConfig.showSearchBar && (
-            <div className="hidden md:block flex-1 max-w-xl">
-              <StorefrontSearchBar
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onSubmitSearch={scrollToCatalog}
-                onSelectProduct={(productId) => {
-                  const found = products.find((p) => p.id === productId);
-                  if (found) {
-                    navigateProduct(found);
-                  }
-                }}
-                onSelectCategory={handleQuickSelectCategory}
-                suggestions={searchSuggestions}
-                placeholder={headerConfig.searchPlaceholder}
-              />
-            </div>
-          )}
-
-          {/* Zone 3: Utility Actions */}
-          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-            {headerConfig.showMyOrdersButton && (
-              <button
-                type="button"
-                onClick={openMyOrders}
-                title={headerConfig.myOrdersLabel || 'My Orders & Tracking'}
-                className={`w-8 h-8 sm:w-9 sm:h-9 lg:w-auto lg:px-2.5 rounded-lg transition-colors relative inline-flex items-center justify-center gap-1.5 text-[13px] font-medium cursor-pointer ${
-                  myOrdersOpen
-                    ? 'bg-[#650108] text-[#F2E8D2]'
-                    : 'hover:bg-black/5'
-                }`}
-                style={myOrdersOpen ? undefined : { color: headerConfig.headerTextColor }}
-                aria-label={headerConfig.myOrdersLabel || 'My Orders'}
-              >
-                <Package className="w-[21px] h-[21px] sm:w-[22px] sm:h-[22px] stroke-[1.8] shrink-0" />
-                <span className="hidden lg:inline">{headerConfig.myOrdersLabel}</span>
-                {hasSavedOrders && !myOrdersOpen && (
-                  <span className="absolute top-0.5 right-0.5 lg:static w-2 h-2 rounded-full bg-emerald-600" />
-                )}
-              </button>
-            )}
-
-            {headerConfig.showFavoritesButton && (
-              <button
-                type="button"
-                onClick={() => setWishlistOpen(true)}
-                title="My Favorites"
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-black/5 transition-colors relative inline-flex items-center justify-center cursor-pointer"
-                style={{ color: headerConfig.headerTextColor }}
-                aria-label="Open My Favorites"
-              >
-                <Heart
-                  className={`w-[21px] h-[21px] sm:w-[22px] sm:h-[22px] stroke-[1.8] shrink-0 ${
-                    wishlistProducts.length > 0 ? 'fill-current' : ''
-                  }`}
-                />
-                {wishlistProducts.length > 0 && (
-                  <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
-                    {wishlistProducts.length}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {headerConfig.showCartButton && (
-              <button
-                type="button"
-                onClick={openDrawer}
-                title="Shopping Bag"
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg hover:bg-black/5 transition-colors relative inline-flex items-center justify-center cursor-pointer"
-                style={{ color: headerConfig.headerTextColor }}
-                aria-label="Open shopping bag"
-              >
-                <ShoppingBag className="w-[21px] h-[21px] sm:w-[22px] sm:h-[22px] stroke-[1.8] shrink-0" />
-                {cartCount > 0 && (
-                  <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-[#650108] text-[#F2E8D2] text-[9px] font-bold flex items-center justify-center tabular-nums">
-                    {cartCount}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
-          </div>
-        </div>
-
-        {/* Mobile search row */}
-        {headerConfig.showSearchBar && (
-          <div
-            className="md:hidden px-4 pt-2.5 pb-3.5 border-b border-[#E6D9BE]"
-            style={{ backgroundColor: headerConfig.headerBgColor }}
-          >
-            <StorefrontSearchBar
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onSubmitSearch={scrollToCatalog}
-              onSelectProduct={(productId) => {
-                const found = products.find((p) => p.id === productId);
-                if (found) {
-                  navigateProduct(found);
-                }
-              }}
-              onSelectCategory={handleQuickSelectCategory}
-              suggestions={searchSuggestions}
-              placeholder={headerConfig.searchPlaceholder}
-              compact
-            />
-          </div>
-        )}
-      </header>
+        onSelectCategory={handleQuickSelectCategory}
+        onNavigateHome={() => {
+          resetAllFilters();
+          navigateHome(true);
+        }}
+        onOpenMyOrders={openMyOrders}
+        onOpenWishlist={() => setWishlistOpen(true)}
+        onOpenCart={openDrawer}
+        onOpenMobileMenu={() => setMobileMenuOpen(true)}
+        onOpenOffers={handleOpenOffers}
+        onOpenWhatsApp={handleOpenWhatsAppModal}
+      />
 
       {/* Main Content */}
       <main className="flex-1">
@@ -1264,226 +1107,33 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       </main>
 
       {/* Customizable Footer */}
-      <footer
-        className="border-t border-black/15 relative"
-        style={{
-          backgroundColor: footerConfig.footerBgColor,
-          color: footerConfig.footerTextColor,
-        }}
-      >
-        <div
-          className={`max-w-[1180px] mx-auto px-4 sm:px-8 py-12 grid grid-cols-1 sm:grid-cols-2 ${
-            footerConfig.showNewsletter ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
-          } gap-8 lg:gap-10`}
-        >
-          {/* Column 1: Brand, Contact, CTA & Social Media */}
-          <div className="space-y-3.5">
-            {footerConfig.showBrandLogo && (
-              <div className="font-brand text-2xl font-semibold">
-                {settings?.logoUrl && !logoImgFailed ? (
-                  <img
-                    src={settings.logoUrl}
-                    alt={settings.storeName || 'Classy Cases'}
-                    referrerPolicy="no-referrer"
-                    onError={() => setLogoImgFailed(true)}
-                    className="h-9 w-auto max-w-[180px] object-contain bg-[#F2E8D2] px-2 py-1 rounded-lg"
-                  />
-                ) : (
-                  settings?.storeName || 'Classy Cases'
-                )}
-              </div>
-            )}
+      <StorefrontFooter
+        footerConfig={footerConfig}
+        storeName={settings?.storeName || 'Classy Cases'}
+        logoUrl={settings?.logoUrl}
+        logoImgFailed={logoImgFailed}
+        onLogoError={() => setLogoImgFailed(true)}
+        phone={settings?.phone || '01799576210'}
+        email={settings?.email || 'mdebrahim.contact@gmail.com'}
+        openingHours={settings?.openingHours || 'Sun–Fri 11am to 8pm'}
+        newsletterEmail={newsletterEmail}
+        newsletterMsg={newsletterMsg}
+        onNewsletterEmailChange={setNewsletterEmail}
+        onNewsletterSubmit={handleNewsletterSubmit}
+        onFooterLinkAction={handleFooterLinkAction}
+        onShopNow={scrollToCatalog}
+        onOpenWhatsApp={handleOpenWhatsAppModal}
+        hasMobileBottomBar={headerConfig.mobileBottomBarStyle !== 'off'}
+      />
 
-            {footerConfig.aboutText && (
-              <p className="text-[13px] opacity-85 leading-relaxed">{footerConfig.aboutText}</p>
-            )}
-
-            {footerConfig.showWhatsappRow && (
-              <p className="text-[13px] sm:text-sm opacity-85 leading-relaxed">
-                {footerConfig.whatsappLabel ? `${footerConfig.whatsappLabel} ` : ''}
-                {footerConfig.whatsappUrl ? (
-                  <a
-                    href={footerConfig.whatsappUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium hover:underline"
-                    style={{ color: footerConfig.footerTextColor }}
-                  >
-                    {footerConfig.whatsappLinkText}
-                  </a>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setInfoModal({
-                        title: 'WhatsApp Support',
-                        content: `Reach our support desk directly on WhatsApp or call ${settings?.phone || '01799576210'} (${settings?.openingHours || '10:00 AM - 10:00 PM'}). Pickup & Studio Address: ${settings?.address || 'Tilapara, Ekuria, Dhaka Jute Mills'}.`,
-                      })
-                    }
-                    className="font-medium hover:opacity-80 transition-opacity cursor-pointer"
-                    style={{ color: footerConfig.footerTextColor }}
-                  >
-                    {footerConfig.whatsappLinkText}
-                  </button>
-                )}
-              </p>
-            )}
-
-            {footerConfig.showShopNowCta && (
-              <div>
-                <button
-                  type="button"
-                  onClick={scrollToCatalog}
-                  className="inline-flex items-center gap-1 text-[13px] sm:text-sm font-semibold hover:opacity-80 cursor-pointer"
-                  style={{ color: footerConfig.footerTextColor }}
-                >
-                  <span>{footerConfig.shopNowLabel}</span>
-                  <ArrowUpRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Social Media Icons */}
-            {footerConfig.showSocialLinks && activeSocialItems.length > 0 && (
-              <div className="pt-1.5 space-y-2">
-                {footerConfig.socialHeading && (
-                  <h3 className="font-brand text-lg font-semibold">
-                    {footerConfig.socialHeading}
-                  </h3>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  {activeSocialItems.map((soc) => (
-                    <a
-                      key={soc.key}
-                      href={soc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={soc.label}
-                      title={soc.label}
-                      className="w-9 h-9 rounded-full border border-current/25 bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                      style={{ color: footerConfig.footerTextColor }}
-                    >
-                      {soc.icon}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Column 2: Help Links */}
-          <div>
-            <h3 className="font-brand text-lg font-semibold mb-3.5">
-              {footerConfig.helpColumnTitle}
-            </h3>
-            <ul className="space-y-2.5 text-[13px] sm:text-sm opacity-85">
-              {footerConfig.helpLinks.map((item) => (
-                <li key={item.id}>
-                  {item.action === 'url' && item.value ? (
-                    <a
-                      href={item.value}
-                      target={item.value.startsWith('http') ? '_blank' : undefined}
-                      rel={item.value.startsWith('http') ? 'noopener noreferrer' : undefined}
-                      className="hover:opacity-100 font-medium hover:underline"
-                    >
-                      {item.label}
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleFooterLinkAction(item)}
-                      className="hover:opacity-100 font-medium cursor-pointer text-left"
-                    >
-                      {item.label}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Column 3: Company Links */}
-          <div>
-            <h3 className="font-brand text-lg font-semibold mb-3.5">
-              {footerConfig.companyColumnTitle}
-            </h3>
-            <ul className="space-y-2.5 text-[13px] sm:text-sm opacity-85">
-              {footerConfig.companyLinks.map((item) => (
-                <li key={item.id}>
-                  {item.action === 'url' && item.value ? (
-                    <a
-                      href={item.value}
-                      target={item.value.startsWith('http') ? '_blank' : undefined}
-                      rel={item.value.startsWith('http') ? 'noopener noreferrer' : undefined}
-                      className="hover:opacity-100 font-medium hover:underline"
-                    >
-                      {item.label}
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleFooterLinkAction(item)}
-                      className="hover:opacity-100 font-medium cursor-pointer text-left"
-                    >
-                      {item.label}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Column 4: Newsletter */}
-          {footerConfig.showNewsletter && (
-            <div>
-              <h3 className="font-brand text-lg font-semibold mb-2.5">
-                {footerConfig.newsletterTitle}
-              </h3>
-              <p className="text-[13px] sm:text-sm font-normal opacity-80 leading-relaxed mb-3.5">
-                {footerConfig.newsletterDescription}
-              </p>
-              <form
-                onSubmit={handleNewsletterSubmit}
-                className="flex items-center border border-current/30 rounded-lg p-1 bg-[#FFFDF8] focus-within:border-current"
-              >
-                <input
-                  type="email"
-                  required
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder={footerConfig.newsletterPlaceholder}
-                  className="flex-1 min-w-0 px-2.5 py-2 text-[13px] text-[#2B1416] placeholder:text-[#8E6F70] bg-transparent focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="px-3.5 py-2 rounded-md bg-[#650108] text-[#F2E8D2] text-[13px] font-semibold inline-flex items-center gap-1 hover:bg-[#4A0106] whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  <span>{footerConfig.newsletterButtonText}</span>
-                  <ArrowUpRight className="w-3.5 h-3.5" />
-                </button>
-              </form>
-              {newsletterMsg && <p className="text-xs mt-1.5">{newsletterMsg}</p>}
-            </div>
-          )}
-        </div>
-
-        {/* Scroll to top + Copyright */}
-        {footerConfig.showScrollToTop && (
-          <button
-            type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            aria-label="Scroll to top"
-            className="hidden sm:flex absolute right-6 bottom-12 w-9 h-9 rounded-full border border-[#F2E8D2]/30 bg-[#F2E8D2] shadow-xs items-center justify-center text-[#650108] hover:bg-white cursor-pointer"
-          >
-            <ArrowUp className="w-4 h-4" />
-          </button>
-        )}
-        <div className="max-w-[1180px] mx-auto px-4 sm:px-8 pb-8">
-          <div className="border-t border-current/20 pt-6 text-center text-[13px] opacity-80">
-            {footerConfig.copyrightText}
-          </div>
-        </div>
-      </footer>
+      {/* Mobile Bottom Navigation Bar */}
+      <StorefrontMobileBottomBar
+        headerConfig={headerConfig}
+        wishlistCount={wishlistProducts.length}
+        cartCount={cartCount}
+        activeTab={myOrdersOpen ? 'account' : 'home'}
+        onAction={handleMobileBottomAction}
+      />
 
       {/* Persistent Slide-Out Shopping Bag Drawer */}
       <CartDrawer
@@ -1567,7 +1217,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
             <div className="px-5 pb-6 flex-1 flex flex-col">
               {/* Mobile Drawer Search Box */}
-              {headerConfig.showSearchBar && (
+              {headerConfig.showSearchIcon && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -1633,7 +1283,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 >
                   All categories
                 </button>
-                {topLevelCategories.map((cat) => {
+                {drawerCategories.map((cat) => {
                   const subCategories = getSubcategories(effectiveCategories, cat.id);
                   const hasSubs = subCategories.length > 0;
                   const isBranchActive = activeCategoryRoot?.id === cat.id;
@@ -1750,8 +1400,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
               {/* Action Buttons */}
               <div className="mt-5 space-y-2.5">
-                <div className={`grid gap-2.5 ${headerConfig.showFavoritesButton ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {headerConfig.showFavoritesButton && (
+                <div className={`grid gap-2.5 ${headerConfig.showWishlistIcon ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {headerConfig.showWishlistIcon && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1780,7 +1430,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   </button>
                 </div>
 
-                {headerConfig.showMyOrdersButton && (
+                {headerConfig.showTrackOrderIcon && (
                   <button
                     type="button"
                     onClick={() => {

@@ -3267,7 +3267,9 @@ async function startServer() {
   const distDir = path.resolve(process.cwd(), 'dist');
   const isProd =
     process.env.NODE_ENV === 'production' ||
-    (Boolean(process.env.K_SERVICE) && fs.existsSync(path.join(distDir, 'index.html')));
+    (process.env.NODE_ENV !== 'development' &&
+      Boolean(process.env.K_SERVICE) &&
+      fs.existsSync(path.join(distDir, 'index.html')));
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({

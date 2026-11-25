@@ -29,6 +29,7 @@ interface StorefrontReviewsPayload {
 }
 
 interface CustomerReviewsCarouselProps {
+  homeReviewsOnlyFiveStar?: boolean;
   onSelectProduct: (productId: string) => void;
 }
 
@@ -64,7 +65,10 @@ function formatShortDate(iso: string): string {
   });
 }
 
-export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCarouselProps) {
+export function CustomerReviewsCarousel({
+  homeReviewsOnlyFiveStar,
+  onSelectProduct,
+}: CustomerReviewsCarouselProps) {
   const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -92,7 +96,7 @@ export function CustomerReviewsCarousel({ onSelectProduct }: CustomerReviewsCaro
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, []);
+  }, [homeReviewsOnlyFiveStar]);
 
   const filteredReviews = useMemo(() => payload?.reviews || [], [payload?.reviews]);
 

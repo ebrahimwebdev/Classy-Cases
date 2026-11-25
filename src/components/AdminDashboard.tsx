@@ -178,6 +178,7 @@ export function AdminDashboard({
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [savingHomeReviews, setSavingHomeReviews] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
 
   // Interactive Dashboard filters
@@ -743,6 +744,50 @@ export function AdminDashboard({
       headers: { Authorization: `Bearer ${adminToken}` },
     });
     if (res.ok) await fetchOverview(adminToken);
+  }
+
+  async function handleToggleHomeFiveStarReviews(nextValue: boolean) {
+    if (!adminToken || !settings) return;
+    setSavingHomeReviews(true);
+    try {
+      const nextSettings: StoreSettings = {
+        ...settings,
+        storefrontConfig: {
+          shopPageColumns: settings.storefrontConfig?.shopPageColumns ?? 5,
+          showOutOfStock: settings.storefrontConfig?.showOutOfStock ?? true,
+          showStockBadgeOnProduct: settings.storefrontConfig?.showStockBadgeOnProduct ?? true,
+          showRelatedProducts: settings.storefrontConfig?.showRelatedProducts ?? true,
+          checkoutRequireEmail: settings.storefrontConfig?.checkoutRequireEmail ?? false,
+          checkoutNoteEnabled: settings.storefrontConfig?.checkoutNoteEnabled ?? true,
+          thankYouHeadline: settings.storefrontConfig?.thankYouHeadline ?? 'Thank you for your order!',
+          thankYouMessage: settings.storefrontConfig?.thankYouMessage ?? '',
+          reviewsEnabled: settings.storefrontConfig?.reviewsEnabled ?? true,
+          reviewsAutoApprove: settings.storefrontConfig?.reviewsAutoApprove ?? true,
+          homeReviewsOnlyFiveStar: nextValue,
+          sizeGuideTitle: settings.storefrontConfig?.sizeGuideTitle ?? 'Phone Model & Case Fit Guide',
+          sizeGuideNotes: settings.storefrontConfig?.sizeGuideNotes ?? '',
+          offerPageTitle: settings.storefrontConfig?.offerPageTitle ?? 'Flash Deals & Combo Offers',
+          offerPageBannerText: settings.storefrontConfig?.offerPageBannerText ?? '',
+          popupOfferEnabled: settings.storefrontConfig?.popupOfferEnabled ?? false,
+          popupOfferHeadline: settings.storefrontConfig?.popupOfferHeadline ?? '',
+          popupOfferCode: settings.storefrontConfig?.popupOfferCode ?? '',
+        },
+      };
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify(nextSettings),
+      });
+      const data = await res.json();
+      if (res.ok && data.settings) {
+        setSettings(data.settings);
+      }
+    } finally {
+      setSavingHomeReviews(false);
+    }
   }
 
   // Auth Gate Screen
@@ -2766,12 +2811,68 @@ export function AdminDashboard({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setActiveSection('Settings')}
+                    onClick={() => {
+                      setSettingsInitialTab('Product Reviews');
+                      setActiveSection('Settings');
+                    }}
                     className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70"
                   >
                     Review Settings
                   </button>
                 </div>
+
+                {/* Homepage 5-Star Review Filter Card */}
+                {settings && (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                          Homepage Review Section: 5-Star Only
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          When enabled, only 5-star reviews appear on the storefront homepage carousel. Turn off to display all star ratings.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false}
+                      disabled={savingHomeReviews}
+                      onClick={() =>
+                        void handleToggleHomeFiveStarReviews(
+                          settings.storefrontConfig?.homeReviewsOnlyFiveStar === false
+                        )
+                      }
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
+                        settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false
+                          ? 'bg-indigo-600 border-indigo-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      {savingHomeReviews ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Star
+                          className={`w-3.5 h-3.5 ${
+                            settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false
+                              ? 'fill-amber-300 text-amber-300'
+                              : 'text-slate-400'
+                          }`}
+                        />
+                      )}
+                      <span>
+                        {settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false
+                          ? '5-Star Only: ON'
+                          : 'Showing All Ratings'}
+                      </span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">

@@ -28,14 +28,36 @@ export interface HeroVideoSlide {
   active: boolean;
 }
 
+export interface HeroMobileLayoutConfig {
+  position: 'bottom-left' | 'center' | 'top-left';
+  textSize: 'xs' | 'sm' | 'md';
+  showKicker: boolean;
+  showDescription: boolean;
+  showExploreButton: boolean;
+  showProductButton: boolean;
+  showArrows: boolean;
+}
+
 export interface HeroPlaybackConfig {
   activeSlideId: string;
   autoAdvanceSeconds: number;
+  mobileLayout?: HeroMobileLayoutConfig;
 }
+
+export const DEFAULT_HERO_MOBILE_LAYOUT: HeroMobileLayoutConfig = {
+  position: 'bottom-left',
+  textSize: 'xs',
+  showKicker: false,
+  showDescription: false,
+  showExploreButton: true,
+  showProductButton: false,
+  showArrows: false,
+};
 
 export const DEFAULT_HERO_CONFIG: HeroPlaybackConfig = {
   activeSlideId: 'magsafe-video',
   autoAdvanceSeconds: 9,
+  mobileLayout: DEFAULT_HERO_MOBILE_LAYOUT,
 };
 
 export const DEFAULT_HERO_VIDEO_SLIDES: HeroVideoSlide[] = [
@@ -273,6 +295,7 @@ export async function saveHeroConfigToFirestore(config: HeroPlaybackConfig): Pro
     return {
       activeSlideId: payload.activeSlideId,
       autoAdvanceSeconds: payload.autoAdvanceSeconds,
+      mobileLayout: config.mobileLayout || DEFAULT_HERO_MOBILE_LAYOUT,
     };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

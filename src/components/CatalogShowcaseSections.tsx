@@ -68,7 +68,7 @@ export function CatalogShowcaseSections({
   }
 
   return (
-    <div className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-6 pb-4 space-y-12">
+    <div className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-6 pb-4 space-y-12">
       {/* Row 1: BESTSELLING */}
       <section aria-labelledby="bestselling-heading">
         <div className="flex items-end justify-between gap-4 mb-4">

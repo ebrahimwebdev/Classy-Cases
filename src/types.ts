@@ -139,6 +139,7 @@ export interface StorefrontPageConfig {
   thankYouMessage: string;
   reviewsEnabled: boolean;
   reviewsAutoApprove: boolean;
+  homeReviewsOnlyFiveStar?: boolean;
   sizeGuideTitle: string;
   sizeGuideNotes: string;
   offerPageTitle: string;
@@ -201,9 +202,20 @@ export interface HeroVideoSlideConfig {
   active: boolean;
 }
 
+export interface HeroMobileLayoutConfig {
+  position: 'bottom-left' | 'center' | 'top-left';
+  textSize: 'xs' | 'sm' | 'md';
+  showKicker: boolean;
+  showDescription: boolean;
+  showExploreButton: boolean;
+  showProductButton: boolean;
+  showArrows: boolean;
+}
+
 export interface HeroPlaybackSettings {
   activeSlideId: string;
   autoAdvanceSeconds: number;
+  mobileLayout?: HeroMobileLayoutConfig;
 }
 
 export interface StoreSettings {

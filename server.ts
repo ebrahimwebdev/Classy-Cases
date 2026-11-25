@@ -10,6 +10,7 @@ import type {
   DashboardAnalytics,
   Expense,
   FulfillmentStatus,
+  HeroMobileLayoutConfig,
   HeroPlaybackSettings,
   HeroVideoSlideConfig,
   Order,
@@ -135,6 +136,7 @@ function createInitialData(): StoreDatabase {
         thankYouMessage: 'We have received your order and will confirm dispatch shortly.',
         reviewsEnabled: true,
         reviewsAutoApprove: true,
+        homeReviewsOnlyFiveStar: true,
         sizeGuideTitle: 'Phone Model & Case Fit Guide',
         sizeGuideNotes: 'Verify your exact device model under Settings -> About Phone before selecting your case.',
         offerPageTitle: 'Flash Deals & Combo Offers',
@@ -680,6 +682,7 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
     shippingOutsideDhaka: settings.shippingOutsideDhaka,
     freeShippingThreshold: settings.freeShippingThreshold,
     reviewsEnabled: settings.storefrontConfig?.reviewsEnabled !== false,
+    homeReviewsOnlyFiveStar: settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false,
     shopPageColumns: ([2, 3, 4, 5].includes(Number(settings.storefrontConfig?.shopPageColumns))
       ? Number(settings.storefrontConfig?.shopPageColumns)
       : 5) as 2 | 3 | 4 | 5,
@@ -1077,7 +1080,12 @@ async function startServer() {
       }));
     });
 
-    const combined = [...userStorefrontReviews, ...showcaseReviews].slice(0, 12);
+    const onlyFiveStar = db.settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false;
+    const allCombined = [...userStorefrontReviews, ...showcaseReviews];
+    const combined = (onlyFiveStar
+      ? allCombined.filter((r) => r.rating >= 5)
+      : allCombined
+    ).slice(0, 12);
     const totalCount = combined.length;
     const sum = combined.reduce((acc, r) => acc + r.rating, 0);
     const averageRating = totalCount > 0 ? Number((sum / totalCount).toFixed(1)) : 5.0;
@@ -1088,6 +1096,7 @@ async function startServer() {
       averageRating,
       totalCount,
       fiveStarPercent: totalCount > 0 ? Math.round((fiveStarCount / totalCount) * 100) : 100,
+      onlyFiveStar,
     });
   });
 
@@ -2217,6 +2226,7 @@ async function startServer() {
         thankYouMessage: typeof sc.thankYouMessage === 'string' ? sc.thankYouMessage.trim() : '',
         reviewsEnabled: sc.reviewsEnabled !== false,
         reviewsAutoApprove: sc.reviewsAutoApprove !== false,
+        homeReviewsOnlyFiveStar: sc.homeReviewsOnlyFiveStar !== false,
         sizeGuideTitle: typeof sc.sizeGuideTitle === 'string' ? sc.sizeGuideTitle.trim() : 'Phone Model & Case Fit Guide',
         sizeGuideNotes: typeof sc.sizeGuideNotes === 'string' ? sc.sizeGuideNotes.trim() : '',
         offerPageTitle: typeof sc.offerPageTitle === 'string' ? sc.offerPageTitle.trim() : 'Flash Deals & Combo Offers',
@@ -2475,9 +2485,34 @@ async function startServer() {
       Math.max(3, Math.round(Number(rawConfig.autoAdvanceSeconds) || 9))
     );
 
+    const rawMobile = (
+      rawConfig.mobileLayout && typeof rawConfig.mobileLayout === 'object'
+        ? rawConfig.mobileLayout
+        : {}
+    ) as Record<string, unknown>;
+    const validPositions = ['bottom-left', 'center', 'top-left'] as const;
+    const validSizes = ['xs', 'sm', 'md'] as const;
+    const mobilePosition = validPositions.includes(rawMobile.position as typeof validPositions[number])
+      ? (rawMobile.position as HeroMobileLayoutConfig['position'])
+      : 'bottom-left';
+    const mobileTextSize = validSizes.includes(rawMobile.textSize as typeof validSizes[number])
+      ? (rawMobile.textSize as HeroMobileLayoutConfig['textSize'])
+      : 'xs';
+
+    const sanitizedMobileLayout: HeroMobileLayoutConfig = {
+      position: mobilePosition,
+      textSize: mobileTextSize,
+      showKicker: rawMobile.showKicker === true,
+      showDescription: rawMobile.showDescription === true,
+      showExploreButton: rawMobile.showExploreButton !== false,
+      showProductButton: rawMobile.showProductButton === true,
+      showArrows: rawMobile.showArrows === true,
+    };
+
     const sanitizedConfig: HeroPlaybackSettings = {
       activeSlideId,
       autoAdvanceSeconds,
+      mobileLayout: sanitizedMobileLayout,
     };
 
     db.settings.heroVideos = {

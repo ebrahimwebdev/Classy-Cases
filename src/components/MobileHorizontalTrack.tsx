@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 
-export const MOBILE_SLIDE_CARD_CLASS = 'w-[calc(47%-5px)] shrink-0 snap-start sm:w-auto';
+export const MOBILE_SLIDE_CARD_CLASS = 'w-[calc(50%-5px)] shrink-0 snap-start sm:w-auto';
 
 interface MobileHorizontalTrackProps {
   active?: boolean;
@@ -84,7 +84,7 @@ export function MobileHorizontalTrack({
           e.stopPropagation();
         }
       }}
-      className={`flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 no-scrollbar select-none sm:select-auto ${
+      className={`flex overflow-x-auto snap-x snap-mandatory gap-2.5 sm:gap-3 pb-1 no-scrollbar select-none sm:select-auto ${
         isDragging ? 'cursor-grabbing' : ''
       } ${className}`}
     >

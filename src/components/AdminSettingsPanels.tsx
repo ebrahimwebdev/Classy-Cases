@@ -67,6 +67,7 @@ const DEFAULT_STOREFRONT: StorefrontPageConfig = {
   thankYouMessage: 'We have received your order and will confirm dispatch shortly.',
   reviewsEnabled: true,
   reviewsAutoApprove: true,
+  homeReviewsOnlyFiveStar: true,
   sizeGuideTitle: 'Phone Model & Case Fit Guide',
   sizeGuideNotes: 'Verify your exact device model under Settings -> About Phone before selecting your case.',
   offerPageTitle: 'Flash Deals & Combo Offers',
@@ -299,6 +300,12 @@ export function AdminSettingsPanels({
           hint="Instantly display new customer reviews without manual moderation"
           checked={sf.reviewsAutoApprove}
           onChange={(v) => updateStorefront({ reviewsAutoApprove: v })}
+        />
+        <ToggleRow
+          label="Homepage: Show only 5-star reviews"
+          hint="Filter the homepage Customer Reviews section to display only 5-star rated reviews"
+          checked={sf.homeReviewsOnlyFiveStar !== false}
+          onChange={(v) => updateStorefront({ homeReviewsOnlyFiveStar: v })}
         />
       </div>
     );

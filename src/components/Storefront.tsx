@@ -59,6 +59,7 @@ export interface PublicStoreSettings {
   shippingOutsideDhaka: number;
   freeShippingThreshold: number;
   reviewsEnabled?: boolean;
+  homeReviewsOnlyFiveStar?: boolean;
   shopPageColumns?: 2 | 3 | 4 | 5;
   paymentGateways: {
     bkash: { enabled: boolean; mode: string };
@@ -651,7 +652,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             )}
 
             {/* Explore More Products / Full Filterable Catalog */}
-            <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-4 sm:px-8 pt-8 pb-16">
+            <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16">
               <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
                 <div>
                   <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
@@ -743,6 +744,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             {/* Customer Reviews Carousel */}
             {settings?.reviewsEnabled !== false && (
               <CustomerReviewsCarousel
+                homeReviewsOnlyFiveStar={settings?.homeReviewsOnlyFiveStar}
                 onSelectProduct={(productId) => {
                   const found = products.find((p) => p.id === productId);
                   if (found) {

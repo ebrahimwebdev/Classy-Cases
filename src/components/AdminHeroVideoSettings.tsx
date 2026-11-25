@@ -10,6 +10,7 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
+  Smartphone,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -17,6 +18,7 @@ import type { Category, Product } from '../types';
 import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import {
   DEFAULT_HERO_CONFIG,
+  DEFAULT_HERO_MOBILE_LAYOUT,
   DEFAULT_HERO_VIDEO_SLIDES,
   deleteHeroVideoSlideFromFirestore,
   fetchAdminHeroSlides,
@@ -26,6 +28,7 @@ import {
   saveHeroConfigToFirestore,
   saveHeroVideoSlideToFirestore,
   seedDefaultHeroSlidesToFirestore,
+  type HeroMobileLayoutConfig,
   type HeroPlaybackConfig,
   type HeroVideoSlide,
 } from '../services/heroVideoFirestore';
@@ -185,6 +188,11 @@ export function AdminHeroVideoSettings({
       const serverSlides = Array.isArray(serverRes?.slides) ? serverRes.slides : [];
       setHasServerDocs(serverSlides.length > 0);
 
+      const mergedMobileLayout: HeroMobileLayoutConfig = {
+        ...DEFAULT_HERO_MOBILE_LAYOUT,
+        ...(serverRes?.config?.mobileLayout || {}),
+      };
+
       if (remoteSlides.length > 0) {
         setSlides(remoteSlides);
         setHasFirestoreDocs(true);
@@ -193,7 +201,10 @@ export function AdminHeroVideoSettings({
             ? remoteConfig.activeSlideId
             : remoteSlides[0].id;
         setSelectedSlideId(preferred);
-        if (remoteConfig) setHeroConfig(remoteConfig);
+        setHeroConfig({
+          ...(remoteConfig || DEFAULT_HERO_CONFIG),
+          mobileLayout: mergedMobileLayout,
+        });
       } else if (serverSlides.length > 0) {
         setSlides(serverSlides);
         setHasFirestoreDocs(false);
@@ -203,12 +214,18 @@ export function AdminHeroVideoSettings({
             ? serverRes.config.activeSlideId
             : serverSlides[0].id;
         setSelectedSlideId(preferred);
-        if (serverRes?.config) setHeroConfig(serverRes.config);
+        setHeroConfig({
+          ...(serverRes?.config || DEFAULT_HERO_CONFIG),
+          mobileLayout: mergedMobileLayout,
+        });
       } else {
         setSlides(DEFAULT_HERO_VIDEO_SLIDES);
         setHasFirestoreDocs(false);
         setSelectedSlideId(DEFAULT_HERO_VIDEO_SLIDES[0].id);
-        setHeroConfig(DEFAULT_HERO_CONFIG);
+        setHeroConfig({
+          ...DEFAULT_HERO_CONFIG,
+          mobileLayout: mergedMobileLayout,
+        });
       }
     } catch (err) {
       setErrorMsg(formatFirestoreUiError(err));
@@ -241,6 +258,22 @@ export function AdminHeroVideoSettings({
       prev.map((slide) => (slide.id === selectedSlide.id ? { ...slide, ...patch } : slide))
     );
   }
+
+  function updateMobileLayout(patch: Partial<HeroMobileLayoutConfig>) {
+    setHeroConfig((prev) => ({
+      ...prev,
+      mobileLayout: {
+        ...DEFAULT_HERO_MOBILE_LAYOUT,
+        ...(prev.mobileLayout || {}),
+        ...patch,
+      },
+    }));
+  }
+
+  const mobileLayout: HeroMobileLayoutConfig = {
+    ...DEFAULT_HERO_MOBILE_LAYOUT,
+    ...(heroConfig.mobileLayout || {}),
+  };
 
   async function handleConnectGoogle() {
     setConnectingGoogle(true);
@@ -628,6 +661,102 @@ export function AdminHeroVideoSettings({
             }
             className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums focus:outline-none focus:border-indigo-500"
           />
+        </div>
+      </div>
+
+      {/* Phone View (Mobile Hero Layout) Controls */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                Phone View Hero Layout
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Control how the hero text, Explore button, and arrows appear on mobile screens (Desktop view stays unchanged).
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveSlideAndConfig}
+            disabled={savingFirestore}
+            className="px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 inline-flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {savingFirestore ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            )}
+            <span>Save Phone Layout</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Phone Heading Placement
+            </label>
+            <select
+              value={mobileLayout.position}
+              onChange={(e) =>
+                updateMobileLayout({
+                  position: e.target.value as HeroMobileLayoutConfig['position'],
+                })
+              }
+              className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="bottom-left">Bottom Left (Above Slide Dots)</option>
+              <option value="center">Vertical Center</option>
+              <option value="top-left">Top Left</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+              Phone Heading Size
+            </label>
+            <select
+              value={mobileLayout.textSize}
+              onChange={(e) =>
+                updateMobileLayout({
+                  textSize: e.target.value as HeroMobileLayoutConfig['textSize'],
+                })
+              }
+              className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            >
+              <option value="xs">Extra Small (Compact)</option>
+              <option value="sm">Small</option>
+              <option value="md">Medium</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-1">
+          {[
+            { key: 'showExploreButton' as const, label: 'Explore Button' },
+            { key: 'showArrows' as const, label: 'Side Arrows (< >)' },
+            { key: 'showKicker' as const, label: 'Eyebrow Kicker' },
+            { key: 'showDescription' as const, label: 'Description Text' },
+            { key: 'showProductButton' as const, label: 'Product Price Tag' },
+          ].map((item) => (
+            <label
+              key={item.key}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500/50 transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={mobileLayout[item.key]}
+                onChange={(e) => updateMobileLayout({ [item.key]: e.target.checked })}
+                className="rounded border-slate-300 dark:border-slate-700"
+              />
+              <span className="truncate">{item.label}</span>
+            </label>
+          ))}
         </div>
       </div>
 

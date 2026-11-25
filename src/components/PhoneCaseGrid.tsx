@@ -58,9 +58,9 @@ export function PhoneCaseCard({
               }}
               title={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
               aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
+              className="w-8 h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
             >
-              <Heart className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'}`} />
+              <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-[#650108] text-[#650108]' : 'text-[#650108]'}`} />
             </button>
 
             {onQuickView && (
@@ -72,9 +72,9 @@ export function PhoneCaseCard({
                 }}
                 title="Quick View"
                 aria-label={`Quick view ${product.title}`}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] text-[#650108] flex items-center justify-center shadow-xs hover:bg-white transition-colors"
+                className="hidden sm:flex w-8 h-8 rounded-lg bg-[#FFFDF8]/95 border border-[#DFCFB0] text-[#650108] items-center justify-center shadow-xs hover:bg-white transition-colors"
               >
-                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <Eye className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -82,23 +82,24 @@ export function PhoneCaseCard({
 
         <h3
           onClick={() => onSelectProduct(product)}
-          className="text-[13px] sm:text-sm font-medium text-[#2B1416] leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
+          className="text-[14px] sm:text-sm font-medium text-[#2B1416] leading-[1.32] line-clamp-2 min-h-[2.35rem] sm:min-h-[2.6rem] cursor-pointer hover:text-[#650108]"
         >
           {product.title}
         </h3>
 
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
-          <span className="text-sm sm:text-[15px] font-bold text-[#650108] tabular-nums">
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-nowrap sm:flex-wrap">
+          <span className="text-[15px] font-bold text-[#650108] tabular-nums shrink-0">
             {formatTaka(product.price)}
           </span>
           {product.originalPrice > product.price && (
-            <span className="text-xs sm:text-[13px] text-[#9B7E7F] line-through tabular-nums">
+            <span className="text-[12px] sm:text-[13px] text-[#9B7E7F] line-through tabular-nums shrink-0">
               {formatTaka(product.originalPrice)}
             </span>
           )}
           {product.discountPercent > 0 && (
-            <span className="bg-[#650108] text-[#F2E8D2] text-[10px] font-semibold uppercase tracking-[1.5px] px-1.5 py-0.5 rounded tabular-nums">
-              -{product.discountPercent}% OFF
+            <span className="bg-[#650108] text-[#F2E8D2] text-[11px] sm:text-[10px] font-semibold sm:uppercase sm:tracking-[1.5px] px-1.5 py-0.5 rounded tabular-nums whitespace-nowrap shrink-0">
+              <span className="sm:hidden">-{product.discountPercent}%</span>
+              <span className="hidden sm:inline">-{product.discountPercent}% OFF</span>
             </span>
           )}
         </div>
@@ -107,7 +108,7 @@ export function PhoneCaseCard({
       <button
         type="button"
         onClick={() => onAddToCart(product)}
-        className="mt-3 w-full py-2.5 px-3 rounded-lg border border-[#650108]/35 bg-[#FFFDF8] text-xs sm:text-[13px] font-semibold text-[#650108] flex items-center justify-center gap-1.5 hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap"
+        className="mt-2.5 sm:mt-3 w-full py-2 sm:py-2.5 px-3 rounded-lg border border-[#650108]/45 sm:border-[#650108]/35 bg-[#FFFDF8] text-[13px] font-semibold text-[#650108] flex items-center justify-center gap-1.5 hover:bg-[#650108] hover:text-[#F2E8D2] hover:border-[#650108] transition-colors whitespace-nowrap"
       >
         <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
         <span>Add to Cart</span>
@@ -175,15 +176,15 @@ export function PhoneCaseGrid({
       <div
         className={
           useMobileHorizontalSlider
-            ? `flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 no-scrollbar sm:grid ${sliderDesktopCols} sm:gap-4 sm:overflow-visible sm:pb-0`
-            : `grid ${fullGridCols} gap-3 sm:gap-4`
+            ? `flex overflow-x-auto snap-x snap-mandatory gap-2.5 pb-1 no-scrollbar sm:grid ${sliderDesktopCols} sm:gap-4 sm:overflow-visible sm:pb-0`
+            : `grid ${fullGridCols} gap-2.5 sm:gap-4`
         }
       >
         {Array.from({ length: desktopColumns }).map((_, i) => (
           <div
             key={i}
             className={`border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl p-2.5 sm:p-3 animate-pulse ${
-              useMobileHorizontalSlider ? 'w-[calc(50%-6px)] shrink-0 snap-start sm:w-auto' : ''
+              useMobileHorizontalSlider ? 'w-[calc(50%-5px)] shrink-0 snap-start sm:w-auto' : ''
             }`}
           >
             <div className="aspect-square rounded-lg bg-[#EADEC2]/70 mb-3" />
@@ -250,7 +251,7 @@ export function PhoneCaseGrid({
           </div>
         </>
       ) : (
-        <div className={`grid ${fullGridCols} gap-3 sm:gap-4`}>
+        <div className={`grid ${fullGridCols} gap-2.5 sm:gap-4`}>
           {products.map((product) => (
             <PhoneCaseCard
               key={product.id}

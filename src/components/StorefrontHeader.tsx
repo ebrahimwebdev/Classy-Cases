@@ -148,7 +148,9 @@ export function StorefrontHeader({
   const isOverlayActive =
     headerConfig.headerStyle === 'overlay' && isHomeBannerVisible && !scrolled;
 
+  const isOneRow = headerConfig.headerStyle === 'one-row';
   const isTwoRow = headerConfig.headerStyle === 'two-row';
+  const hasCenterSearchBar = isOneRow || isTwoRow;
   const showTopBar = headerConfig.topBarEnabled && validTopBarMessages.length > 0;
 
   const headerTextColor = isOverlayActive ? '#FFFFFF' : headerConfig.headerTextColor;
@@ -226,7 +228,7 @@ export function StorefrontHeader({
             </button>
 
             {/* Classic & Overlay inline category menu */}
-            {!isTwoRow && menuCategories.length > 0 && (
+            {!hasCenterSearchBar && menuCategories.length > 0 && (
               <nav
                 aria-label="Header categories"
                 className="hidden md:flex items-center gap-4 lg:gap-5 text-[13.5px] font-medium ml-2 overflow-x-auto no-scrollbar"
@@ -261,8 +263,8 @@ export function StorefrontHeader({
             )}
           </div>
 
-          {/* Center: Big Search Bar for Two-Row style */}
-          {isTwoRow && headerConfig.showSearchIcon && (
+          {/* Center: Big Search Bar for One-Row & Two-Row styles */}
+          {hasCenterSearchBar && headerConfig.showSearchIcon && (
             <div className="hidden md:block flex-1 max-w-xl">
               <StorefrontSearchBar
                 value={searchQuery}
@@ -278,7 +280,7 @@ export function StorefrontHeader({
 
           {/* Right: Utility Action Icons */}
           <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
-            {!isTwoRow && headerConfig.showSearchIcon && (
+            {!hasCenterSearchBar && headerConfig.showSearchIcon && (
               <button
                 type="button"
                 onClick={() => setClassicSearchOpen((v) => !v)}
@@ -371,7 +373,7 @@ export function StorefrontHeader({
         </div>
 
         {/* Classic / Overlay expandable desktop search */}
-        {!isTwoRow && classicSearchOpen && headerConfig.showSearchIcon && (
+        {!hasCenterSearchBar && classicSearchOpen && headerConfig.showSearchIcon && (
           <div
             className="hidden md:block border-t border-black/10 px-4 sm:px-8 py-2.5"
             style={{ backgroundColor: headerConfig.headerBgColor, color: headerConfig.headerTextColor }}

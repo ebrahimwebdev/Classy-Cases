@@ -210,7 +210,7 @@ export function sanitizeNavUrl(val: unknown): string {
   return `https://${trimmed}`.slice(0, 300);
 }
 
-const VALID_HEADER_STYLES: HeaderStyleType[] = ['classic', 'two-row', 'overlay'];
+const VALID_HEADER_STYLES: HeaderStyleType[] = ['classic', 'one-row', 'two-row', 'overlay'];
 const VALID_MOBILE_BAR_STYLES: MobileBottomBarStyleType[] = [
   'classic',
   'floating',

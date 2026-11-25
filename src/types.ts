@@ -239,7 +239,7 @@ export interface HeroPlaybackSettings {
   mobileLayout?: HeroMobileLayoutConfig;
 }
 
-export type HeaderStyleType = 'classic' | 'two-row' | 'overlay';
+export type HeaderStyleType = 'classic' | 'one-row' | 'two-row' | 'overlay';
 export type MobileBottomBarStyleType = 'classic' | 'floating' | 'center-button' | 'off';
 export type MobileBottomBarItemId =
   | 'home'

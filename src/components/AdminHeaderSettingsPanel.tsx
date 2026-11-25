@@ -93,6 +93,21 @@ function HeaderStyleThumb({ style }: { style: HeaderStyleType }) {
       </div>
     );
   }
+  if (style === 'one-row') {
+    return (
+      <div className="h-14 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 p-2 flex flex-col justify-center">
+        <div className="flex items-center justify-between gap-1.5 bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-slate-200/80 dark:border-slate-700">
+          <span className="w-4 h-1.5 rounded bg-indigo-400" />
+          <span className="flex-1 h-2.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+          <div className="flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (style === 'two-row') {
     return (
       <div className="h-14 rounded-lg bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 p-2 flex flex-col justify-between">
@@ -273,6 +288,11 @@ export function AdminHeaderSettingsPanel({
                   id: 'classic',
                   title: 'Classic',
                   desc: 'Logo, menu and icons on one row',
+                },
+                {
+                  id: 'one-row',
+                  title: '1-row',
+                  desc: 'Logo, big search bar and icons without category bar',
                 },
                 {
                   id: 'two-row',

@@ -177,7 +177,7 @@ export function AdminLivePreviewPane({
                     <span className="font-brand text-xs font-bold truncate">
                       {form.storeName || 'Classy Cases'}
                     </span>
-                    {hc.headerStyle !== 'two-row' && (
+                    {hc.headerStyle !== 'two-row' && hc.headerStyle !== 'one-row' && (
                       <div className="flex items-center gap-2 text-[8.5px] opacity-80 truncate">
                         <span>All</span>
                         {previewCategories.slice(0, 3).map((c) => (
@@ -187,7 +187,7 @@ export function AdminLivePreviewPane({
                     )}
                   </div>
 
-                  {hc.headerStyle === 'two-row' && hc.showSearchIcon && (
+                  {(hc.headerStyle === 'two-row' || hc.headerStyle === 'one-row') && hc.showSearchIcon && (
                     <div className="flex-1 max-w-[170px] bg-slate-100 border border-slate-200 rounded-md px-2 py-0.5 flex items-center gap-1 text-[8px] text-slate-400">
                       <Search className="w-2.5 h-2.5 shrink-0" />
                       <span className="truncate">Search products...</span>
@@ -195,7 +195,7 @@ export function AdminLivePreviewPane({
                   )}
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {hc.headerStyle !== 'two-row' && hc.showSearchIcon && (
+                    {hc.headerStyle !== 'two-row' && hc.headerStyle !== 'one-row' && hc.showSearchIcon && (
                       <Search className="w-3 h-3" />
                     )}
                     {hc.showOffersIcon && <Gift className="w-3 h-3" />}

@@ -3,12 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
-import { AdminDashboard } from './components/AdminDashboard';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Storefront } from './components/Storefront';
 import { CartProvider } from './context/CartContext';
 import { FirebaseAuthProvider } from './context/FirebaseAuthContext';
+
+const AdminDashboard = lazy(() =>
+  import('./components/AdminDashboard').then((mod) => ({ default: mod.AdminDashboard }))
+);
 
 const ADMIN_TOKEN_STORAGE_KEY = 'classycases_admin_token';
 
@@ -83,11 +86,19 @@ export default function App() {
       <FirebaseAuthProvider>
         <CartProvider>
           {view === 'admin' ? (
-            <AdminDashboard
-              adminToken={adminToken}
-              onAdminTokenChange={setAdminToken}
-              onBackToStore={openStorefront}
-            />
+            <Suspense
+              fallback={
+                <div className="min-h-screen bg-[#f8f9fb] flex items-center justify-center">
+                  <div className="w-7 h-7 rounded-full border-2 border-indigo-600/25 border-t-indigo-600 animate-spin" />
+                </div>
+              }
+            >
+              <AdminDashboard
+                adminToken={adminToken}
+                onAdminTokenChange={setAdminToken}
+                onBackToStore={openStorefront}
+              />
+            </Suspense>
           ) : (
             <Storefront onOpenAdmin={openAdmin} />
           )}

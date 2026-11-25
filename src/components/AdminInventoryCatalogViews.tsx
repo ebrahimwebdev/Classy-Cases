@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Cloud,
   CloudUpload,
   CornerDownRight,
   FolderPlus,
@@ -18,6 +19,7 @@ import {
   Package,
   Plus,
   Printer,
+  RefreshCw,
   ShieldCheck,
   SlidersHorizontal,
   SquarePen,
@@ -28,9 +30,14 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { formatTaka } from '../models/phoneCase';
 import type { Category, Product } from '../types';
-import { buildHierarchicalCategories, getCategoryAndDescendantNames } from '../utils/categoryTree';
+import {
+  buildHierarchicalCategories,
+  getCategoryAndDescendantNames,
+  getTopLevelCategories,
+} from '../utils/categoryTree';
 import type { ProductEditorPayload } from './AdminProductEditor';
 
 export type InventoryCatalogSection =
@@ -74,6 +81,7 @@ interface AdminInventoryCatalogViewsProps {
   onCreateCategory: (payload: CategoryFormPayload | string) => Promise<void>;
   onUpdateCategory?: (id: string, payload: Partial<CategoryFormPayload>) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
+  onSyncCategoriesToFirestore?: () => Promise<void>;
   onCreateProduct: (payload: ProductEditorPayload) => Promise<void>;
   onEditProduct: (product: Product) => void;
 }
@@ -170,11 +178,15 @@ export function AdminInventoryCatalogViews({
   onCreateCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onSyncCategoriesToFirestore,
   onCreateProduct,
   onEditProduct,
 }: AdminInventoryCatalogViewsProps) {
+  const { user: firebaseUser } = useFirebaseAuth();
   const [allCategoriesEnabled, setAllCategoriesEnabled] = useState(true);
   const [catActionError, setCatActionError] = useState('');
+  const [catSyncMsg, setCatSyncMsg] = useState('');
+  const [syncingFirestoreCats, setSyncingFirestoreCats] = useState(false);
   const [togglingCatId, setTogglingCatId] = useState<string | null>(null);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
 
@@ -375,6 +387,17 @@ export function AdminInventoryCatalogViews({
     }
   }
 
+  function formatCategoryActionError(err: unknown, fallback: string): string {
+    let msg = err instanceof Error ? err.message : fallback;
+    try {
+      const parsed = JSON.parse(msg) as { error?: string };
+      if (parsed?.error) msg = parsed.error;
+    } catch {
+      // plain error message
+    }
+    return msg;
+  }
+
   async function handleSaveCategoryModal(e: React.FormEvent) {
     e.preventDefault();
     if (catImageProcessing) {
@@ -415,7 +438,9 @@ export function AdminInventoryCatalogViews({
       }
       setCategoryModalOpen(false);
     } catch (err) {
-      setCatModalError(err instanceof Error ? err.message : 'Failed to save category. Please try again.');
+      setCatModalError(
+        formatCategoryActionError(err, 'Failed to save category. Please try again.')
+      );
     } finally {
       setCatSaving(false);
     }
@@ -428,7 +453,7 @@ export function AdminInventoryCatalogViews({
     try {
       await onUpdateCategory(cat.id, patch);
     } catch (err) {
-      setCatActionError(err instanceof Error ? err.message : 'Failed to update category.');
+      setCatActionError(formatCategoryActionError(err, 'Failed to update category.'));
     } finally {
       setTogglingCatId(null);
     }
@@ -440,9 +465,28 @@ export function AdminInventoryCatalogViews({
     try {
       await onDeleteCategory(cat.id);
     } catch (err) {
-      setCatActionError(err instanceof Error ? err.message : 'Failed to delete category.');
+      setCatActionError(formatCategoryActionError(err, 'Failed to delete category.'));
     } finally {
       setDeletingCatId(null);
+    }
+  }
+
+  async function handleSyncCategoriesClick() {
+    if (!onSyncCategoriesToFirestore) return;
+    setCatActionError('');
+    setCatSyncMsg('');
+    setSyncingFirestoreCats(true);
+    try {
+      await onSyncCategoriesToFirestore();
+      setCatSyncMsg(
+        `Synced ${categories.length} ${categories.length === 1 ? 'category' : 'categories'} & sub-categories to Firestore.`
+      );
+    } catch (err) {
+      setCatActionError(
+        formatCategoryActionError(err, 'Failed to sync categories to Firestore.')
+      );
+    } finally {
+      setSyncingFirestoreCats(false);
     }
   }
 
@@ -555,13 +599,23 @@ export function AdminInventoryCatalogViews({
 
   if (section === 'Categories') {
     const autoSlugPreview = slugifyCategory(catName);
-    const parentNameMap = new Map(categories.map((c) => [c.id, c.name]));
+    const topLevelBrands = getTopLevelCategories(categories);
+    const defaultBrandParentId = topLevelBrands[0]?.id || '';
+    const subCategoryCount = categories.filter((c) => Boolean(c.parentId)).length;
 
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Categories</h1>
-          <div className="flex items-center gap-2.5">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+              Categories &amp; Sub-categories
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {topLevelBrands.length} phone {topLevelBrands.length === 1 ? 'brand' : 'brands'} ·{' '}
+              {subCategoryCount} sub-{subCategoryCount === 1 ? 'category' : 'categories'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => setAllCategoriesEnabled((prev) => !prev)}
@@ -576,6 +630,16 @@ export function AdminInventoryCatalogViews({
                 }`}
               />
             </button>
+            {defaultBrandParentId && (
+              <button
+                type="button"
+                onClick={() => openNewCategoryModal(defaultBrandParentId)}
+                className="px-3.5 py-2 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/15 hover:bg-emerald-100 dark:hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
+                <span>Add Sub-category</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => openNewCategoryModal()}
@@ -586,6 +650,67 @@ export function AdminInventoryCatalogViews({
             </button>
           </div>
         </div>
+
+        {/* Firestore Storage Status & Sync Bar */}
+        {onSyncCategoriesToFirestore && (
+          <div className="px-4 py-3 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 text-xs">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  firebaseUser
+                    ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                <Cloud className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-slate-100">
+                  {firebaseUser
+                    ? `Firestore Connected (${firebaseUser.email || 'Google Admin'})`
+                    : 'Firestore Sync Ready'}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {firebaseUser
+                    ? 'New brands and sub-categories are automatically saved to Firestore.'
+                    : 'Connect your Google account to sync all brands and sub-categories directly to Firestore.'}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={syncingFirestoreCats}
+              onClick={handleSyncCategoriesClick}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+            >
+              {syncingFirestoreCats ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              <span>
+                {firebaseUser ? 'Sync All to Firestore' : 'Connect Google & Sync to Firestore'}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {catSyncMsg && (
+          <div className="px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{catSyncMsg}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCatSyncMsg('')}
+              className="text-emerald-600 hover:text-emerald-800 cursor-pointer"
+              aria-label="Dismiss status"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {catActionError && (
           <div className="px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
@@ -788,7 +913,13 @@ export function AdminInventoryCatalogViews({
             >
               <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
                 <h2 id="category-modal-title" className="text-base font-bold text-slate-900 dark:text-slate-100">
-                  {editingCategory ? 'Edit category' : 'New category'}
+                  {editingCategory
+                    ? catParentId
+                      ? 'Edit sub-category'
+                      : 'Edit category'
+                    : catParentId
+                      ? 'New sub-category'
+                      : 'New category'}
                 </h2>
                 <button
                   type="button"
@@ -859,7 +990,7 @@ export function AdminInventoryCatalogViews({
                           htmlFor="cat-parent-select"
                           className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
                         >
-                          Parent category
+                          Parent brand / category
                         </label>
                         <select
                           id="cat-parent-select"
@@ -867,7 +998,7 @@ export function AdminInventoryCatalogViews({
                           onChange={(e) => setCatParentId(e.target.value)}
                           className="w-full px-3.5 py-2.5 text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                         >
-                          <option value="">None — a top-level category</option>
+                          <option value="">None — top-level phone brand</option>
                           {buildHierarchicalCategories(categories)
                             .filter(({ category: c }) => {
                               if (!editingCategory) return true;
@@ -881,6 +1012,9 @@ export function AdminInventoryCatalogViews({
                               </option>
                             ))}
                         </select>
+                        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                          Choose an existing phone brand (e.g. Motorola, VIVO, Xiaomi) to nest this as a sub-category.
+                        </p>
                       </div>
 
                       <div>

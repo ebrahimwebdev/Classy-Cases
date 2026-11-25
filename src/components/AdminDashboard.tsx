@@ -80,6 +80,13 @@ import { AdminProductsView } from './AdminProductsView';
 import { AdminSettings, type SettingsTab } from './AdminSettings';
 import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
+import { auth } from '../lib/firebase';
+import {
+  deleteCategoryFromFirestore,
+  fetchAdminCategoriesFromFirestore,
+  saveCategoryToFirestore,
+  syncCategoriesToFirestore,
+} from '../services/categoryFirestore';
 import { hasLocalCatalogChanges, loadStoredProducts } from '../services/productStorage';
 
 type AdminSection =
@@ -134,7 +141,7 @@ export function AdminDashboard({
   onBackToStore,
 }: AdminDashboardProps) {
   const setAdminToken = onAdminTokenChange;
-  const { signInWithGoogle, signOutUser } = useFirebaseAuth();
+  const { user: firebaseUser, signInWithGoogle, signOutUser } = useFirebaseAuth();
   const [needsSetup, setNeedsSetup] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(() => !adminToken);
   const [passwordInput, setPasswordInput] = useState('');
@@ -302,7 +309,42 @@ export function AdminDashboard({
       } else {
         syncWithServerCatalog(serverProducts, Boolean(data.catalogModified));
       }
-      setCategories(data.categories || []);
+      const serverCategories: Category[] = Array.isArray(data.categories) ? data.categories : [];
+      let mergedCategories = serverCategories;
+
+      if (auth.currentUser) {
+        try {
+          const firestoreCategories = await fetchAdminCategoriesFromFirestore();
+          if (firestoreCategories.length > 0) {
+            const serverIds = new Set(serverCategories.map((c) => c.id));
+            const missingOnServer = firestoreCategories.filter((c) => !serverIds.has(c.id));
+            if (missingOnServer.length > 0) {
+              const syncRes = await fetch('/api/admin/categories/sync', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Requested-With': 'XMLHttpRequest',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ categories: firestoreCategories }),
+              });
+              if (syncRes.ok) {
+                const syncData = await syncRes.json().catch(() => ({}));
+                if (Array.isArray(syncData.categories)) {
+                  mergedCategories = syncData.categories;
+                }
+              }
+            }
+          } else if (serverCategories.length > 0) {
+            await syncCategoriesToFirestore(serverCategories).catch(() => {});
+          }
+        } catch {
+          // Keep server categories available if Firestore read is unavailable
+        }
+      }
+
+      setCategories(mergedCategories);
       setSettings(data.settings || null);
       setSubscribers(data.subscribers || []);
       setCoupons(data.coupons || []);
@@ -317,7 +359,7 @@ export function AdminDashboard({
     if (adminToken) {
       fetchOverview(adminToken);
     }
-  }, [adminToken]);
+  }, [adminToken, firebaseUser?.uid]);
 
   async function handleSetupSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -588,6 +630,11 @@ export function AdminDashboard({
     if (!res.ok) {
       throw new Error(data.error || 'Failed to create category.');
     }
+    const createdCategory: Category | undefined = data.category;
+    if (createdCategory && auth.currentUser) {
+      const nextList = [...categories, createdCategory];
+      await saveCategoryToFirestore(createdCategory, categories.length, nextList);
+    }
     await fetchOverview(adminToken);
   }
 
@@ -606,6 +653,12 @@ export function AdminDashboard({
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(data.error || 'Failed to update category.');
+    }
+    const updatedCategory: Category | undefined = data.category;
+    if (updatedCategory && auth.currentUser) {
+      const idx = Math.max(0, categories.findIndex((c) => c.id === id));
+      const nextList = categories.map((c) => (c.id === id ? updatedCategory : c));
+      await saveCategoryToFirestore(updatedCategory, idx, nextList);
     }
     await fetchOverview(adminToken);
   }
@@ -670,6 +723,9 @@ export function AdminDashboard({
     if (!adminToken) {
       throw new Error('Admin session expired. Please sign in again.');
     }
+    const reparentedChildren = categories
+      .filter((c) => c.parentId === id)
+      .map((c) => ({ ...c, parentId: '' }));
     const res = await fetch(`/api/admin/categories/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -678,7 +734,20 @@ export function AdminDashboard({
     if (!res.ok) {
       throw new Error(data.error || 'Failed to delete category.');
     }
+    if (auth.currentUser) {
+      await deleteCategoryFromFirestore(id, reparentedChildren);
+    }
     await fetchOverview(adminToken);
+  }
+
+  async function handleSyncCategoriesToFirestore() {
+    if (!auth.currentUser) {
+      await signInWithGoogle();
+    }
+    await syncCategoriesToFirestore(categories);
+    if (adminToken) {
+      await fetchOverview(adminToken);
+    }
   }
 
   async function handlePosSubmit(e: React.FormEvent) {
@@ -2410,6 +2479,7 @@ export function AdminDashboard({
                 onCreateCategory={handleCreateCategoryByName}
                 onUpdateCategory={handleUpdateCategory}
                 onDeleteCategory={handleDeleteCategory}
+                onSyncCategoriesToFirestore={handleSyncCategoriesToFirestore}
                 onCreateProduct={handleCreateImportedProduct}
                 onEditProduct={openEditProduct}
               />

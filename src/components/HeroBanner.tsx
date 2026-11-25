@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -25,12 +25,30 @@ interface HeroBannerProps {
   onInspectProduct: (product: PhoneCaseProduct) => void;
 }
 
+function forcePlayVideo(videoEl: HTMLVideoElement | null) {
+  if (!videoEl) return;
+  videoEl.defaultMuted = true;
+  videoEl.muted = true;
+  videoEl.playsInline = true;
+  videoEl.setAttribute('muted', '');
+  videoEl.setAttribute('playsinline', '');
+  if (videoEl.paused) {
+    const playPromise = videoEl.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Browser autoplay policy fallback: keep poster visible cleanly
+      });
+    }
+  }
+}
+
 export function HeroBanner({
   products,
   onShopNow,
   onInspectProduct,
 }: HeroBannerProps) {
   const initialCacheRef = useRef(loadCachedHeroState());
+  const hasCachedHeroRef = useRef(Boolean(initialCacheRef.current?.slides?.length));
   const [slides, setSlides] = useState<HeroVideoSlide[]>(
     () => initialCacheRef.current?.slides || []
   );
@@ -56,9 +74,13 @@ export function HeroBanner({
     return 0;
   });
   const [videoFailed, setVideoFailed] = useState<Record<string, boolean>>({});
+  const [activeVideoCanPlay, setActiveVideoCanPlay] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hasAppliedInitialSelectionRef = useRef<boolean>(
     Boolean(initialCacheRef.current?.slides?.length)
+  );
+  const lastSlidesJsonRef = useRef<string>(
+    initialCacheRef.current?.slides ? JSON.stringify(initialCacheRef.current.slides) : ''
   );
 
   const applyResolvedHero = useCallback(
@@ -67,21 +89,27 @@ export function HeroBanner({
       activeConfig: HeroPlaybackConfig | null,
       forceSelectActiveId = false
     ) => {
-      setSlides(nextSlides);
-      setVideoFailed({});
+      const nextJson = JSON.stringify(nextSlides);
+      if (nextJson !== lastSlidesJsonRef.current) {
+        lastSlidesJsonRef.current = nextJson;
+        setSlides(nextSlides);
+        setVideoFailed((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+      }
       setHeroReady(true);
 
       const nextMobileLayout: HeroMobileLayoutConfig = activeConfig?.mobileLayout
         ? { ...DEFAULT_HERO_MOBILE_LAYOUT, ...activeConfig.mobileLayout }
         : DEFAULT_HERO_MOBILE_LAYOUT;
-      setMobileLayout(nextMobileLayout);
+      setMobileLayout((prev) =>
+        JSON.stringify(prev) === JSON.stringify(nextMobileLayout) ? prev : nextMobileLayout
+      );
 
       const nextAutoAdvance =
         typeof activeConfig?.autoAdvanceSeconds === 'number' &&
         Number.isFinite(activeConfig.autoAdvanceSeconds)
           ? activeConfig.autoAdvanceSeconds
           : DEFAULT_HERO_CONFIG.autoAdvanceSeconds;
-      setAutoAdvanceSeconds(nextAutoAdvance);
+      setAutoAdvanceSeconds((prev) => (prev === nextAutoAdvance ? prev : nextAutoAdvance));
 
       if (activeConfig?.activeSlideId && (!hasAppliedInitialSelectionRef.current || forceSelectActiveId)) {
         const matchIdx = nextSlides.findIndex(
@@ -105,12 +133,20 @@ export function HeroBanner({
   const loadPersistedHeroSlides = useCallback(
     async (forceSelectActiveId = false) => {
       try {
+        const parallelFirestore = !hasCachedHeroRef.current;
         const serverPromise = fetch('/api/hero-videos')
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null) as Promise<{
           slides?: HeroVideoSlide[];
           config?: HeroPlaybackConfig | null;
         } | null>;
+
+        const remoteSlidesPromise = parallelFirestore
+          ? fetchPublicHeroSlides().catch(() => [])
+          : null;
+        const remoteConfigPromise = parallelFirestore
+          ? fetchPublicHeroConfig().catch(() => null)
+          : null;
 
         const serverRes = await serverPromise;
         const serverSlides = Array.isArray(serverRes?.slides)
@@ -127,8 +163,8 @@ export function HeroBanner({
         }
 
         const [remoteSlides, remoteConfig] = await Promise.all([
-          fetchPublicHeroSlides().catch(() => []),
-          fetchPublicHeroConfig().catch(() => null),
+          remoteSlidesPromise || fetchPublicHeroSlides().catch(() => []),
+          remoteConfigPromise || fetchPublicHeroConfig().catch(() => null),
         ]);
 
         const nextSlides =
@@ -160,6 +196,8 @@ export function HeroBanner({
 
   const safeIndex = activeIndex < slides.length ? activeIndex : 0;
   const currentSlide = slides[safeIndex] || DEFAULT_HERO_VIDEO_SLIDES[0];
+  const nextSlide =
+    slides.length > 1 ? slides[(safeIndex + 1) % slides.length] : null;
 
   const matchedProduct = useMemo(() => {
     return (
@@ -176,18 +214,22 @@ export function HeroBanner({
 
   const displayPrice = matchedProduct?.price ?? currentSlide.startingPrice;
 
-  // Ensure HTML5 video plays continuously when slide changes
-  useEffect(() => {
-    const videoEl = videoRef.current;
-    if (!videoEl || videoFailed[currentSlide.id]) return;
+  // Enforce DOM muted/playsInline attributes synchronously and trigger playback immediately
+  useLayoutEffect(() => {
+    setActiveVideoCanPlay(false);
+    if (!heroReady || videoFailed[currentSlide.id]) return;
+    forcePlayVideo(videoRef.current);
+  }, [heroReady, safeIndex, currentSlide.id, currentSlide.videoSrc, videoFailed]);
 
-    const playPromise = videoEl.play();
-    if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // Browser autoplay policy fallback: keep poster visible cleanly
-      });
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        forcePlayVideo(videoRef.current);
+      }
     }
-  }, [safeIndex, currentSlide.id, currentSlide.videoSrc, videoFailed]);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   // Auto-advance slides continuously
   useEffect(() => {
@@ -260,21 +302,44 @@ export function HeroBanner({
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
         ) : (
-          <video
-            key={currentSlide.videoSrc}
-            ref={videoRef}
-            src={currentSlide.videoSrc}
-            poster={currentSlide.posterSrc || undefined}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
-            onError={() =>
-              setVideoFailed((prev) => ({ ...prev, [currentSlide.id]: true }))
-            }
-            className="absolute inset-0 w-full h-full object-cover object-center"
-          />
+          <>
+            <video
+              key={currentSlide.videoSrc}
+              ref={videoRef}
+              src={currentSlide.videoSrc}
+              poster={currentSlide.posterSrc || undefined}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              onLoadedMetadata={(e) => forcePlayVideo(e.currentTarget)}
+              onLoadedData={(e) => forcePlayVideo(e.currentTarget)}
+              onCanPlay={(e) => {
+                setActiveVideoCanPlay(true);
+                forcePlayVideo(e.currentTarget);
+              }}
+              onPlaying={() => setActiveVideoCanPlay(true)}
+              onError={() =>
+                setVideoFailed((prev) => ({ ...prev, [currentSlide.id]: true }))
+              }
+              className="absolute inset-0 w-full h-full object-cover object-center"
+            />
+            {activeVideoCanPlay &&
+              nextSlide &&
+              nextSlide.videoSrc &&
+              nextSlide.videoSrc !== currentSlide.videoSrc && (
+                <video
+                  key={`preload-${nextSlide.videoSrc}`}
+                  src={nextSlide.videoSrc}
+                  preload="auto"
+                  muted
+                  playsInline
+                  aria-hidden="true"
+                  className="hidden"
+                />
+              )}
+          </>
         )}
 
         {/* Editorial Contrast Scrims (hidden on mobile phones per user request) */}

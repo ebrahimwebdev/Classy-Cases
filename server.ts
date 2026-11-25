@@ -929,6 +929,14 @@ async function startServer() {
     })(req, res, next);
   });
 
+  app.use(
+    '/assets/videos',
+    express.static(path.resolve(process.cwd(), 'public/assets/videos'), {
+      maxAge: '1d',
+      fallthrough: true,
+    })
+  );
+
   app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_req, res) => {
@@ -2105,6 +2113,70 @@ async function startServer() {
     }
   });
 
+  app.post('/api/admin/categories/sync', requireAdmin, async (req, res) => {
+    const incoming = req.body?.categories;
+    if (!Array.isArray(incoming)) {
+      res.status(400).json({ error: 'Invalid categories payload' });
+      return;
+    }
+
+    const existingById = new Map(db.categories.map((c) => [c.id, c]));
+    let changed = false;
+
+    for (let i = 0; i < incoming.length; i += 1) {
+      const raw = incoming[i];
+      if (!raw || typeof raw !== 'object' || typeof raw.id !== 'string' || typeof raw.name !== 'string') {
+        continue;
+      }
+      const id = raw.id.trim();
+      const name = raw.name.trim();
+      if (!id || !name) continue;
+      const rawImage = typeof raw.image === 'string' ? raw.image.trim() : '';
+      const safeImg = rawImage && isSafeImageSource(rawImage) ? rawImage : '';
+      const slugSource = typeof raw.slug === 'string' && raw.slug.trim() ? raw.slug.trim() : name;
+      const slug =
+        slugSource
+          .toLowerCase()
+          .replace(/[^a-z0-9-]+/g, '-')
+          .replace(/^-+|-+$/g, '') || id.toLowerCase();
+      const brandKey =
+        raw.brandKey === 'motorola' || raw.brandKey === 'vivo' || raw.brandKey === 'xiaomi'
+          ? raw.brandKey
+          : 'custom';
+      const normalized: Category = {
+        id,
+        name,
+        slug,
+        brandKey,
+        featured: raw.featured !== false,
+        active: raw.active !== false,
+        parentId: typeof raw.parentId === 'string' && raw.parentId.trim() !== id ? raw.parentId.trim() : '',
+        description: typeof raw.description === 'string' ? raw.description.trim() : '',
+        googleCategory: typeof raw.googleCategory === 'string' ? raw.googleCategory.trim() : '',
+        seoTitle: typeof raw.seoTitle === 'string' ? raw.seoTitle.trim() : '',
+        seoDescription: typeof raw.seoDescription === 'string' ? raw.seoDescription.trim() : '',
+        image: safeImg,
+        shippingClass: typeof raw.shippingClass === 'string' ? raw.shippingClass.trim() : 'No class',
+        isDefault: Boolean(raw.isDefault),
+      };
+
+      const prev = existingById.get(id);
+      if (!prev) {
+        db.categories.push(normalized);
+        existingById.set(id, normalized);
+        if (isSqlConfigured()) {
+          await upsertCategoryToSql(normalized, db.categories.length);
+        }
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      saveDatabase();
+    }
+    res.json({ categories: db.categories });
+  });
+
   app.patch('/api/admin/orders/:id', requireAdmin, async (req, res) => {
     const order = db.orders.find((o) => o.id === req.params.id);
     if (!order) {
@@ -2761,6 +2833,7 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Classy Cases server listening on http://localhost:${PORT}`);
+    void ensureStoreLoaded().catch(() => {});
   });
 }
 

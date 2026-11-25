@@ -50,6 +50,7 @@ import {
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
+import { fetchPublicCategoriesFromFirestore } from '../services/categoryFirestore';
 
 export interface PublicStoreSettings {
   storeName: string;
@@ -271,19 +272,39 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       const res = await fetch('/api/storefront');
       const data = await res.json();
       const nextSettings = data.settings || null;
-      const nextCategories = Array.isArray(data.categories) ? data.categories : [];
+      const serverCategories: Category[] = Array.isArray(data.categories) ? data.categories : [];
       setSettings(nextSettings);
       setLogoImgFailed(false);
       setFailedCatImages({});
-      setCategories(nextCategories);
-      saveCachedStorefrontMeta(nextSettings, nextCategories);
+      setCategories(serverCategories);
+      saveCachedStorefrontMeta(nextSettings, serverCategories);
       syncWithServerCatalog(
         (data.products || []) as Product[],
         Boolean(data.catalogModified)
       );
+      setLoading(false);
+
+      // Merge any additional active sub-categories stored in Firestore without blocking initial reload
+      void fetchPublicCategoriesFromFirestore()
+        .then((firestoreCategories) => {
+          if (!Array.isArray(firestoreCategories) || firestoreCategories.length === 0) {
+            return;
+          }
+          const mergedMap = new Map<string, Category>();
+          for (const cat of serverCategories) {
+            mergedMap.set(cat.id, cat);
+          }
+          for (const fsCat of firestoreCategories) {
+            mergedMap.set(fsCat.id, fsCat);
+          }
+          const merged = Array.from(mergedMap.values());
+          setCategories(merged);
+          saveCachedStorefrontMeta(nextSettings, merged);
+        })
+        .catch(() => {
+          // ignore transient Firestore read errors on storefront
+        });
     } catch {
-      // ignore transient error; localStorage products remain available
-    } finally {
       setLoading(false);
     }
   }

@@ -78,5 +78,7 @@ export async function testConnection(): Promise<void> {
 }
 
 if (typeof window !== 'undefined') {
-  void testConnection();
+  window.setTimeout(() => {
+    void testConnection();
+  }, 2500);
 }

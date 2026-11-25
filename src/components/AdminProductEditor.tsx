@@ -36,7 +36,11 @@ import type {
   ProductVariant,
   ProductVariantOption,
 } from '../types';
-import { buildHierarchicalCategories } from '../utils/categoryTree';
+import {
+  buildHierarchicalCategories,
+  getTopLevelCategories,
+} from '../utils/categoryTree';
+import type { CategoryFormPayload } from './AdminInventoryCatalogViews';
 
 export interface PresetImageOption {
   label: string;
@@ -82,7 +86,7 @@ interface AdminProductEditorProps {
   saving?: boolean;
   onCancel: () => void;
   onSave: (payload: ProductEditorPayload) => Promise<void>;
-  onCreateCategory?: (name: string) => Promise<void>;
+  onCreateCategory?: (payload: CategoryFormPayload | string) => Promise<void>;
   onViewStorefront?: () => void;
 }
 
@@ -260,6 +264,7 @@ export function AdminProductEditor({
   );
   const [addingCategory, setAddingCategory] = useState(false);
   const [quickCategoryName, setQuickCategoryName] = useState('');
+  const [quickCategoryParentId, setQuickCategoryParentId] = useState('');
   const [formError, setFormError] = useState('');
   const [processingImages, setProcessingImages] = useState(0);
 
@@ -435,12 +440,24 @@ export function AdminProductEditor({
     if (!trimmed || !onCreateCategory) return;
     try {
       setFormError('');
-      await onCreateCategory(trimmed);
+      await onCreateCategory(
+        quickCategoryParentId
+          ? { name: trimmed, parentId: quickCategoryParentId }
+          : trimmed
+      );
       setMainCategory(trimmed);
       setQuickCategoryName('');
+      setQuickCategoryParentId('');
       setAddingCategory(false);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to create category');
+      let msg = err instanceof Error ? err.message : 'Failed to create category';
+      try {
+        const parsed = JSON.parse(msg) as { error?: string };
+        if (parsed?.error) msg = parsed.error;
+      } catch {
+        // plain error message
+      }
+      setFormError(msg);
     }
   }
 
@@ -1631,21 +1648,39 @@ export function AdminProductEditor({
                 </div>
 
                 {addingCategory && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <input
-                      type="text"
-                      value={quickCategoryName}
-                      onChange={(e) => setQuickCategoryName(e.target.value)}
-                      placeholder="New category name..."
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleQuickAddCategory}
-                      className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold"
+                  <div className="mt-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
+                    <select
+                      value={quickCategoryParentId}
+                      onChange={(e) => setQuickCategoryParentId(e.target.value)}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-[11px]"
                     >
-                      Save
-                    </button>
+                      <option value="">Top-level phone brand</option>
+                      {getTopLevelCategories(categories).map((parentCat) => (
+                        <option key={parentCat.id} value={parentCat.id}>
+                          Sub-category under {parentCat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={quickCategoryName}
+                        onChange={(e) => setQuickCategoryName(e.target.value)}
+                        placeholder={
+                          quickCategoryParentId
+                            ? 'Sub-category name (e.g. Edge 50 Series)...'
+                            : 'New category name...'
+                        }
+                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickAddCategory}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

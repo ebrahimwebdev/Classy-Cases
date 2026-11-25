@@ -82,7 +82,7 @@ export function FeaturedCategoriesSlider({
 
     rafId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(rafId);
-  }, [shouldSlide, repeatedCategories.length]);
+  }, [shouldSlide]);
 
   if (featuredCategories.length === 0) {
     return null;

@@ -65,12 +65,52 @@ function formatShortDate(iso: string): string {
   });
 }
 
+const REVIEWS_CACHE_KEY = 'classy_cases_reviews_cache_v1';
+
+function readCachedReviews(onlyFiveStar?: boolean): StorefrontReviewsPayload | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(REVIEWS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      onlyFiveStar?: boolean;
+      payload?: StorefrontReviewsPayload;
+    };
+    if (
+      parsed?.onlyFiveStar === Boolean(onlyFiveStar) &&
+      parsed?.payload &&
+      Array.isArray(parsed.payload.reviews)
+    ) {
+      return parsed.payload;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCachedReviews(onlyFiveStar: boolean | undefined, payload: StorefrontReviewsPayload) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      REVIEWS_CACHE_KEY,
+      JSON.stringify({ onlyFiveStar: Boolean(onlyFiveStar), payload })
+    );
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
 export function CustomerReviewsCarousel({
   homeReviewsOnlyFiveStar,
   onSelectProduct,
 }: CustomerReviewsCarouselProps) {
-  const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialCached = useMemo(
+    () => readCachedReviews(homeReviewsOnlyFiveStar),
+    [homeReviewsOnlyFiveStar]
+  );
+  const [payload, setPayload] = useState<StorefrontReviewsPayload | null>(initialCached);
+  const [loading, setLoading] = useState(() => !initialCached);
   const [isDragging, setIsDragging] = useState(false);
 
   const trackRef = useRef<HTMLDivElement>(null);
@@ -89,6 +129,7 @@ export function CustomerReviewsCarousel({
       })
       .then((data) => {
         setPayload(data);
+        saveCachedReviews(homeReviewsOnlyFiveStar, data);
       })
       .catch((err) => {
         if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -119,13 +160,6 @@ export function CustomerReviewsCarousel({
   const shouldSlide = filteredReviews.length > 1;
 
   useEffect(() => {
-    offsetRef.current = 0;
-    if (trackRef.current) {
-      trackRef.current.style.transform = 'translate3d(0px, 0, 0)';
-    }
-  }, [filteredReviews.length]);
-
-  useEffect(() => {
     if (!shouldSlide) return;
 
     let rafId = 0;
@@ -154,7 +188,7 @@ export function CustomerReviewsCarousel({
 
     rafId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(rafId);
-  }, [shouldSlide, repeatedReviews.length]);
+  }, [shouldSlide]);
 
   if (loading) {
     return (

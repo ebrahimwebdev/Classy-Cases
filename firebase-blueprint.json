@@ -167,6 +167,125 @@
         }
       },
       "required": ["uid", "email", "role", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Storefront phone brand category or nested sub-category managed in the Admin Dashboard.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique category identifier matching document ID.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the phone brand or sub-category.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-safe lowercase slug for category filtering and routing.",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^[a-z0-9\\-]+$"
+        },
+        "brandKey": {
+          "type": "string",
+          "description": "Built-in phone brand icon key or custom.",
+          "enum": ["motorola", "vivo", "xiaomi", "custom"]
+        },
+        "featured": {
+          "type": "boolean",
+          "description": "Whether this category is featured on the storefront slider."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this category is active and visible on the public storefront."
+        },
+        "parentId": {
+          "type": "string",
+          "description": "Parent category ID for sub-categories, or empty string for top-level phone brands.",
+          "maxLength": 64
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional category description.",
+          "maxLength": 1000
+        },
+        "googleCategory": {
+          "type": "string",
+          "description": "Optional Google product taxonomy category label.",
+          "maxLength": 200
+        },
+        "seoTitle": {
+          "type": "string",
+          "description": "Optional SEO meta title.",
+          "maxLength": 160
+        },
+        "seoDescription": {
+          "type": "string",
+          "description": "Optional SEO meta description.",
+          "maxLength": 320
+        },
+        "image": {
+          "type": "string",
+          "description": "Optional HTTPS URL, local asset path, or compressed image data URI.",
+          "maxLength": 300000
+        },
+        "shippingClass": {
+          "type": "string",
+          "description": "Optional shipping class label.",
+          "maxLength": 80
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Display order index among sibling categories."
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether this category is one of the default store brands."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the category was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the category was last updated."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the authenticated admin who saved the category.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "slug",
+        "brandKey",
+        "featured",
+        "active",
+        "parentId",
+        "description",
+        "googleCategory",
+        "seoTitle",
+        "seoDescription",
+        "image",
+        "shippingClass",
+        "sortOrder",
+        "isDefault",
+        "createdAt",
+        "updatedAt",
+        "updatedByUid"
+      ]
     }
   },
   "firestore": {
@@ -181,6 +300,10 @@
     "/admins/{userId}": {
       "schema": { "$ref": "#/entities/AdminUser" },
       "description": "Verified store administrator records."
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Hierarchical store categories and brand sub-categories managed by admins and read by the public storefront."
     }
   }
 }

@@ -69,7 +69,7 @@ export const DEFAULT_HERO_VIDEO_SLIDES: HeroVideoSlide[] = [
     description:
       'Frosted anti-fingerprint matte armor with integrated N52 MagSafe rings and raised metallic camera bezels.',
     videoSrc: '/assets/videos/hero-magsafe-reel.mp4',
-    posterSrc: '/src/assets/images/hero_magsafe_showcase_1795455910914.jpg',
+    posterSrc: '/src/assets/images/hero_magsafe_showcase_1795548420846.jpg',
     posterAlt:
       'Frosted matte MagSafe phone cases with rose-gold and copper camera bezels on travertine stone',
     categoryTarget: 'All',

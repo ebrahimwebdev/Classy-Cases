@@ -26,7 +26,8 @@ service cloud.firestore {
     function isVerifiedAdminToken() {
       return isSignedIn()
         && request.auth.token.email_verified == true
-        && request.auth.token.email == 'ibrahimzadran.info@gmail.com';
+        && (request.auth.token.email == 'ibrahimzadran.info@gmail.com'
+          || request.auth.token.email == 'mdebrahim.contact@gmail.com');
     }
 
     function isAdmin() {
@@ -53,6 +54,17 @@ service cloud.firestore {
           || url.matches('^/src/assets/images/.*')
           || url.matches('^/assets/.*')
           || url.matches('^/media/.*'));
+    }
+
+    function isSafeCategoryImage(url) {
+      return url is string
+        && url.size() <= 300000
+        && (url == ''
+          || url.matches('^https://.*')
+          || url.matches('^/src/assets/images/.*')
+          || url.matches('^/assets/.*')
+          || url.matches('^/media/.*')
+          || url.matches('^data:image/(png|jpeg|jpg|webp|gif|avif|x-icon|vnd\\.microsoft\\.icon);base64,[A-Za-z0-9+/=]+$'));
     }
 
     function isValidHeroVideoSlide(data, slideId) {
@@ -115,6 +127,68 @@ service cloud.firestore {
         && data.keys().hasOnly(['activeSlideId', 'autoAdvanceSeconds', 'updatedAt', 'updatedByUid'])
         && data.activeSlideId is string && data.activeSlideId.size() <= 64
         && data.autoAdvanceSeconds is number && data.autoAdvanceSeconds >= 3 && data.autoAdvanceSeconds <= 30
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid;
+    }
+
+    function isValidCategory(data, categoryId) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'slug',
+          'brandKey',
+          'featured',
+          'active',
+          'parentId',
+          'description',
+          'googleCategory',
+          'seoTitle',
+          'seoDescription',
+          'image',
+          'shippingClass',
+          'sortOrder',
+          'isDefault',
+          'createdAt',
+          'updatedAt',
+          'updatedByUid'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'name',
+          'slug',
+          'brandKey',
+          'featured',
+          'active',
+          'parentId',
+          'description',
+          'googleCategory',
+          'seoTitle',
+          'seoDescription',
+          'image',
+          'shippingClass',
+          'sortOrder',
+          'isDefault',
+          'createdAt',
+          'updatedAt',
+          'updatedByUid'
+        ])
+        && data.id is string && data.id == categoryId && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.slug is string && data.slug.size() >= 1 && data.slug.size() <= 120 && data.slug.matches('^[a-z0-9\\-]+$')
+        && data.brandKey in ['motorola', 'vivo', 'xiaomi', 'custom']
+        && data.featured is bool
+        && data.active is bool
+        && data.parentId is string && data.parentId.size() <= 64
+        && (data.parentId == '' || (data.parentId != categoryId && data.parentId.matches('^[a-zA-Z0-9_\\-]+$')))
+        && data.description is string && data.description.size() <= 1000
+        && data.googleCategory is string && data.googleCategory.size() <= 200
+        && data.seoTitle is string && data.seoTitle.size() <= 160
+        && data.seoDescription is string && data.seoDescription.size() <= 320
+        && isSafeCategoryImage(data.image)
+        && data.shippingClass is string && data.shippingClass.size() <= 80
+        && data.sortOrder is number && data.sortOrder >= 0 && data.sortOrder <= 1000
+        && data.isDefault is bool
+        && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.updatedByUid is string && data.updatedByUid == request.auth.uid;
     }
@@ -194,6 +268,46 @@ service cloud.firestore {
         ]);
 
       allow delete: if false;
+    }
+
+    // Hierarchical categories & sub-categories collection
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId) && (existing().active == true || isAdmin());
+      allow list: if existing().active == true || isVerifiedAdminToken();
+
+      allow create: if isAdmin()
+        && isValidId(categoryId)
+        && isValidCategory(incoming(), categoryId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().parentId == '' || existsAfter(/databases/$(database)/documents/categories/$(incoming().parentId)));
+
+      allow update: if isAdmin()
+        && isValidId(categoryId)
+        && isValidCategory(incoming(), categoryId)
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (incoming().parentId == '' || existsAfter(/databases/$(database)/documents/categories/$(incoming().parentId)))
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name',
+          'slug',
+          'brandKey',
+          'featured',
+          'active',
+          'parentId',
+          'description',
+          'googleCategory',
+          'seoTitle',
+          'seoDescription',
+          'image',
+          'shippingClass',
+          'sortOrder',
+          'isDefault',
+          'updatedAt',
+          'updatedByUid'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(categoryId);
     }
 
     // Admin registry (only verified bootstrapped owner can register/remove admins)

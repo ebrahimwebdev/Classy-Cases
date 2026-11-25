@@ -59,6 +59,7 @@ export interface PublicStoreSettings {
   shippingOutsideDhaka: number;
   freeShippingThreshold: number;
   reviewsEnabled?: boolean;
+  shopPageColumns?: 2 | 3 | 4 | 5;
   paymentGateways: {
     bkash: { enabled: boolean; mode: string };
     nagad: { enabled: boolean; mode: string };
@@ -256,7 +257,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     }, 30);
   }
 
-  const pageSize = 5;
+  const desktopColumns: 2 | 3 | 4 | 5 =
+    settings?.shopPageColumns && [2, 3, 4, 5].includes(settings.shopPageColumns)
+      ? settings.shopPageColumns
+      : 5;
+  const pageSize = desktopColumns;
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
   const safePage = Math.min(carouselPage, totalPages - 1);
   const displayedProducts =
@@ -627,6 +632,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 categories={categories}
                 wishlist={wishlist}
                 loading={loading}
+                desktopColumns={desktopColumns}
                 onSelectProduct={(product) => {
                   setActiveProduct(product);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -705,6 +711,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 loading={loading}
                 wishlist={wishlist}
                 searchQuery={searchQuery}
+                desktopColumns={desktopColumns}
                 showCarouselControls={!viewAll && !hasActiveFilters}
                 currentPage={safePage}
                 totalPages={totalPages}

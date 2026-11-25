@@ -1,0 +1,280 @@
+{
+  "settings": {
+    "storeName": "Classy Cases",
+    "tagline": "Premium phone cases, made to fit \"Your Perfect Case\". Everyday protection. Effortless style.",
+    "logoUrl": "",
+    "faviconUrl": "",
+    "orderPrefix": "",
+    "nextOrderNumber": 1001,
+    "takePreOrders": true,
+    "autoMovePending": true,
+    "costingMethod": "FIFO",
+    "phone": "01799576210",
+    "email": "mdebrahim.contact@gmail.com",
+    "address": "Tilapara, Ekuria, Dhaka Jute Mills,",
+    "openingHours": "10:00 AM - 10:00 PM",
+    "shippingInsideDhaka": 60,
+    "shippingOutsideDhaka": 120,
+    "freeShippingThreshold": 1500,
+    "seoTitle": "Classy Cases — Premium Phone Cases & Accessories",
+    "seoDescription": "Premium phone cases, made to fit Your Perfect Case. Everyday protection. Effortless style.",
+    "paymentGateways": {
+      "bkash": {
+        "enabled": true,
+        "merchantNumber": "01799576210",
+        "mode": "sandbox"
+      },
+      "nagad": {
+        "enabled": true,
+        "merchantNumber": "01799576210",
+        "mode": "sandbox"
+      },
+      "card": {
+        "enabled": true,
+        "provider": "SSLCommerz",
+        "storeId": "classycases_live",
+        "mode": "sandbox"
+      },
+      "cod": {
+        "enabled": true
+      }
+    },
+    "storefrontConfig": {
+      "shopPageColumns": 5,
+      "showOutOfStock": true,
+      "showStockBadgeOnProduct": true,
+      "showRelatedProducts": true,
+      "checkoutRequireEmail": false,
+      "checkoutNoteEnabled": true,
+      "thankYouHeadline": "Thank you for your order!",
+      "thankYouMessage": "We have received your order and will confirm dispatch shortly.",
+      "reviewsEnabled": true,
+      "reviewsAutoApprove": true,
+      "sizeGuideTitle": "Phone Model & Case Fit Guide",
+      "sizeGuideNotes": "Verify your exact device model under Settings -> About Phone before selecting your case.",
+      "offerPageTitle": "Flash Deals & Combo Offers",
+      "offerPageBannerText": "Up to 30% OFF on MagSafe & Carbon Armor Cases.",
+      "popupOfferEnabled": false,
+      "popupOfferHeadline": "Get 10% OFF Your First Case",
+      "popupOfferCode": "CLASSY10"
+    },
+    "orderSettings": {
+      "sources": [
+        "Web",
+        "POS",
+        "Facebook Page",
+        "Instagram DM",
+        "WhatsApp"
+      ],
+      "quickNotes": [
+        "Call customer before dispatch",
+        "Check exact camera cutout",
+        "Urgent same-day Dhaka delivery"
+      ]
+    },
+    "deliverySettings": {
+      "shippingClasses": [
+        {
+          "name": "Standard Case",
+          "fee": 60,
+          "defaultWeightKg": 0.25
+        },
+        {
+          "name": "Fragile Armor",
+          "fee": 80,
+          "defaultWeightKg": 0.45
+        },
+        {
+          "name": "Express Courier",
+          "fee": 120,
+          "defaultWeightKg": 0.5
+        }
+      ],
+      "courierProvider": "Steadfast",
+      "courierApiKey": "",
+      "courierSecretKey": "",
+      "fraudCheckEnabled": true,
+      "fraudThresholdPercent": 30
+    },
+    "marketingSettings": {
+      "metaPixelId": "",
+      "gtmId": "",
+      "tiktokPixelId": ""
+    },
+    "systemSettings": {
+      "smtpFromName": "Classy Cases",
+      "smtpReplyTo": "mdebrahim.contact@gmail.com",
+      "orderEmailNotifications": true,
+      "lowStockAlertEnabled": true,
+      "requireTwoFactorAdmin": false,
+      "invoiceHeaderNote": "Classy Cases — Premium Everyday Protection",
+      "invoiceFooterNote": "7-day fit guarantee. Contact 01799576210 for support.",
+      "supportAccessEnabled": false
+    }
+  },
+  "categories": [
+    {
+      "id": "cat-moto",
+      "name": "Motorola",
+      "slug": "motorola",
+      "brandKey": "motorola",
+      "featured": true
+    },
+    {
+      "id": "cat-vivo",
+      "name": "VIVO",
+      "slug": "vivo",
+      "brandKey": "vivo",
+      "featured": true
+    },
+    {
+      "id": "cat-xiaomi",
+      "name": "Xiaomi",
+      "slug": "xiaomi",
+      "brandKey": "xiaomi",
+      "featured": true
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-1",
+      "title": "Magsafe Frosted Syndee Case for Motorola Edge 50",
+      "slug": "magsafe-frosted-syndee-case-motorola-edge-50",
+      "category": "Motorola",
+      "brandModels": [
+        "Motorola Edge 50 Pro",
+        "Motorola Edge 50 Fusion",
+        "Motorola G85 5G"
+      ],
+      "price": 250,
+      "originalPrice": 350,
+      "discountPercent": 29,
+      "stock": 34,
+      "sku": "CC-MOT-001",
+      "image": "/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg",
+      "description": "Anti-fingerprint frosted translucent matte back with strong N52 magnetic ring and raised metallic rose-gold camera bezel for everyday drop protection.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    },
+    {
+      "id": "prod-2",
+      "title": "Magsafe Frosted Syndee Case for Redmi Note 13",
+      "slug": "magsafe-frosted-syndee-case-redmi-note-13",
+      "category": "Xiaomi",
+      "brandModels": [
+        "Redmi Note 13 Pro",
+        "Redmi Note 13 5G",
+        "Xiaomi 14 Civi"
+      ],
+      "price": 250,
+      "originalPrice": 350,
+      "discountPercent": 29,
+      "stock": 42,
+      "sku": "CC-XIA-002",
+      "image": "/src/assets/images/case_magsafe_frosted_copper_1795455911268.jpg",
+      "description": "Translucent smoky frosted shield engineered with shock-absorbing TPU edges, tactile metallic buttons, and MagSafe wireless charging alignment.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    },
+    {
+      "id": "prod-3",
+      "title": "Solid Color Chubby with Electroplated Camera Frame",
+      "slug": "solid-color-chubby-electroplated-camera-frame",
+      "category": "VIVO",
+      "brandModels": [
+        "Vivo V30 Pro",
+        "Vivo V40 5G",
+        "Vivo Y200e"
+      ],
+      "price": 250,
+      "originalPrice": 350,
+      "discountPercent": 29,
+      "stock": 28,
+      "sku": "CC-VIV-003",
+      "image": "/src/assets/images/case_pastel_electroplated_1795455911610.jpg",
+      "description": "Soft-touch liquid silicone chubby bumper with plush microfiber lining and a precision electroplated silver lens guard.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    },
+    {
+      "id": "prod-4",
+      "title": "Camera Lens Holder Carbon fiber Pattern Matte Case",
+      "slug": "camera-lens-holder-carbon-fiber-pattern-matte-case",
+      "category": "Xiaomi",
+      "brandModels": [
+        "Redmi Note 13 Pro+",
+        "Poco X6 Pro",
+        "Xiaomi 13T"
+      ],
+      "price": 850,
+      "originalPrice": 1050,
+      "discountPercent": 19,
+      "stock": 19,
+      "sku": "CC-XIA-004",
+      "image": "/src/assets/images/case_carbon_lens_holder_1795455912129.jpg",
+      "description": "Woven carbon-fiber texture shell featuring an integrated 360-degree aluminum kickstand ring and recessed lens armor.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    },
+    {
+      "id": "prod-5",
+      "title": "Luxury Carbon Fiber Texture Matte PU Leather Case",
+      "slug": "luxury-carbon-fiber-texture-matte-pu-leather-case",
+      "category": "Motorola",
+      "brandModels": [
+        "Motorola Edge 50 Ultra",
+        "Motorola Razr 50",
+        "Motorola Edge 40 Neo"
+      ],
+      "price": 600,
+      "originalPrice": 850,
+      "discountPercent": 29,
+      "stock": 24,
+      "sku": "CC-MOT-005",
+      "image": "/src/assets/images/case_luxury_carbon_red_1795455912097.jpg",
+      "description": "Executive matte PU leather and aramid-inspired carbon weave finish accented with crimson racing trim and slim pocket-friendly profile.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    },
+    {
+      "id": "prod-6",
+      "title": "Crystal Clear Anti-Yellowing MagSafe Armor for VIVO",
+      "slug": "crystal-clear-anti-yellowing-magsafe-armor-vivo",
+      "category": "VIVO",
+      "brandModels": [
+        "Vivo X100 Pro",
+        "Vivo V30",
+        "Vivo T3 5G"
+      ],
+      "price": 390,
+      "originalPrice": 550,
+      "discountPercent": 29,
+      "stock": 31,
+      "sku": "CC-VIV-006",
+      "image": "/src/assets/images/case_crystal_clear_vivo_1795455912579.jpg",
+      "description": "Optical-grade Bayer TPU hybrid crystal case with air-pocket reinforced corners and embedded silver MagSafe array.",
+      "featured": true,
+      "createdAt": "2026-11-25T13:03:39.657Z"
+    }
+  ],
+  "orders": [],
+  "subscribers": [],
+  "coupons": [
+    {
+      "id": "coup-1",
+      "code": "CLASSY10",
+      "discountPercent": 10,
+      "active": true
+    },
+    {
+      "id": "coup-2",
+      "code": "WELCOME15",
+      "discountPercent": 15,
+      "active": true
+    }
+  ],
+  "expenses": [],
+  "reviews": [],
+  "adminAuth": null,
+  "catalogModified": false
+}

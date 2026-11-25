@@ -57,7 +57,7 @@ interface AdminSettingsPanelsProps {
 }
 
 const DEFAULT_STOREFRONT: StorefrontPageConfig = {
-  shopPageColumns: 3,
+  shopPageColumns: 5,
   showOutOfStock: true,
   showStockBadgeOnProduct: true,
   showRelatedProducts: true,
@@ -188,13 +188,13 @@ export function AdminSettingsPanels({
           <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
             Desktop Product Grid Columns
           </label>
-          <div className="grid grid-cols-3 gap-2 max-w-xs text-xs">
-            {([2, 3, 4] as const).map((col) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-md text-xs">
+            {([2, 3, 4, 5] as const).map((col) => (
               <button
                 key={col}
                 type="button"
                 onClick={() => updateStorefront({ shopPageColumns: col })}
-                className={`py-2 rounded-lg border font-semibold ${
+                className={`py-2 rounded-lg border font-semibold cursor-pointer ${
                   sf.shopPageColumns === col
                     ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -204,6 +204,9 @@ export function AdminSettingsPanels({
               </button>
             ))}
           </div>
+          <p className="text-[11px] text-slate-500 mt-1.5">
+            Sets how many product cards appear per row on desktop (4 or 5 recommended), then click Save Changes.
+          </p>
         </div>
         <ToggleRow
           label="Show Out of Stock products on Storefront"

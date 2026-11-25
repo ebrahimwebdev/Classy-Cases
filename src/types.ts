@@ -129,7 +129,7 @@ export interface PaymentGatewaySettings {
 }
 
 export interface StorefrontPageConfig {
-  shopPageColumns: 2 | 3 | 4;
+  shopPageColumns: 2 | 3 | 4 | 5;
   showOutOfStock: boolean;
   showStockBadgeOnProduct: boolean;
   showRelatedProducts: boolean;

@@ -123,7 +123,7 @@ function createInitialData(): StoreDatabase {
         cod: { enabled: true },
       },
       storefrontConfig: {
-        shopPageColumns: 3,
+        shopPageColumns: 5,
         showOutOfStock: true,
         showStockBadgeOnProduct: true,
         showRelatedProducts: true,
@@ -678,6 +678,9 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
     shippingOutsideDhaka: settings.shippingOutsideDhaka,
     freeShippingThreshold: settings.freeShippingThreshold,
     reviewsEnabled: settings.storefrontConfig?.reviewsEnabled !== false,
+    shopPageColumns: ([2, 3, 4, 5].includes(Number(settings.storefrontConfig?.shopPageColumns))
+      ? Number(settings.storefrontConfig?.shopPageColumns)
+      : 5) as 2 | 3 | 4 | 5,
     paymentGateways: {
       bkash: { enabled: settings.paymentGateways.bkash.enabled, mode: settings.paymentGateways.bkash.mode },
       nagad: { enabled: settings.paymentGateways.nagad.enabled, mode: settings.paymentGateways.nagad.mode },
@@ -2169,7 +2172,9 @@ async function startServer() {
     if (body.storefrontConfig && typeof body.storefrontConfig === 'object') {
       const sc = body.storefrontConfig;
       s.storefrontConfig = {
-        shopPageColumns: sc.shopPageColumns === 2 || sc.shopPageColumns === 4 ? sc.shopPageColumns : 3,
+        shopPageColumns: ([2, 3, 4, 5].includes(Number(sc.shopPageColumns))
+          ? Number(sc.shopPageColumns)
+          : 5) as 2 | 3 | 4 | 5,
         showOutOfStock: sc.showOutOfStock !== false,
         showStockBadgeOnProduct: sc.showStockBadgeOnProduct !== false,
         showRelatedProducts: sc.showRelatedProducts !== false,

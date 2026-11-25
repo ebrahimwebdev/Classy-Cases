@@ -122,6 +122,7 @@ interface PhoneCaseGridProps {
   loading: boolean;
   wishlist: string[];
   searchQuery?: string;
+  desktopColumns?: 2 | 3 | 4 | 5;
   showCarouselControls: boolean;
   currentPage: number;
   totalPages: number;
@@ -133,12 +134,27 @@ interface PhoneCaseGridProps {
   onResetFilters: () => void;
 }
 
+const SLIDER_DESKTOP_GRID_CLASSES: Record<2 | 3 | 4 | 5, string> = {
+  2: 'sm:grid-cols-2 lg:grid-cols-2',
+  3: 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3',
+  4: 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+  5: 'sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
+};
+
+const FULL_GRID_CLASSES: Record<2 | 3 | 4 | 5, string> = {
+  2: 'grid-cols-2 lg:grid-cols-2',
+  3: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-3',
+  4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+  5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5',
+};
+
 export function PhoneCaseGrid({
   products,
   mobileProducts,
   loading,
   wishlist,
   searchQuery = '',
+  desktopColumns = 5,
   showCarouselControls,
   currentPage,
   totalPages,
@@ -151,17 +167,19 @@ export function PhoneCaseGrid({
 }: PhoneCaseGridProps) {
   const useMobileHorizontalSlider = showCarouselControls;
   const mobileSliderItems = mobileProducts && mobileProducts.length > 0 ? mobileProducts : products;
+  const sliderDesktopCols = SLIDER_DESKTOP_GRID_CLASSES[desktopColumns];
+  const fullGridCols = FULL_GRID_CLASSES[desktopColumns];
 
   if (loading) {
     return (
       <div
         className={
           useMobileHorizontalSlider
-            ? 'flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 no-scrollbar sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 sm:gap-4 sm:overflow-visible sm:pb-0'
-            : 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4'
+            ? `flex overflow-x-auto snap-x snap-mandatory gap-3 pb-1 no-scrollbar sm:grid ${sliderDesktopCols} sm:gap-4 sm:overflow-visible sm:pb-0`
+            : `grid ${fullGridCols} gap-3 sm:gap-4`
         }
       >
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: desktopColumns }).map((_, i) => (
           <div
             key={i}
             className={`border border-[#DFCFB0] bg-[#FFFDF8] rounded-xl p-2.5 sm:p-3 animate-pulse ${
@@ -217,7 +235,7 @@ export function PhoneCaseGrid({
             ))}
           </MobileHorizontalTrack>
 
-          <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className={`hidden sm:grid ${sliderDesktopCols} gap-3 sm:gap-4`}>
             {products.map((product) => (
               <PhoneCaseCard
                 key={product.id}
@@ -232,7 +250,7 @@ export function PhoneCaseGrid({
           </div>
         </>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className={`grid ${fullGridCols} gap-3 sm:gap-4`}>
           {products.map((product) => (
             <PhoneCaseCard
               key={product.id}

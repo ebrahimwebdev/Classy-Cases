@@ -113,6 +113,12 @@ export function AdminSettings({
   const [errorBanner, setErrorBanner] = useState('');
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const faviconInputRef = useRef<HTMLInputElement | null>(null);
+  const paymentLogoInputRefs = useRef<Record<'bkash' | 'nagad' | 'card' | 'cod', HTMLInputElement | null>>({
+    bkash: null,
+    nagad: null,
+    card: null,
+    cod: null,
+  });
 
   React.useEffect(() => {
     setActiveTab(initialTab);
@@ -223,6 +229,105 @@ export function AdminSettings({
     );
   }
 
+  async function handlePaymentLogoFileChange(
+    gateway: 'bkash' | 'nagad' | 'card' | 'cod',
+    file: File | undefined
+  ) {
+    if (!file) return;
+    setErrorBanner('');
+    const lowerName = file.name.toLowerCase();
+    const isIco = lowerName.endsWith('.ico') || file.type.includes('icon');
+    if ((!file.type.startsWith('image/') && !isIco) || file.type === 'image/svg+xml' || lowerName.endsWith('.svg')) {
+      setErrorBanner('Please upload a PNG, JPG, WEBP, GIF, AVIF, BMP, or ICO image.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorBanner('Image size must be under 10 MB.');
+      return;
+    }
+    try {
+      const rawDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Could not read the selected image file.'));
+        };
+        reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+        reader.readAsDataURL(file);
+      });
+
+      let finalDataUrl = rawDataUrl;
+      const smallDirectTypes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon']);
+      if (file.size > 200 * 1024 || (!smallDirectTypes.has(file.type.toLowerCase()) && !isIco)) {
+        finalDataUrl = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 256;
+            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+            const width = Math.max(1, Math.round((img.width || maxDim) * scale));
+            const height = Math.max(1, Math.round((img.height || maxDim) * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(rawDataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/png');
+            resolve(compressed.length < rawDataUrl.length || !smallDirectTypes.has(file.type.toLowerCase()) ? compressed : rawDataUrl);
+          };
+          img.onerror = () => resolve(rawDataUrl);
+          img.src = rawDataUrl;
+        });
+      }
+
+      const nextForm: StoreSettings = {
+        ...form,
+        paymentGateways: {
+          ...form.paymentGateways,
+          [gateway]: {
+            ...form.paymentGateways[gateway],
+            logoUrl: finalDataUrl,
+          },
+        },
+      };
+      setForm(nextForm);
+      void persistSettings(nextForm, 'Payment gateway logo updated and synced.');
+    } catch {
+      setErrorBanner('Could not read the selected image file.');
+    }
+  }
+
+  function updatePaymentLogoUrl(gateway: 'bkash' | 'nagad' | 'card' | 'cod', value: string) {
+    setForm((prev) => ({
+      ...prev,
+      paymentGateways: {
+        ...prev.paymentGateways,
+        [gateway]: {
+          ...prev.paymentGateways[gateway],
+          logoUrl: value,
+        },
+      },
+    }));
+  }
+
+  function handleResetPaymentLogo(gateway: 'bkash' | 'nagad' | 'card' | 'cod') {
+    const nextForm: StoreSettings = {
+      ...form,
+      paymentGateways: {
+        ...form.paymentGateways,
+        [gateway]: {
+          ...form.paymentGateways[gateway],
+          logoUrl: '',
+        },
+      },
+    };
+    setForm(nextForm);
+    void persistSettings(nextForm, 'Payment gateway logo reset to default.');
+  }
+
   const navGroups: {
     group: string;
     items: { label: SettingsTab; icon: React.ReactNode }[];
@@ -303,6 +408,8 @@ export function AdminSettings({
     .filter((g) => g.items.length > 0);
 
   const extendedTabs: ExtendedSettingsTab[] = [
+    'Header',
+    'Footer',
     'Shop Page',
     'Product Page',
     'Checkout',
@@ -787,9 +894,11 @@ export function AdminSettings({
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[#E2136E] text-white font-bold text-xs flex items-center justify-center">
-                          bK
-                        </div>
+                        <img
+                          src={form.paymentGateways.bkash.logoUrl || '/assets/payments/bkash.svg'}
+                          alt="bKash"
+                          className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white object-contain shrink-0"
+                        />
                         <div>
                           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">bKash Online Checkout</h3>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">Mobile wallet instant verification</p>
@@ -858,15 +967,61 @@ export function AdminSettings({
                         </select>
                       </div>
                     </div>
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">Gateway Logo Image</label>
+                      <input
+                        ref={(el) => { paymentLogoInputRefs.current.bkash = el; }}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon"
+                        className="hidden"
+                        onChange={(e) => {
+                          void handlePaymentLogoFileChange('bkash', e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={form.paymentGateways.bkash.logoUrl?.startsWith('data:') ? '' : form.paymentGateways.bkash.logoUrl || ''}
+                          onChange={(e) => updatePaymentLogoUrl('bkash', e.target.value)}
+                          placeholder={
+                            form.paymentGateways.bkash.logoUrl?.startsWith('data:')
+                              ? 'Custom uploaded image active'
+                              : 'Paste HTTPS image URL or upload...'
+                          }
+                          className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => paymentLogoInputRefs.current.bkash?.click()}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>{form.paymentGateways.bkash.logoUrl ? 'Replace' : 'Upload'}</span>
+                        </button>
+                        {form.paymentGateways.bkash.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetPaymentLogo('bkash')}
+                            title="Reset to default bKash logo"
+                            className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Nagad */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[#ED1C24] text-white font-bold text-xs flex items-center justify-center">
-                          N
-                        </div>
+                        <img
+                          src={form.paymentGateways.nagad.logoUrl || '/assets/payments/nagad.svg'}
+                          alt="Nagad"
+                          className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white object-contain shrink-0"
+                        />
                         <div>
                           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Nagad Merchant Gateway</h3>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">Digital financial service checkout</p>
@@ -935,15 +1090,61 @@ export function AdminSettings({
                         </select>
                       </div>
                     </div>
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">Gateway Logo Image</label>
+                      <input
+                        ref={(el) => { paymentLogoInputRefs.current.nagad = el; }}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon"
+                        className="hidden"
+                        onChange={(e) => {
+                          void handlePaymentLogoFileChange('nagad', e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={form.paymentGateways.nagad.logoUrl?.startsWith('data:') ? '' : form.paymentGateways.nagad.logoUrl || ''}
+                          onChange={(e) => updatePaymentLogoUrl('nagad', e.target.value)}
+                          placeholder={
+                            form.paymentGateways.nagad.logoUrl?.startsWith('data:')
+                              ? 'Custom uploaded image active'
+                              : 'Paste HTTPS image URL or upload...'
+                          }
+                          className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => paymentLogoInputRefs.current.nagad?.click()}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>{form.paymentGateways.nagad.logoUrl ? 'Replace' : 'Upload'}</span>
+                        </button>
+                        {form.paymentGateways.nagad.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetPaymentLogo('nagad')}
+                            title="Reset to default Nagad logo"
+                            className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* SSLCommerz / Card */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                          <CreditCard className="w-4 h-4" />
-                        </div>
+                        <img
+                          src={form.paymentGateways.card.logoUrl || '/assets/payments/cards.svg'}
+                          alt="Visa and Mastercard"
+                          className="w-10 h-8 rounded-md border border-slate-200 dark:border-slate-700 bg-white object-contain shrink-0"
+                        />
                         <div>
                           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">SSLCommerz (Visa / Mastercard)</h3>
                           <p className="text-[11px] text-slate-500 dark:text-slate-400">Debit &amp; credit card processing</p>
@@ -1012,14 +1213,71 @@ export function AdminSettings({
                         </select>
                       </div>
                     </div>
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">Card / SSL Logo Image</label>
+                      <input
+                        ref={(el) => { paymentLogoInputRefs.current.card = el; }}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon"
+                        className="hidden"
+                        onChange={(e) => {
+                          void handlePaymentLogoFileChange('card', e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={form.paymentGateways.card.logoUrl?.startsWith('data:') ? '' : form.paymentGateways.card.logoUrl || ''}
+                          onChange={(e) => updatePaymentLogoUrl('card', e.target.value)}
+                          placeholder={
+                            form.paymentGateways.card.logoUrl?.startsWith('data:')
+                              ? 'Custom uploaded image active'
+                              : 'Paste HTTPS image URL or upload...'
+                          }
+                          className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => paymentLogoInputRefs.current.card?.click()}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>{form.paymentGateways.card.logoUrl ? 'Replace' : 'Upload'}</span>
+                        </button>
+                        {form.paymentGateways.card.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetPaymentLogo('card')}
+                            title="Reset to default Card logo"
+                            className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Shipping & COD */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Delivery Fees &amp; COD</h3>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Nationwide shipping configuration</p>
+                      <div className="flex items-center gap-2.5">
+                        {form.paymentGateways.cod.logoUrl ? (
+                          <img
+                            src={form.paymentGateways.cod.logoUrl}
+                            alt="Cash on delivery"
+                            className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white object-contain shrink-0"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                            <Banknote className="w-4 h-4 text-amber-700 dark:text-amber-300" />
+                          </div>
+                        )}
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Delivery Fees &amp; COD</h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Nationwide shipping configuration</p>
+                        </div>
                       </div>
                       <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                         <input
@@ -1030,7 +1288,7 @@ export function AdminSettings({
                               ...form,
                               paymentGateways: {
                                 ...form.paymentGateways,
-                                cod: { enabled: e.target.checked },
+                                cod: { ...form.paymentGateways.cod, enabled: e.target.checked },
                               },
                             })
                           }
@@ -1066,6 +1324,50 @@ export function AdminSettings({
                           onChange={(e) => setForm({ ...form, freeShippingThreshold: Number(e.target.value) })}
                           className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
                         />
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400">COD Icon / Image (Optional)</label>
+                      <input
+                        ref={(el) => { paymentLogoInputRefs.current.cod = el; }}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon"
+                        className="hidden"
+                        onChange={(e) => {
+                          void handlePaymentLogoFileChange('cod', e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          value={form.paymentGateways.cod.logoUrl?.startsWith('data:') ? '' : form.paymentGateways.cod.logoUrl || ''}
+                          onChange={(e) => updatePaymentLogoUrl('cod', e.target.value)}
+                          placeholder={
+                            form.paymentGateways.cod.logoUrl?.startsWith('data:')
+                              ? 'Custom uploaded image active'
+                              : 'Paste HTTPS image URL or upload...'
+                          }
+                          className="flex-1 min-w-0 px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => paymentLogoInputRefs.current.cod?.click()}
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>{form.paymentGateways.cod.logoUrl ? 'Replace' : 'Upload'}</span>
+                        </button>
+                        {form.paymentGateways.cod.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleResetPaymentLogo('cod')}
+                            title="Reset to default COD icon"
+                            className="p-1.5 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

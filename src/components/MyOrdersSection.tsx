@@ -111,6 +111,13 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
       ? 'Estimated 2–4 business days via nationwide courier'
       : 'Estimated 24–48 hours express Dhaka delivery';
 
+  const trackingLabel = order.courier?.trackingCode || `CC-TRK-${order.orderNumber}`;
+  const courierProviderLabel = order.courier?.provider
+    ? `${order.courier.provider} Courier`
+    : order.deliveryArea === 'outside_dhaka'
+      ? 'Outside Dhaka Courier'
+      : 'Inside Dhaka Express';
+
   const milestones = [
     {
       title: 'Order Placed',
@@ -120,28 +127,30 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
       current: stepIdx === 0,
     },
     {
-      title: 'Confirmed & Packed',
-      detail:
-        order.paymentStatus === 'paid'
+      title: order.courier ? `Confirmed & Booked (${order.courier.provider})` : 'Confirmed & Packed',
+      detail: order.courier
+        ? `Booked with ${order.courier.provider} · Tracking #${order.courier.trackingCode}${order.courier.note ? ` · ${order.courier.note}` : ''}`
+        : order.paymentStatus === 'paid'
           ? `Payment verified (${order.paymentMethod.toUpperCase()}) & phone case models quality-checked.`
           : 'Cash on Delivery confirmed & parcel prepared for courier pickup.',
-      time: stepIdx >= 1 ? formatOrderDate(order.updatedAt) : 'Awaiting confirmation',
-      done: stepIdx >= 1,
+      time:
+        stepIdx >= 1 || order.courier
+          ? formatOrderDate(order.courier?.bookedAt || order.confirmedAt || order.updatedAt)
+          : 'Awaiting confirmation',
+      done: stepIdx >= 1 || Boolean(order.courier),
       current: stepIdx === 1,
     },
     {
       title: 'In Transit (Courier Dispatched)',
-      detail: `Tracking #CC-TRK-${order.orderNumber} · ${
-        order.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka Courier' : 'Inside Dhaka Express'
-      }`,
-      time: stepIdx >= 2 ? formatOrderDate(order.updatedAt) : deliveryWindow,
+      detail: `Tracking #${trackingLabel} · ${courierProviderLabel}`,
+      time: stepIdx >= 2 ? formatOrderDate(order.shippedAt || order.updatedAt) : deliveryWindow,
       done: stepIdx >= 2,
       current: stepIdx === 2,
     },
     {
       title: 'Delivered',
       detail: `Delivered to ${order.deliveryAddress}`,
-      time: stepIdx >= 3 ? formatOrderDate(order.updatedAt) : 'Pending delivery',
+      time: stepIdx >= 3 ? formatOrderDate(order.deliveredAt || order.updatedAt) : 'Pending delivery',
       done: stepIdx >= 3,
       current: stepIdx === 3,
     },
@@ -158,8 +167,13 @@ function OrderTrackingTimeline({ order }: { order: Order }) {
             </h3>
             <span className="text-xs text-[#C9B38D]">·</span>
             <span className="text-xs font-mono text-[#6B4C4E]">
-              CC-TRK-{order.orderNumber}
+              {trackingLabel}
             </span>
+            {order.courier?.provider && (
+              <span className="px-2 py-0.5 rounded bg-[#FAF4E6] border border-[#DFCFB0] text-[11px] font-semibold text-[#650108]">
+                {order.courier.provider}
+              </span>
+            )}
           </div>
         </div>
 
@@ -819,8 +833,12 @@ export function MyOrdersSection({
                             <p className="text-[11px] text-[#6B4C4E] flex items-center gap-1 pt-0.5">
                               <Truck className="w-3 h-3" />
                               <span>
-                                {order.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka Courier' : 'Inside Dhaka Express'} · TrxID:{' '}
-                                <span className="font-mono text-[#2B1416]">{order.transactionId}</span>
+                                {order.courier
+                                  ? `${order.courier.provider} (${order.courier.trackingCode})`
+                                  : order.deliveryArea === 'outside_dhaka'
+                                    ? 'Outside Dhaka Courier'
+                                    : 'Inside Dhaka Express'}{' '}
+                                · TrxID: <span className="font-mono text-[#2B1416]">{order.transactionId}</span>
                               </span>
                             </p>
                           </div>

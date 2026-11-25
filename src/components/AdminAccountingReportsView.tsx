@@ -42,6 +42,7 @@ interface AdminAccountingReportsViewProps {
     note?: string;
   }) => Promise<void>;
   onDeleteExpense: (id: string) => Promise<void>;
+  onOpenOrder?: (order: Order) => void;
 }
 
 const EXPENSE_CATEGORIES = [
@@ -62,6 +63,7 @@ export function AdminAccountingReportsView({
   expenses,
   onAddExpense,
   onDeleteExpense,
+  onOpenOrder,
 }: AdminAccountingReportsViewProps) {
   const [expTitle, setExpTitle] = useState('');
   const [expCategory, setExpCategory] = useState(EXPENSE_CATEGORIES[0]);
@@ -439,6 +441,7 @@ export function AdminAccountingReportsView({
   // 4. COURIER PAYMENTS
   if (section === 'Courier payments') {
     const codOrders = validOrders.filter((o) => o.paymentMethod === 'cod');
+    const courierOrders = validOrders.filter((o) => o.paymentMethod === 'cod' || Boolean(o.courier));
     const codPending = codOrders
       .filter((o) => o.paymentStatus !== 'paid')
       .reduce((s, o) => s + o.total, 0);
@@ -451,7 +454,7 @@ export function AdminAccountingReportsView({
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Courier payments</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Track Cash on Delivery receivables and courier delivery charges
+            Track Cash on Delivery receivables, courier consignment tracking codes, and delivery charges
           </p>
         </div>
 
@@ -476,11 +479,99 @@ export function AdminAccountingReportsView({
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 text-center text-xs text-slate-500 dark:text-slate-400">
-          <Truck className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-          {codOrders.length === 0
-            ? 'No Cash on Delivery orders dispatched yet.'
-            : `${codOrders.length} Cash on Delivery order(s) tracked across Inside & Outside Dhaka zones.`}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+          {courierOrders.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+              <Truck className="w-6 h-6 text-slate-300 mx-auto mb-2" />
+              No Cash on Delivery or courier-booked orders tracked yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="py-3 px-4 font-semibold">Order</th>
+                    <th className="py-3 px-4 font-semibold">Customer &amp; Zone</th>
+                    <th className="py-3 px-4 font-semibold">Courier &amp; Tracking</th>
+                    <th className="py-3 px-4 font-semibold text-right">Shipping</th>
+                    <th className="py-3 px-4 font-semibold text-right">COD Due</th>
+                    <th className="py-3 px-4 font-semibold">Settlement</th>
+                    {onOpenOrder && <th className="py-3 px-4 font-semibold text-right">Action</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {courierOrders.map((ord) => {
+                    const codDue =
+                      ord.courier?.codAmount ??
+                      (ord.paymentStatus === 'paid' ? 0 : ord.total);
+                    return (
+                      <tr key={ord.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
+                        <td className="py-3 px-4">
+                          <div className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                            #{ord.orderNumber}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 capitalize">
+                            {ord.fulfillmentStatus}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">
+                            {ord.customerName}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {ord.customerPhone} ·{' '}
+                            {ord.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka' : 'Inside Dhaka'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {ord.courier ? (
+                            <div>
+                              <div className="font-semibold text-indigo-600 dark:text-indigo-400">
+                                {ord.courier.provider}
+                              </div>
+                              <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                                {ord.courier.trackingCode}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">Not booked yet</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                          {formatTaka(ord.shippingFee)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                          {formatTaka(codDue)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                              ord.paymentStatus === 'paid'
+                                ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                            }`}
+                          >
+                            {ord.paymentStatus === 'paid' ? 'Settled' : 'Pending COD'}
+                          </span>
+                        </td>
+                        {onOpenOrder && (
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => onOpenOrder(ord)}
+                              className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/15"
+                            >
+                              View
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -82,6 +82,18 @@ export interface OrderItem {
   quantity: number;
 }
 
+export interface OrderCourierInfo {
+  provider: 'Steadfast' | 'Pathao' | 'RedX' | 'Manual';
+  consignmentId: string;
+  trackingCode: string;
+  status: 'booked' | 'in_transit' | 'delivered' | 'cancelled';
+  bookedAt: string;
+  parcelWeightKg: number;
+  codAmount: number;
+  note?: string;
+  mode?: 'api' | 'manual';
+}
+
 export interface Order {
   id: string;
   orderNumber: string;
@@ -102,6 +114,11 @@ export interface Order {
   transactionId: string;
   source: 'Web' | 'POS';
   channel: string;
+  adminNote?: string;
+  confirmedAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
+  courier?: OrderCourierInfo;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,20 +128,24 @@ export interface PaymentGatewaySettings {
     enabled: boolean;
     merchantNumber: string;
     mode: 'sandbox' | 'live';
+    logoUrl?: string;
   };
   nagad: {
     enabled: boolean;
     merchantNumber: string;
     mode: 'sandbox' | 'live';
+    logoUrl?: string;
   };
   card: {
     enabled: boolean;
     provider: string;
     storeId: string;
     mode: 'sandbox' | 'live';
+    logoUrl?: string;
   };
   cod: {
     enabled: boolean;
+    logoUrl?: string;
   };
 }
 
@@ -218,6 +239,73 @@ export interface HeroPlaybackSettings {
   mobileLayout?: HeroMobileLayoutConfig;
 }
 
+export interface HeaderNavLink {
+  id: string;
+  label: string;
+  action: 'home' | 'shop' | 'orders' | 'url';
+  url?: string;
+}
+
+export interface HeaderConfigSettings {
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementBgColor: string;
+  announcementTextColor: string;
+  headerBgColor: string;
+  headerTextColor: string;
+  stickyHeader: boolean;
+  showSearchBar: boolean;
+  searchPlaceholder: string;
+  showMyOrdersButton: boolean;
+  myOrdersLabel: string;
+  showFavoritesButton: boolean;
+  showCartButton: boolean;
+  navLinks: HeaderNavLink[];
+}
+
+export interface FooterLinkItem {
+  id: string;
+  label: string;
+  action: 'orders' | 'catalog' | 'modal' | 'url';
+  value: string;
+}
+
+export interface FooterSocialLinks {
+  facebook: string;
+  instagram: string;
+  tiktok: string;
+  youtube: string;
+  whatsapp: string;
+  x: string;
+}
+
+export interface FooterConfigSettings {
+  footerBgColor: string;
+  footerTextColor: string;
+  showBrandLogo: boolean;
+  aboutText: string;
+  showWhatsappRow: boolean;
+  whatsappLabel: string;
+  whatsappLinkText: string;
+  whatsappUrl: string;
+  showShopNowCta: boolean;
+  shopNowLabel: string;
+  showSocialLinks: boolean;
+  socialHeading: string;
+  socialLinks: FooterSocialLinks;
+  helpColumnTitle: string;
+  helpLinks: FooterLinkItem[];
+  companyColumnTitle: string;
+  companyLinks: FooterLinkItem[];
+  showNewsletter: boolean;
+  newsletterTitle: string;
+  newsletterDescription: string;
+  newsletterPlaceholder: string;
+  newsletterButtonText: string;
+  copyrightText: string;
+  showScrollToTop: boolean;
+}
+
 export interface StoreSettings {
   storeName: string;
   tagline: string;
@@ -239,6 +327,8 @@ export interface StoreSettings {
   seoDescription: string;
   paymentGateways: PaymentGatewaySettings;
   storefrontConfig?: StorefrontPageConfig;
+  headerConfig?: HeaderConfigSettings;
+  footerConfig?: FooterConfigSettings;
   orderSettings?: OrderConfigSettings;
   deliverySettings?: DeliveryConfigSettings;
   marketingSettings?: MarketingConfigSettings;

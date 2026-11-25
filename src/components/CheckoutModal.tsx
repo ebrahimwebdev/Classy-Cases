@@ -5,7 +5,6 @@ import {
   Banknote,
   Check,
   CheckCircle2,
-  CreditCard,
   Info,
   Loader2,
   Mail,
@@ -34,10 +33,10 @@ interface PublicSettings {
   shippingOutsideDhaka: number;
   freeShippingThreshold: number;
   paymentGateways: {
-    bkash: { enabled: boolean; mode: string };
-    nagad: { enabled: boolean; mode: string };
-    card: { enabled: boolean; provider: string; mode: string };
-    cod: { enabled: boolean };
+    bkash: { enabled: boolean; mode: string; logoUrl?: string };
+    nagad: { enabled: boolean; mode: string; logoUrl?: string };
+    card: { enabled: boolean; provider: string; mode: string; logoUrl?: string };
+    cod: { enabled: boolean; logoUrl?: string };
   };
 }
 
@@ -266,6 +265,12 @@ export function CheckoutModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{
+    customerName?: string;
+    deliveryAddress?: string;
+    district?: string;
+    customerPhone?: string;
+  }>({});
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
@@ -332,10 +337,40 @@ export function CheckoutModal({
     return parts.filter(Boolean).join(', ');
   }
 
+  function validateContactFields() {
+    const nextErrors: {
+      customerName?: string;
+      deliveryAddress?: string;
+      district?: string;
+      customerPhone?: string;
+    } = {};
+
+    if (customerName.trim().length < 2) {
+      nextErrors.customerName = 'Full name is required (at least 2 characters).';
+    }
+    if (deliveryAddress.trim().length < 5) {
+      nextErrors.deliveryAddress = 'Complete address is required (at least 5 characters).';
+    }
+    if (!district.trim()) {
+      nextErrors.district = 'Please select your district.';
+    }
+    const phoneDigits = customerPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 8) {
+      nextErrors.customerPhone = 'Valid phone number is required (e.g. 01XXXXXXXXX).';
+    }
+
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
   async function handleProceedCheckout(e: React.FormEvent) {
     e.preventDefault();
     if (cart.length === 0 || hasUnavailableItems) return;
     setError('');
+    if (!validateContactFields()) {
+      setError('Please fill in all required fields (Full name, Address, District, and Phone number).');
+      return;
+    }
     setLoading(true);
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -346,9 +381,10 @@ export function CheckoutModal({
         method: 'POST',
         headers,
         body: JSON.stringify({
-          customerName,
-          customerPhone,
-          customerEmail,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerEmail: customerEmail.trim(),
+          district: district.trim(),
           deliveryAddress: buildCombinedDeliveryAddress(),
           deliveryArea,
           items: cart.map((c) => ({ productId: c.productId, quantity: c.quantity, model: c.model })),
@@ -514,6 +550,7 @@ export function CheckoutModal({
       {/* Step 1: Two-Column Checkout Form & Order Summary */}
       {step === 'details' && (
         <form
+          noValidate
           onSubmit={handleProceedCheckout}
           className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
         >
@@ -521,71 +558,111 @@ export function CheckoutModal({
           <div className="lg:col-span-7 space-y-5">
             {/* Step 1: Contact & address */}
             <div className="border border-[#DFCFB0] rounded-2xl bg-[#FFFDF8] p-5 sm:p-6 space-y-4">
-              <div className="flex items-center gap-2.5">
-                <span className="w-6 h-6 rounded-full bg-[#650108] text-[#F2E8D2] text-xs font-bold flex items-center justify-center shrink-0">
-                  1
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-6 h-6 rounded-full bg-[#650108] text-[#F2E8D2] text-xs font-bold flex items-center justify-center shrink-0">
+                    1
+                  </span>
+                  <h2 className="font-brand text-lg font-semibold text-[#650108]">
+                    Contact &amp; address
+                  </h2>
+                </div>
+                <span className="text-[11px] text-[#6B4C4E]">
+                  <span className="text-red-600 font-semibold">*</span> Required
                 </span>
-                <h2 className="font-brand text-lg font-semibold text-[#650108]">
-                  Contact &amp; address
-                </h2>
               </div>
 
               <div className="space-y-4">
                 <div>
                   <label className="block text-[13px] font-semibold text-[#2B1416] mb-1.5">
-                    Full name
+                    Full name <span className="text-red-600" aria-hidden="true">*</span>
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-[#8E6F70] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       required
+                      aria-required="true"
+                      aria-invalid={Boolean(fieldErrors.customerName)}
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (fieldErrors.customerName) {
+                          setFieldErrors((prev) => ({ ...prev, customerName: undefined }));
+                        }
+                      }}
                       placeholder="Your full name"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-[#DFCFB0] rounded-xl bg-white focus:outline-none focus:border-[#650108] placeholder:text-[#8E6F70]"
+                      className={`w-full pl-10 pr-3.5 py-2.5 text-sm border rounded-xl bg-white focus:outline-none placeholder:text-[#8E6F70] ${
+                        fieldErrors.customerName
+                          ? 'border-red-500 focus:border-red-600'
+                          : 'border-[#DFCFB0] focus:border-[#650108]'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.customerName && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">{fieldErrors.customerName}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-[#2B1416] mb-1.5">
-                    Address
+                    Address <span className="text-red-600" aria-hidden="true">*</span>
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-[#8E6F70] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       required
+                      aria-required="true"
+                      aria-invalid={Boolean(fieldErrors.deliveryAddress)}
                       value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      onChange={(e) => {
+                        setDeliveryAddress(e.target.value);
+                        if (fieldErrors.deliveryAddress) {
+                          setFieldErrors((prev) => ({ ...prev, deliveryAddress: undefined }));
+                        }
+                      }}
                       placeholder="House, road, area, thana"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-[#DFCFB0] rounded-xl bg-white focus:outline-none focus:border-[#650108] placeholder:text-[#8E6F70]"
+                      className={`w-full pl-10 pr-3.5 py-2.5 text-sm border rounded-xl bg-white focus:outline-none placeholder:text-[#8E6F70] ${
+                        fieldErrors.deliveryAddress
+                          ? 'border-red-500 focus:border-red-600'
+                          : 'border-[#DFCFB0] focus:border-[#650108]'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.deliveryAddress && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">{fieldErrors.deliveryAddress}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-[#2B1416] mb-1.5">
-                    District
+                    District <span className="text-red-600" aria-hidden="true">*</span>
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-[#8E6F70] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <select
                       required
+                      aria-required="true"
+                      aria-invalid={Boolean(fieldErrors.district)}
                       value={district}
                       onChange={(e) => {
                         const val = e.target.value;
                         setDistrict(val);
+                        if (fieldErrors.district) {
+                          setFieldErrors((prev) => ({ ...prev, district: undefined }));
+                        }
                         if (val === 'Dhaka') {
                           setDeliveryArea('inside_dhaka');
                         } else if (val) {
                           setDeliveryArea('outside_dhaka');
                         }
                       }}
-                      className={`w-full pl-10 pr-8 py-2.5 text-sm border border-[#DFCFB0] rounded-xl bg-white focus:outline-none focus:border-[#650108] ${
-                        district ? 'text-[#2B1416]' : 'text-[#8E6F70]'
-                      }`}
+                      className={`w-full pl-10 pr-8 py-2.5 text-sm border rounded-xl bg-white focus:outline-none ${
+                        fieldErrors.district
+                          ? 'border-red-500 focus:border-red-600'
+                          : 'border-[#DFCFB0] focus:border-[#650108]'
+                      } ${district ? 'text-[#2B1416]' : 'text-[#8E6F70]'}`}
                     >
                       <option value="">Select your district</option>
                       {BANGLADESH_DISTRICTS.map((dist) => (
@@ -595,23 +672,40 @@ export function CheckoutModal({
                       ))}
                     </select>
                   </div>
+                  {fieldErrors.district && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">{fieldErrors.district}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-[13px] font-semibold text-[#2B1416] mb-1.5">
-                    Phone number
+                    Phone number <span className="text-red-600" aria-hidden="true">*</span>
                   </label>
                   <div className="relative">
                     <Phone className="w-4 h-4 text-[#8E6F70] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="tel"
                       required
+                      aria-required="true"
+                      aria-invalid={Boolean(fieldErrors.customerPhone)}
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      onChange={(e) => {
+                        setCustomerPhone(e.target.value);
+                        if (fieldErrors.customerPhone) {
+                          setFieldErrors((prev) => ({ ...prev, customerPhone: undefined }));
+                        }
+                      }}
                       placeholder="01XXXXXXXXX"
-                      className="w-full pl-10 pr-3.5 py-2.5 text-sm border border-[#DFCFB0] rounded-xl bg-white focus:outline-none focus:border-[#650108] placeholder:text-[#8E6F70]"
+                      className={`w-full pl-10 pr-3.5 py-2.5 text-sm border rounded-xl bg-white focus:outline-none placeholder:text-[#8E6F70] ${
+                        fieldErrors.customerPhone
+                          ? 'border-red-500 focus:border-red-600'
+                          : 'border-[#DFCFB0] focus:border-[#650108]'
+                      }`}
                     />
                   </div>
+                  {fieldErrors.customerPhone && (
+                    <p className="mt-1 text-xs text-red-600 font-medium">{fieldErrors.customerPhone}</p>
+                  )}
                 </div>
 
                 <div>
@@ -768,7 +862,20 @@ export function CheckoutModal({
                           <span className="w-2 h-2 rounded-full bg-[#650108]" />
                         )}
                       </span>
-                      <Banknote className="w-5 h-5 text-[#650108] shrink-0" />
+                      <span className="w-9 flex items-center justify-center shrink-0">
+                        {settings.paymentGateways.cod.logoUrl ? (
+                          <img
+                            src={settings.paymentGateways.cod.logoUrl}
+                            alt="Cash on delivery"
+                            referrerPolicy="no-referrer"
+                            className="w-8 h-8 rounded-lg border border-[#DFCFB0] bg-white object-contain shadow-2xs"
+                          />
+                        ) : (
+                          <span className="w-8 h-8 rounded-lg bg-[#F5ECD8] border border-[#DFCFB0] flex items-center justify-center">
+                            <Banknote className="w-4.5 h-4.5 text-[#650108]" />
+                          </span>
+                        )}
+                      </span>
                       <span className="text-sm font-semibold text-[#2B1416]">
                         Cash on delivery
                       </span>
@@ -797,8 +904,13 @@ export function CheckoutModal({
                           <span className="w-2 h-2 rounded-full bg-[#650108]" />
                         )}
                       </span>
-                      <span className="w-7 h-7 rounded-lg bg-[#E2136E] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                        bK
+                      <span className="w-9 flex items-center justify-center shrink-0">
+                        <img
+                          src={settings.paymentGateways.bkash.logoUrl || '/assets/payments/bkash.svg'}
+                          alt="bKash"
+                          referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-lg border border-[#E2136E]/25 bg-white object-contain shadow-2xs"
+                        />
                       </span>
                       <span className="text-sm font-semibold text-[#2B1416]">bKash</span>
                     </div>
@@ -826,8 +938,13 @@ export function CheckoutModal({
                           <span className="w-2 h-2 rounded-full bg-[#650108]" />
                         )}
                       </span>
-                      <span className="w-7 h-7 rounded-lg bg-[#ED1C24] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                        N
+                      <span className="w-9 flex items-center justify-center shrink-0">
+                        <img
+                          src={settings.paymentGateways.nagad.logoUrl || '/assets/payments/nagad.svg'}
+                          alt="Nagad"
+                          referrerPolicy="no-referrer"
+                          className="w-8 h-8 rounded-lg border border-[#ED1C24]/25 bg-white object-contain shadow-2xs"
+                        />
                       </span>
                       <span className="text-sm font-semibold text-[#2B1416]">Nagad</span>
                     </div>
@@ -855,7 +972,14 @@ export function CheckoutModal({
                           <span className="w-2 h-2 rounded-full bg-[#650108]" />
                         )}
                       </span>
-                      <CreditCard className="w-5 h-5 text-[#650108] shrink-0" />
+                      <span className="w-9 flex items-center justify-center shrink-0">
+                        <img
+                          src={settings.paymentGateways.card.logoUrl || '/assets/payments/cards.svg'}
+                          alt="Visa and Mastercard"
+                          referrerPolicy="no-referrer"
+                          className="w-9 h-7 rounded-md border border-[#DFCFB0] bg-white object-contain shadow-2xs"
+                        />
+                      </span>
                       <span className="text-sm font-semibold text-[#2B1416]">Card / SSL</span>
                     </div>
                     <span className="text-xs text-[#6B4C4E] shrink-0">Visa, Mastercard</span>
@@ -1149,10 +1273,18 @@ export function CheckoutModal({
         <form onSubmit={handleVerifyPayment} className="max-w-lg mx-auto py-4 space-y-5">
           {paymentMethod === 'bkash' && (
             <div className="rounded-2xl overflow-hidden border border-[#E2136E]/30 shadow-xs bg-white">
-              <div className="bg-[#E2136E] text-white p-5 flex items-center justify-between">
-                <div>
-                  <div className="text-xs opacity-90">bKash Merchant Payment</div>
-                  <div className="text-lg font-bold">{settings.storeName}</div>
+              <div className="bg-[#E2136E] text-white p-5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={settings.paymentGateways.bkash.logoUrl || '/assets/payments/bkash.svg'}
+                    alt="bKash"
+                    referrerPolicy="no-referrer"
+                    className="w-9 h-9 rounded-lg bg-white p-0.5 object-contain shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs opacity-90">bKash Merchant Payment</div>
+                    <div className="text-lg font-bold">{settings.storeName}</div>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs opacity-90">Amount</div>
@@ -1195,10 +1327,18 @@ export function CheckoutModal({
 
           {paymentMethod === 'nagad' && (
             <div className="rounded-2xl overflow-hidden border border-[#ED1C24]/30 shadow-xs bg-white">
-              <div className="bg-gradient-to-r from-[#ED1C24] to-[#F7941D] text-white p-5 flex items-center justify-between">
-                <div>
-                  <div className="text-xs opacity-90">Nagad e-Commerce Gateway</div>
-                  <div className="text-lg font-bold">{settings.storeName}</div>
+              <div className="bg-gradient-to-r from-[#ED1C24] to-[#F7941D] text-white p-5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={settings.paymentGateways.nagad.logoUrl || '/assets/payments/nagad.svg'}
+                    alt="Nagad"
+                    referrerPolicy="no-referrer"
+                    className="w-9 h-9 rounded-lg bg-white p-0.5 object-contain shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs opacity-90">Nagad e-Commerce Gateway</div>
+                    <div className="text-lg font-bold">{settings.storeName}</div>
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs opacity-90">Payable</div>
@@ -1238,12 +1378,20 @@ export function CheckoutModal({
 
           {paymentMethod === 'card' && (
             <div className="rounded-2xl overflow-hidden border border-[#DFCFB0] shadow-xs bg-[#FFFDF8]">
-              <div className="bg-[#650108] text-[#F2E8D2] p-5 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-[#F2E8D2]/80">
-                    {settings.paymentGateways.card.provider} Secure Pay
+              <div className="bg-[#650108] text-[#F2E8D2] p-5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={settings.paymentGateways.card.logoUrl || '/assets/payments/cards.svg'}
+                    alt="Visa and Mastercard"
+                    referrerPolicy="no-referrer"
+                    className="w-10 h-8 rounded-md bg-white p-0.5 object-contain shrink-0"
+                  />
+                  <div>
+                    <div className="text-xs text-[#F2E8D2]/80">
+                      {settings.paymentGateways.card.provider} Secure Pay
+                    </div>
+                    <div className="text-lg font-bold">{settings.storeName}</div>
                   </div>
-                  <div className="text-lg font-bold">{settings.storeName}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-[#F2E8D2]/80">Total</div>

@@ -7,6 +7,14 @@ interface PartnerLogo {
   mark: React.ReactNode;
 }
 
+interface TrustedBySectionProps {
+  paymentLogos?: {
+    bkash?: string;
+    nagad?: string;
+    card?: string;
+  };
+}
+
 const PARTNER_LOGOS: PartnerLogo[] = [
   {
     id: 'steadfast',
@@ -24,10 +32,11 @@ const PARTNER_LOGOS: PartnerLogo[] = [
     name: 'bKash',
     category: 'Merchant Pay',
     mark: (
-      <svg viewBox="0 0 28 28" className="w-6 h-6 text-[#650108] shrink-0" aria-hidden="true">
-        <path d="M6 5l11 7-4 11-7-9V5z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-        <path d="M17 12l5-2-3 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <img
+        src="/assets/payments/bkash.svg"
+        alt="bKash"
+        className="w-7 h-7 rounded-md border border-[#E2136E]/20 bg-white object-contain shrink-0"
+      />
     ),
   },
   {
@@ -35,10 +44,11 @@ const PARTNER_LOGOS: PartnerLogo[] = [
     name: 'SSLCommerz',
     category: 'Verified Gateway',
     mark: (
-      <svg viewBox="0 0 28 28" className="w-6 h-6 text-[#650108] shrink-0" aria-hidden="true">
-        <path d="M14 3l9 4v6c0 5.5-3.8 10.2-9 12-5.2-1.8-9-6.5-9-12V7l9-4z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-        <path d="M10.5 14l2.5 2.5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <img
+        src="/assets/payments/cards.svg"
+        alt="SSLCommerz Visa Mastercard"
+        className="w-8 h-6 rounded-md border border-[#DFCFB0] bg-white object-contain shrink-0"
+      />
     ),
   },
   {
@@ -69,10 +79,11 @@ const PARTNER_LOGOS: PartnerLogo[] = [
     name: 'Nagad',
     category: 'Digital Wallet',
     mark: (
-      <svg viewBox="0 0 28 28" className="w-6 h-6 text-[#650108] shrink-0" aria-hidden="true">
-        <circle cx="14" cy="14" r="9.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-        <path d="M10.5 18V10l7 8V10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <img
+        src="/assets/payments/nagad.svg"
+        alt="Nagad"
+        className="w-7 h-7 rounded-md border border-[#ED1C24]/20 bg-white object-contain shrink-0"
+      />
     ),
   },
   {
@@ -127,8 +138,54 @@ const PARTNER_TESTIMONIALS: PartnerTestimonial[] = [
   },
 ];
 
-export function TrustedBySection() {
-  const repeatedLogos = [...PARTNER_LOGOS, ...PARTNER_LOGOS];
+export function TrustedBySection({ paymentLogos }: TrustedBySectionProps) {
+  const logos = React.useMemo(
+    () =>
+      PARTNER_LOGOS.map((partner) => {
+        if (partner.id === 'bkash' && paymentLogos?.bkash) {
+          return {
+            ...partner,
+            mark: (
+              <img
+                src={paymentLogos.bkash}
+                alt="bKash"
+                referrerPolicy="no-referrer"
+                className="w-7 h-7 rounded-md border border-[#E2136E]/20 bg-white object-contain shrink-0"
+              />
+            ),
+          };
+        }
+        if (partner.id === 'nagad' && paymentLogos?.nagad) {
+          return {
+            ...partner,
+            mark: (
+              <img
+                src={paymentLogos.nagad}
+                alt="Nagad"
+                referrerPolicy="no-referrer"
+                className="w-7 h-7 rounded-md border border-[#ED1C24]/20 bg-white object-contain shrink-0"
+              />
+            ),
+          };
+        }
+        if (partner.id === 'sslcommerz' && paymentLogos?.card) {
+          return {
+            ...partner,
+            mark: (
+              <img
+                src={paymentLogos.card}
+                alt="SSLCommerz Visa Mastercard"
+                referrerPolicy="no-referrer"
+                className="w-8 h-6 rounded-md border border-[#DFCFB0] bg-white object-contain shrink-0"
+              />
+            ),
+          };
+        }
+        return partner;
+      }),
+    [paymentLogos]
+  );
+  const repeatedLogos = [...logos, ...logos];
   const trackRef = React.useRef<HTMLDivElement>(null);
   const offsetRef = React.useRef(0);
   const draggingRef = React.useRef(false);

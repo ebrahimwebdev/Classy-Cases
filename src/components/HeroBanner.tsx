@@ -280,7 +280,7 @@ export function HeroBanner({
   return (
     <section
       aria-label="Featured Video Showcase Hero"
-      className="relative w-full bg-[#240306] overflow-hidden border-b border-[#4D0106]"
+      className="relative w-full overflow-hidden"
     >
       {/* Full-Bleed Video Backdrop */}
       <div

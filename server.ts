@@ -14,6 +14,7 @@ import type {
   HeroPlaybackSettings,
   HeroVideoSlideConfig,
   Order,
+  OrderCourierInfo,
   OrderItem,
   PaymentMethod,
   Product,
@@ -46,6 +47,12 @@ import {
 import { getOrCreateUser, getUserByUid } from './src/db/users.ts';
 import { adminAuth } from './src/lib/firebase-admin.ts';
 import { optionalAuth, type AuthRequest } from './src/middleware/auth.ts';
+import {
+  createDefaultFooterConfig,
+  DEFAULT_HEADER_CONFIG,
+  mergeFooterConfig,
+  mergeHeaderConfig,
+} from './src/utils/headerFooterDefaults.ts';
 
 dotenv.config();
 
@@ -145,6 +152,17 @@ function createInitialData(): StoreDatabase {
         popupOfferHeadline: 'Get 10% OFF Your First Case',
         popupOfferCode: 'CLASSY10',
       },
+      headerConfig: { ...DEFAULT_HEADER_CONFIG },
+      footerConfig: createDefaultFooterConfig({
+        storeName: 'Classy Cases',
+        tagline: 'Premium phone cases, made to fit "Your Perfect Case". Everyday protection. Effortless style.',
+        phone: '01799576210',
+        email: 'mdebrahim.contact@gmail.com',
+        address: 'Tilapara, Ekuria, Dhaka Jute Mills,',
+        shippingInsideDhaka: 60,
+        shippingOutsideDhaka: 120,
+        freeShippingThreshold: 1500,
+      }),
       orderSettings: {
         sources: ['Web', 'POS', 'Facebook Page', 'Instagram DM', 'WhatsApp'],
         quickNotes: ['Call customer before dispatch', 'Check exact camera cutout', 'Urgent same-day Dhaka delivery'],
@@ -687,15 +705,39 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
     shopPageColumns: ([2, 3, 4, 5].includes(Number(settings.storefrontConfig?.shopPageColumns))
       ? Number(settings.storefrontConfig?.shopPageColumns)
       : 5) as 2 | 3 | 4 | 5,
+    headerConfig: mergeHeaderConfig(settings.headerConfig),
+    footerConfig: mergeFooterConfig(settings.footerConfig, {
+      storeName: settings.storeName,
+      tagline: settings.tagline,
+      phone: settings.phone,
+      email: settings.email,
+      address: settings.address,
+      openingHours: settings.openingHours,
+      shippingInsideDhaka: settings.shippingInsideDhaka,
+      shippingOutsideDhaka: settings.shippingOutsideDhaka,
+      freeShippingThreshold: settings.freeShippingThreshold,
+    }),
     paymentGateways: {
-      bkash: { enabled: settings.paymentGateways.bkash.enabled, mode: settings.paymentGateways.bkash.mode },
-      nagad: { enabled: settings.paymentGateways.nagad.enabled, mode: settings.paymentGateways.nagad.mode },
+      bkash: {
+        enabled: settings.paymentGateways.bkash.enabled,
+        mode: settings.paymentGateways.bkash.mode,
+        logoUrl: settings.paymentGateways.bkash.logoUrl || '',
+      },
+      nagad: {
+        enabled: settings.paymentGateways.nagad.enabled,
+        mode: settings.paymentGateways.nagad.mode,
+        logoUrl: settings.paymentGateways.nagad.logoUrl || '',
+      },
       card: {
         enabled: settings.paymentGateways.card.enabled,
         provider: settings.paymentGateways.card.provider,
         mode: settings.paymentGateways.card.mode,
+        logoUrl: settings.paymentGateways.card.logoUrl || '',
       },
-      cod: { enabled: settings.paymentGateways.cod.enabled },
+      cod: {
+        enabled: settings.paymentGateways.cod.enabled,
+        logoUrl: settings.paymentGateways.cod.logoUrl || '',
+      },
     },
   };
 }
@@ -1309,6 +1351,7 @@ async function startServer() {
         customerName,
         customerPhone,
         customerEmail = '',
+        district = '',
         deliveryAddress,
         deliveryArea = 'inside_dhaka',
         items,
@@ -1321,12 +1364,16 @@ async function startServer() {
         res.status(400).json({ error: 'Full name is required' });
         return;
       }
-      if (typeof customerPhone !== 'string' || customerPhone.replace(/\D/g, '').length < 8) {
-        res.status(400).json({ error: 'Valid phone number is required' });
-        return;
-      }
       if (typeof deliveryAddress !== 'string' || deliveryAddress.trim().length < 5) {
         res.status(400).json({ error: 'Complete delivery address is required' });
+        return;
+      }
+      if (source !== 'POS' && (typeof district !== 'string' || district.trim().length < 2)) {
+        res.status(400).json({ error: 'District is required' });
+        return;
+      }
+      if (typeof customerPhone !== 'string' || customerPhone.replace(/\D/g, '').length < 8) {
+        res.status(400).json({ error: 'Valid phone number is required' });
         return;
       }
       if (!['bkash', 'nagad', 'card', 'cod'].includes(paymentMethod)) {
@@ -2183,18 +2230,115 @@ async function startServer() {
       res.status(404).json({ error: 'Order not found' });
       return;
     }
-    const { fulfillmentStatus, paymentStatus } = req.body || {};
+    const {
+      fulfillmentStatus,
+      paymentStatus,
+      customerName,
+      customerPhone,
+      deliveryAddress,
+      deliveryArea,
+      adminNote,
+      courier,
+      restoreStock,
+    } = req.body || {};
+
+    const now = new Date().toISOString();
+    const prevStatus = order.fulfillmentStatus;
     const allowedFulfillment: FulfillmentStatus[] = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
     if (fulfillmentStatus && allowedFulfillment.includes(fulfillmentStatus)) {
       order.fulfillmentStatus = fulfillmentStatus;
-      if (fulfillmentStatus === 'delivered' && order.paymentMethod === 'cod') {
-        order.paymentStatus = 'paid';
+      if (fulfillmentStatus === 'confirmed' && !order.confirmedAt) {
+        order.confirmedAt = now;
+      }
+      if (fulfillmentStatus === 'shipped') {
+        if (!order.confirmedAt) order.confirmedAt = now;
+        if (!order.shippedAt) order.shippedAt = now;
+        if (order.courier && order.courier.status === 'booked') {
+          order.courier.status = 'in_transit';
+        }
+      }
+      if (fulfillmentStatus === 'delivered') {
+        if (!order.confirmedAt) order.confirmedAt = now;
+        if (!order.shippedAt) order.shippedAt = now;
+        if (!order.deliveredAt) order.deliveredAt = now;
+        if (order.paymentMethod === 'cod') {
+          order.paymentStatus = 'paid';
+        }
+        if (order.courier) {
+          order.courier.status = 'delivered';
+        }
+      }
+      if (fulfillmentStatus === 'cancelled') {
+        if (order.courier) {
+          order.courier.status = 'cancelled';
+        }
+        if (restoreStock === true && prevStatus !== 'cancelled') {
+          for (const item of order.items) {
+            const product = db.products.find((p) => p.id === item.productId);
+            if (product && product.trackStock !== false) {
+              product.stock = Math.max(0, product.stock + item.quantity);
+              if (isSqlConfigured()) {
+                await upsertProductToSql(product);
+              }
+            }
+          }
+        }
       }
     }
+
     if (paymentStatus && ['paid', 'pending', 'failed'].includes(paymentStatus)) {
       order.paymentStatus = paymentStatus;
     }
-    order.updatedAt = new Date().toISOString();
+
+    if (typeof customerName === 'string' && customerName.trim()) {
+      order.customerName = customerName.trim().slice(0, 120);
+    }
+    if (typeof customerPhone === 'string' && customerPhone.trim()) {
+      order.customerPhone = customerPhone.trim().slice(0, 32);
+    }
+    if (typeof deliveryAddress === 'string' && deliveryAddress.trim()) {
+      order.deliveryAddress = deliveryAddress.trim().slice(0, 300);
+    }
+    if (deliveryArea === 'inside_dhaka' || deliveryArea === 'outside_dhaka') {
+      order.deliveryArea = deliveryArea;
+    }
+    if (typeof adminNote === 'string') {
+      order.adminNote = adminNote.trim().slice(0, 500);
+    }
+    if (courier && typeof courier === 'object') {
+      const existing = order.courier;
+      const validProvider = ['Steadfast', 'Pathao', 'RedX', 'Manual'].includes(courier.provider)
+        ? courier.provider
+        : existing?.provider || 'Manual';
+      const validCourierStatus = ['booked', 'in_transit', 'delivered', 'cancelled'].includes(courier.status)
+        ? courier.status
+        : existing?.status || 'booked';
+      order.courier = {
+        provider: validProvider,
+        consignmentId:
+          typeof courier.consignmentId === 'string' && courier.consignmentId.trim()
+            ? courier.consignmentId.trim().slice(0, 80)
+            : existing?.consignmentId || '',
+        trackingCode:
+          typeof courier.trackingCode === 'string' && courier.trackingCode.trim()
+            ? courier.trackingCode.trim().slice(0, 80)
+            : existing?.trackingCode || '',
+        status: validCourierStatus,
+        bookedAt: existing?.bookedAt || now,
+        parcelWeightKg:
+          Number.isFinite(Number(courier.parcelWeightKg)) && Number(courier.parcelWeightKg) > 0
+            ? Number(courier.parcelWeightKg)
+            : existing?.parcelWeightKg || 0.25,
+        codAmount:
+          Number.isFinite(Number(courier.codAmount)) && Number(courier.codAmount) >= 0
+            ? Number(courier.codAmount)
+            : existing?.codAmount ?? (order.paymentStatus === 'paid' ? 0 : order.total),
+        note: typeof courier.note === 'string' ? courier.note.trim().slice(0, 300) : existing?.note,
+        mode: courier.mode === 'api' || courier.mode === 'manual' ? courier.mode : existing?.mode || 'manual',
+      };
+    }
+
+    order.updatedAt = now;
     try {
       if (isSqlConfigured()) {
         await updateOrderInSql(order);
@@ -2203,6 +2347,159 @@ async function startServer() {
       res.json({ order });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update order' });
+    }
+  });
+
+  app.post('/api/admin/orders/:id/courier-book', requireAdmin, async (req, res) => {
+    const order = db.orders.find((o) => o.id === req.params.id);
+    if (!order) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    if (order.fulfillmentStatus === 'cancelled') {
+      res.status(400).json({ error: 'Cannot book a courier for a cancelled order.' });
+      return;
+    }
+
+    const {
+      provider: rawProvider,
+      parcelWeightKg: rawWeight,
+      codAmount: rawCod,
+      note: rawNote,
+      trackingCode: rawTracking,
+      consignmentId: rawConsignment,
+      markShipped = false,
+      mode: requestedMode,
+    } = req.body || {};
+
+    const provider: OrderCourierInfo['provider'] = ['Steadfast', 'Pathao', 'RedX', 'Manual'].includes(rawProvider)
+      ? rawProvider
+      : db.settings.deliverySettings?.courierProvider &&
+          db.settings.deliverySettings.courierProvider !== 'None'
+        ? db.settings.deliverySettings.courierProvider
+        : 'Steadfast';
+
+    const parcelWeightKg =
+      Number.isFinite(Number(rawWeight)) && Number(rawWeight) > 0 ? Number(rawWeight) : 0.25;
+    const codAmount =
+      Number.isFinite(Number(rawCod)) && Number(rawCod) >= 0
+        ? Math.round(Number(rawCod))
+        : order.paymentStatus === 'paid'
+          ? 0
+          : order.total;
+    const note = typeof rawNote === 'string' ? rawNote.trim().slice(0, 300) : '';
+    const manualTracking = typeof rawTracking === 'string' ? rawTracking.trim() : '';
+    const manualConsignment = typeof rawConsignment === 'string' ? rawConsignment.trim() : '';
+
+    const now = new Date().toISOString();
+    let finalTrackingCode = manualTracking;
+    let finalConsignmentId = manualConsignment;
+    let bookingMode: 'api' | 'manual' = 'manual';
+
+    const apiKey = db.settings.deliverySettings?.courierApiKey?.trim() || '';
+    const secretKey = db.settings.deliverySettings?.courierSecretKey?.trim() || '';
+
+    if (
+      provider === 'Steadfast' &&
+      requestedMode !== 'manual' &&
+      !manualTracking &&
+      apiKey &&
+      secretKey
+    ) {
+      try {
+        const sfRes = await fetch('https://portal.packzy.com/api/v1/create_order', {
+          method: 'POST',
+          headers: {
+            'Api-Key': apiKey,
+            'Secret-Key': secretKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            invoice: order.orderNumber,
+            recipient_name: order.customerName,
+            recipient_phone: order.customerPhone,
+            recipient_address: order.deliveryAddress,
+            cod_amount: codAmount,
+            note: note || `Classy Cases #${order.orderNumber}`,
+          }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const sfData = (await sfRes.json().catch(() => ({}))) as {
+          status?: number;
+          message?: string;
+          errors?: Record<string, string[]>;
+          consignment?: {
+            consignment_id?: number | string;
+            tracking_code?: string;
+          };
+        };
+        if (!sfRes.ok || !sfData.consignment?.tracking_code) {
+          const detail =
+            sfData.message ||
+            (sfData.errors ? Object.values(sfData.errors).flat().join(', ') : '') ||
+            `Steadfast API returned ${sfRes.status}`;
+          res.status(400).json({ error: `Steadfast booking failed: ${detail}` });
+          return;
+        }
+        finalConsignmentId = String(sfData.consignment.consignment_id || order.orderNumber);
+        finalTrackingCode = String(sfData.consignment.tracking_code);
+        bookingMode = 'api';
+      } catch (err) {
+        res.status(502).json({
+          error: `Could not reach Steadfast API (${err instanceof Error ? err.message : 'network error'}). You can book in Manual mode with your consignment/tracking code.`,
+        });
+        return;
+      }
+    }
+
+    if (!finalTrackingCode || !finalConsignmentId) {
+      const prefixMap: Record<OrderCourierInfo['provider'], string> = {
+        Steadfast: 'STF',
+        Pathao: 'PTH',
+        RedX: 'RDX',
+        Manual: 'MAN',
+      };
+      const prefix = prefixMap[provider];
+      const suffix = crypto.randomBytes(2).toString('hex').toUpperCase();
+      if (!finalConsignmentId) {
+        finalConsignmentId = `${prefix}-CN-${order.orderNumber}-${suffix}`;
+      }
+      if (!finalTrackingCode) {
+        finalTrackingCode = `${prefix}-${order.orderNumber}-${suffix}`;
+      }
+    }
+
+    order.courier = {
+      provider,
+      consignmentId: finalConsignmentId,
+      trackingCode: finalTrackingCode,
+      status: markShipped ? 'in_transit' : 'booked',
+      bookedAt: now,
+      parcelWeightKg,
+      codAmount,
+      note: note || undefined,
+      mode: bookingMode,
+    };
+
+    if (!order.confirmedAt) {
+      order.confirmedAt = now;
+    }
+    if (markShipped) {
+      order.fulfillmentStatus = 'shipped';
+      if (!order.shippedAt) order.shippedAt = now;
+    } else if (order.fulfillmentStatus === 'pending') {
+      order.fulfillmentStatus = 'confirmed';
+    }
+    order.updatedAt = now;
+
+    try {
+      if (isSqlConfigured()) {
+        await updateOrderInSql(order);
+      }
+      saveDatabase();
+      res.json({ order });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save courier booking' });
     }
   });
 
@@ -2281,19 +2578,47 @@ async function startServer() {
         s.paymentGateways.bkash.enabled = Boolean(pg.bkash.enabled);
         if (typeof pg.bkash.merchantNumber === 'string') s.paymentGateways.bkash.merchantNumber = pg.bkash.merchantNumber.trim();
         if (pg.bkash.mode === 'sandbox' || pg.bkash.mode === 'live') s.paymentGateways.bkash.mode = pg.bkash.mode;
+        if (pg.bkash.logoUrl !== undefined) {
+          if (!isSafeBrandAsset(pg.bkash.logoUrl)) {
+            res.status(400).json({ error: 'bKash logo must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+            return;
+          }
+          s.paymentGateways.bkash.logoUrl = pg.bkash.logoUrl.trim();
+        }
       }
       if (pg.nagad) {
         s.paymentGateways.nagad.enabled = Boolean(pg.nagad.enabled);
         if (typeof pg.nagad.merchantNumber === 'string') s.paymentGateways.nagad.merchantNumber = pg.nagad.merchantNumber.trim();
         if (pg.nagad.mode === 'sandbox' || pg.nagad.mode === 'live') s.paymentGateways.nagad.mode = pg.nagad.mode;
+        if (pg.nagad.logoUrl !== undefined) {
+          if (!isSafeBrandAsset(pg.nagad.logoUrl)) {
+            res.status(400).json({ error: 'Nagad logo must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+            return;
+          }
+          s.paymentGateways.nagad.logoUrl = pg.nagad.logoUrl.trim();
+        }
       }
       if (pg.card) {
         s.paymentGateways.card.enabled = Boolean(pg.card.enabled);
         if (typeof pg.card.storeId === 'string') s.paymentGateways.card.storeId = pg.card.storeId.trim();
         if (pg.card.mode === 'sandbox' || pg.card.mode === 'live') s.paymentGateways.card.mode = pg.card.mode;
+        if (pg.card.logoUrl !== undefined) {
+          if (!isSafeBrandAsset(pg.card.logoUrl)) {
+            res.status(400).json({ error: 'Card gateway logo must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+            return;
+          }
+          s.paymentGateways.card.logoUrl = pg.card.logoUrl.trim();
+        }
       }
       if (pg.cod) {
         s.paymentGateways.cod.enabled = Boolean(pg.cod.enabled);
+        if (pg.cod.logoUrl !== undefined) {
+          if (!isSafeBrandAsset(pg.cod.logoUrl)) {
+            res.status(400).json({ error: 'COD icon must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+            return;
+          }
+          s.paymentGateways.cod.logoUrl = pg.cod.logoUrl.trim();
+        }
       }
     }
     if (body.storefrontConfig && typeof body.storefrontConfig === 'object') {
@@ -2320,6 +2645,22 @@ async function startServer() {
         popupOfferHeadline: typeof sc.popupOfferHeadline === 'string' ? sc.popupOfferHeadline.trim() : '',
         popupOfferCode: typeof sc.popupOfferCode === 'string' ? sc.popupOfferCode.trim().toUpperCase() : '',
       };
+    }
+    if (body.headerConfig && typeof body.headerConfig === 'object') {
+      s.headerConfig = mergeHeaderConfig(body.headerConfig);
+    }
+    if (body.footerConfig && typeof body.footerConfig === 'object') {
+      s.footerConfig = mergeFooterConfig(body.footerConfig, {
+        storeName: s.storeName,
+        tagline: s.tagline,
+        phone: s.phone,
+        email: s.email,
+        address: s.address,
+        openingHours: s.openingHours,
+        shippingInsideDhaka: s.shippingInsideDhaka,
+        shippingOutsideDhaka: s.shippingOutsideDhaka,
+        freeShippingThreshold: s.freeShippingThreshold,
+      });
     }
     if (body.orderSettings && typeof body.orderSettings === 'object') {
       const os = body.orderSettings;

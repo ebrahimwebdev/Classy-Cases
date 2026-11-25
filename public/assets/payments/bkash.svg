@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <rect width="48" height="48" rx="10" fill="#FFFFFF"/>
+  <!-- bKash Origami Bird Emblem -->
+  <!-- Upper left wing (deep rose) -->
+  <polygon points="15,8 26,22 18,24" fill="#C9125E"/>
+  <!-- Upper back wing fold (bright bKash magenta) -->
+  <polygon points="15,8 28,15 26,22" fill="#E2136E"/>
+  <!-- Right folded wing (soft highlight pink) -->
+  <polygon points="26,22 33,12 34,22" fill="#F25C9D"/>
+  <!-- Lower belly / chest facet -->
+  <polygon points="18,24 26,22 25,35" fill="#E2136E"/>
+  <!-- Tail lower-left sweep -->
+  <polygon points="10,36 18,24 25,35" fill="#B00E51"/>
+  <!-- Tail dark fold -->
+  <polygon points="10,36 17,31 25,35" fill="#8C0A40"/>
+  <!-- Right wing lower shadow -->
+  <polygon points="26,22 34,22 28,31" fill="#C9125E"/>
+  <!-- Head & neck -->
+  <polygon points="31,18 37,17 34,23" fill="#E2136E"/>
+  <!-- Beak pointing right -->
+  <polygon points="37,17 42,18.5 36.5,21" fill="#9E0B47"/>
+</svg>

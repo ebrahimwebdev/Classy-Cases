@@ -16,6 +16,7 @@ import {
   CloudUpload,
   CreditCard,
   DollarSign,
+  Eye,
   Film,
   Filter,
   FolderOpen,
@@ -76,6 +77,7 @@ import {
   type InventoryCatalogSection,
 } from './AdminInventoryCatalogViews';
 import { AdminProductEditor, type ProductEditorPayload } from './AdminProductEditor';
+import { AdminOrderDetailModal } from './AdminOrderDetailModal';
 import { AdminProductsView } from './AdminProductsView';
 import { AdminSettings, type SettingsTab } from './AdminSettings';
 import { useFirebaseAuth } from '../context/FirebaseAuthContext';
@@ -200,9 +202,10 @@ export function AdminDashboard({
   const [catalogMenuOpen, setCatalogMenuOpen] = useState(true);
   const [stockToolsMenuOpen, setStockToolsMenuOpen] = useState(true);
 
-  // Order scan
+  // Order scan & detail inspection modal
   const [scanQuery, setScanQuery] = useState('');
   const [scannedOrder, setScannedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // POS state
   const [posItems, setPosItems] = useState<{ productId: string; quantity: number }[]>([]);
@@ -695,6 +698,16 @@ export function AdminDashboard({
     if (res.ok) fetchOverview(adminToken);
   }
 
+  function handleOrderUpdatedFromModal(updatedOrder: Order) {
+    setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
+    if (scannedOrder && scannedOrder.id === updatedOrder.id) {
+      setScannedOrder(updatedOrder);
+    }
+    if (adminToken) {
+      fetchOverview(adminToken);
+    }
+  }
+
   async function handleQuickStockChange(p: Product, delta: number) {
     if (!adminToken) return;
     const res = await fetch(`/api/admin/products/${p.id}`, {
@@ -1133,11 +1146,24 @@ export function AdminDashboard({
       o.orderNumber.toLowerCase().includes(q) ||
       o.customerName.toLowerCase().includes(q) ||
       o.customerPhone.includes(q) ||
-      o.transactionId.toLowerCase().includes(q);
-    const matchesStatus = orderStatusFilter === 'all' || o.fulfillmentStatus === orderStatusFilter;
+      o.deliveryAddress.toLowerCase().includes(q) ||
+      o.transactionId.toLowerCase().includes(q) ||
+      Boolean(o.courier?.trackingCode.toLowerCase().includes(q));
+    const matchesStatus =
+      orderStatusFilter === 'all' ||
+      (orderStatusFilter === 'courier_booked'
+        ? Boolean(o.courier) && o.fulfillmentStatus !== 'delivered' && o.fulfillmentStatus !== 'cancelled'
+        : o.fulfillmentStatus === orderStatusFilter);
     const matchesWeb = activeSection === 'Web Orders' ? o.source === 'Web' : true;
     return matchesSearch && matchesStatus && matchesWeb;
   });
+
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) || null
+    : null;
+  const activeScannedOrder = scannedOrder
+    ? orders.find((o) => o.id === scannedOrder.id) || scannedOrder
+    : null;
 
   // Derive customer directory from orders
   const customerMap = new Map<
@@ -2048,21 +2074,34 @@ export function AdminDashboard({
                             key={ord.id}
                             className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-between gap-2"
                           >
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOrderId(ord.id)}
+                              className="min-w-0 text-left hover:text-indigo-600 dark:hover:text-indigo-400"
+                            >
+                              <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
                                 #{ord.orderNumber} · {ord.customerName}
                               </div>
                               <div className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                                 ৳{ord.total} · {ord.paymentMethod.toUpperCase()} ({ord.paymentStatus})
                               </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateOrderStatus(ord.id, 'shipped')}
-                              className="px-2.5 py-1 rounded-md bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700 shrink-0"
-                            >
-                              Mark Shipped
                             </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderId(ord.id)}
+                                className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-[11px] font-semibold hover:border-indigo-400"
+                              >
+                                View / Book
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateOrderStatus(ord.id, 'shipped')}
+                                className="px-2.5 py-1 rounded-md bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700"
+                              >
+                                Ship
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2492,20 +2531,30 @@ export function AdminDashboard({
                   <div>
                     <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{activeSection}</h1>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Manage online payments, transaction IDs, and shipment status
+                      Click any order to view full customer address, models, verify payment, print slip, and book courier dispatch
                     </p>
                   </div>
                   <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1 text-xs overflow-x-auto no-scrollbar max-w-full">
-                    {['all', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].map((st) => (
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'pending', label: 'Pending' },
+                      { id: 'confirmed', label: 'Confirmed' },
+                      { id: 'courier_booked', label: 'Courier Booked' },
+                      { id: 'shipped', label: 'Shipped' },
+                      { id: 'delivered', label: 'Delivered' },
+                      { id: 'cancelled', label: 'Cancelled' },
+                    ].map((st) => (
                       <button
-                        key={st}
+                        key={st.id}
                         type="button"
-                        onClick={() => setOrderStatusFilter(st)}
-                        className={`px-2.5 py-1 rounded-md capitalize font-medium whitespace-nowrap shrink-0 ${
-                          orderStatusFilter === st ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400'
+                        onClick={() => setOrderStatusFilter(st.id)}
+                        className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap shrink-0 ${
+                          orderStatusFilter === st.id
+                            ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                            : 'text-slate-600 dark:text-slate-400'
                         }`}
                       >
-                        {st}
+                        {st.label}
                       </button>
                     ))}
                   </div>
@@ -2522,45 +2571,97 @@ export function AdminDashboard({
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
+                      <table className="w-full min-w-[880px] text-left text-xs">
                         <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                           <tr>
                             <th className="py-3 px-4 font-semibold">Order</th>
-                            <th className="py-3 px-4 font-semibold">Customer</th>
-                            <th className="py-3 px-4 font-semibold">Items</th>
+                            <th className="py-3 px-4 font-semibold">Customer &amp; Address</th>
+                            <th className="py-3 px-4 font-semibold">Items &amp; Models</th>
                             <th className="py-3 px-4 font-semibold">Payment</th>
+                            <th className="py-3 px-4 font-semibold">Courier</th>
                             <th className="py-3 px-4 font-semibold text-right">Total</th>
                             <th className="py-3 px-4 font-semibold">Fulfillment</th>
+                            <th className="py-3 px-4 font-semibold text-right">View</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {filteredOrders.map((ord) => (
-                            <tr key={ord.id} className="hover:bg-slate-50/70">
+                            <tr
+                              key={ord.id}
+                              className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors"
+                            >
                               <td className="py-3 px-4">
-                                <div className="font-mono font-bold text-slate-900 dark:text-slate-100">#{ord.orderNumber}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrderId(ord.id)}
+                                  className="font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                  #{ord.orderNumber}
+                                </button>
                                 <div className="text-[11px] text-slate-500 dark:text-slate-400">
                                   {new Date(ord.createdAt).toLocaleString()}
                                 </div>
                               </td>
-                              <td className="py-3 px-4">
-                                <div className="font-semibold text-slate-900 dark:text-slate-100">{ord.customerName}</div>
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400">{ord.customerPhone}</div>
+                              <td className="py-3 px-4 max-w-[220px]">
+                                <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                                  {ord.customerName}
+                                </div>
+                                <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
+                                  {ord.customerPhone}
+                                </div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate" title={ord.deliveryAddress}>
+                                  {ord.deliveryArea === 'outside_dhaka' ? 'Outside Dhaka' : 'Inside Dhaka'} · {ord.deliveryAddress}
+                                </div>
                               </td>
-                              <td className="py-3 px-4">
-                                <div className="text-slate-800 dark:text-slate-200">
-                                  {ord.items.map((i) => `${i.title.slice(0, 24)} ×${i.quantity}`).join(', ')}
+                              <td className="py-3 px-4 max-w-[220px]">
+                                <div className="text-slate-800 dark:text-slate-200 line-clamp-2">
+                                  {ord.items
+                                    .map((i) => `${i.title.slice(0, 22)} (${i.model}) ×${i.quantity}`)
+                                    .join(', ')}
                                 </div>
                               </td>
                               <td className="py-3 px-4">
-                                <div className="font-semibold uppercase text-slate-800 dark:text-slate-200">{ord.paymentMethod}</div>
-                                <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">{ord.transactionId}</div>
+                                <div className="font-semibold uppercase text-slate-800 dark:text-slate-200">
+                                  {ord.paymentMethod}
+                                </div>
+                                <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                                  {ord.transactionId}
+                                </div>
                                 <span
                                   className={`text-[11px] font-semibold ${
-                                    ord.paymentStatus === 'paid' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                                    ord.paymentStatus === 'paid'
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : ord.paymentStatus === 'failed'
+                                        ? 'text-rose-600 dark:text-rose-400'
+                                        : 'text-amber-600 dark:text-amber-400'
                                   }`}
                                 >
-                                  {ord.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                                  {ord.paymentStatus === 'paid'
+                                    ? 'Paid'
+                                    : ord.paymentStatus === 'failed'
+                                      ? 'Failed'
+                                      : 'Pending'}
                                 </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                {ord.courier ? (
+                                  <div>
+                                    <div className="font-semibold text-indigo-600 dark:text-indigo-400">
+                                      {ord.courier.provider}
+                                    </div>
+                                    <div className="font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                                      {ord.courier.trackingCode}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedOrderId(ord.id)}
+                                    className="px-2 py-1 rounded border border-dashed border-slate-300 dark:border-slate-700 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-indigo-500 hover:text-indigo-600"
+                                  >
+                                    + Book Courier
+                                  </button>
+                                )}
                               </td>
                               <td className="py-3 px-4 text-right font-bold tabular-nums text-slate-900 dark:text-slate-100">
                                 ৳{ord.total}
@@ -2579,6 +2680,16 @@ export function AdminDashboard({
                                   <option value="delivered">Delivered</option>
                                   <option value="cancelled">Cancelled</option>
                                 </select>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrderId(ord.id)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25 inline-flex items-center gap-1"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>View</span>
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -2801,7 +2912,7 @@ export function AdminDashboard({
 
             {/* ORDER SCAN */}
             {activeSection === 'Order Scan' && (
-              <div className="max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+              <div className="max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <QrCode className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Order Scan &amp; Dispatch</h1>
@@ -2811,14 +2922,18 @@ export function AdminDashboard({
                     type="text"
                     value={scanQuery}
                     onChange={(e) => setScanQuery(e.target.value)}
-                    placeholder="Enter Order Number (e.g. 1001)"
+                    placeholder="Enter Order # or Courier Tracking Code (e.g. 1001)"
                     className="flex-1 px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={() => {
+                      const q = scanQuery.trim().replace(/^#/, '').toLowerCase();
                       const found = orders.find(
-                        (o) => o.orderNumber.toLowerCase() === scanQuery.trim().replace(/^#/, '').toLowerCase()
+                        (o) =>
+                          o.orderNumber.toLowerCase() === q ||
+                          o.courier?.trackingCode.toLowerCase() === q ||
+                          o.courier?.consignmentId.toLowerCase() === q
                       );
                       setScannedOrder(found || null);
                     }}
@@ -2827,26 +2942,50 @@ export function AdminDashboard({
                     Lookup
                   </button>
                 </div>
-                {scannedOrder && (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2 text-xs">
-                    <div className="font-bold text-slate-900 dark:text-slate-100">
-                      Order #{scannedOrder.orderNumber} — {scannedOrder.customerName}
+                {activeScannedOrder && (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                        Order #{activeScannedOrder.orderNumber} — {activeScannedOrder.customerName}
+                      </div>
+                      <span className="font-mono text-slate-600 dark:text-slate-300">
+                        {activeScannedOrder.customerPhone}
+                      </span>
                     </div>
                     <div className="text-slate-600 dark:text-slate-400">
-                      Status: <strong className="uppercase">{scannedOrder.fulfillmentStatus}</strong> · Total: ৳
-                      {scannedOrder.total}
+                      Address: {activeScannedOrder.deliveryAddress}
                     </div>
-                    <div className="flex gap-2 pt-2">
+                    <div className="text-slate-700 dark:text-slate-300">
+                      Items: {activeScannedOrder.items.map((i) => `${i.title} (${i.model}) ×${i.quantity}`).join(', ')}
+                    </div>
+                    <div className="text-slate-600 dark:text-slate-400">
+                      Status: <strong className="uppercase">{activeScannedOrder.fulfillmentStatus}</strong> · Total: ৳
+                      {activeScannedOrder.total}
+                      {activeScannedOrder.courier && (
+                        <>
+                          {' '}· Courier: <strong>{activeScannedOrder.courier.provider}</strong> ({activeScannedOrder.courier.trackingCode})
+                        </>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() => handleUpdateOrderStatus(scannedOrder.id, 'shipped')}
+                        onClick={() => setSelectedOrderId(activeScannedOrder.id)}
+                        className="px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-500/40 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 font-semibold inline-flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Full Details &amp; Book Courier</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateOrderStatus(activeScannedOrder.id, 'shipped')}
                         className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-semibold"
                       >
                         Mark Shipped
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleUpdateOrderStatus(scannedOrder.id, 'delivered')}
+                        onClick={() => handleUpdateOrderStatus(activeScannedOrder.id, 'delivered')}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold"
                       >
                         Mark Delivered
@@ -2870,7 +3009,7 @@ export function AdminDashboard({
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[540px] text-left text-xs">
+                      <table className="w-full min-w-[620px] text-left text-xs">
                         <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                           <tr>
                             <th className="py-3 px-4 font-semibold">Name</th>
@@ -2878,16 +3017,30 @@ export function AdminDashboard({
                             <th className="py-3 px-4 font-semibold">Address</th>
                             <th className="py-3 px-4 font-semibold text-right">Orders</th>
                             <th className="py-3 px-4 font-semibold text-right">Total Spent</th>
+                            <th className="py-3 px-4 font-semibold text-right">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {customerList.map((c) => (
-                            <tr key={c.phone}>
+                            <tr key={c.phone} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
                               <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
                               <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">{c.phone}</td>
                               <td className="py-3 px-4 text-slate-600 dark:text-slate-400 truncate max-w-xs">{c.address}</td>
                               <td className="py-3 px-4 text-right tabular-nums">{c.orderCount}</td>
                               <td className="py-3 px-4 text-right tabular-nums font-bold">৳{c.totalSpent}</td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setGlobalSearch(c.phone);
+                                    setOrderStatusFilter('all');
+                                    setActiveSection('Orders');
+                                  }}
+                                  className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/15"
+                                >
+                                  View Orders
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -3169,11 +3322,24 @@ export function AdminDashboard({
                 expenses={expenses}
                 onAddExpense={handleAddExpense}
                 onDeleteExpense={handleDeleteExpense}
+                onOpenOrder={(ord) => setSelectedOrderId(ord.id)}
               />
             )}
           </div>
         </main>
       </div>
+
+      {selectedOrder && adminToken && (
+        <AdminOrderDetailModal
+          order={selectedOrder}
+          allOrders={orders}
+          products={products}
+          settings={settings}
+          adminToken={adminToken}
+          onClose={() => setSelectedOrderId(null)}
+          onOrderUpdated={handleOrderUpdatedFromModal}
+        />
+      )}
     </div>
   );
 }

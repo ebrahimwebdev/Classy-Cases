@@ -1,0 +1,211 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedAdminToken() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'ibrahimzadran.info@gmail.com';
+    }
+
+    function isAdmin() {
+      return isVerifiedAdminToken()
+        || (isSignedIn()
+          && request.auth.token.email_verified == true
+          && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isSafeVideoUrl(url) {
+      return url is string
+        && url.size() >= 1
+        && url.size() <= 1000
+        && (url.matches('^https://.*')
+          || url.matches('^/assets/videos/.*')
+          || url.matches('^/media/hero-videos/.*'));
+    }
+
+    function isSafePosterUrl(url) {
+      return url is string
+        && url.size() <= 1000
+        && (url == ''
+          || url.matches('^https://.*')
+          || url.matches('^/src/assets/images/.*')
+          || url.matches('^/assets/.*')
+          || url.matches('^/media/.*'));
+    }
+
+    function isValidHeroVideoSlide(data, slideId) {
+      return data.keys().hasAll([
+          'id',
+          'label',
+          'kicker',
+          'headline',
+          'description',
+          'videoSrc',
+          'posterSrc',
+          'posterAlt',
+          'categoryTarget',
+          'featuredProductId',
+          'startingPrice',
+          'sortOrder',
+          'active',
+          'createdAt',
+          'updatedAt',
+          'updatedByUid'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'label',
+          'kicker',
+          'headline',
+          'description',
+          'videoSrc',
+          'posterSrc',
+          'posterAlt',
+          'categoryTarget',
+          'featuredProductId',
+          'startingPrice',
+          'sortOrder',
+          'active',
+          'createdAt',
+          'updatedAt',
+          'updatedByUid'
+        ])
+        && data.id is string && data.id == slideId && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 60
+        && data.kicker is string && data.kicker.size() <= 140
+        && data.headline is string && data.headline.size() >= 1 && data.headline.size() <= 140
+        && data.description is string && data.description.size() <= 320
+        && isSafeVideoUrl(data.videoSrc)
+        && isSafePosterUrl(data.posterSrc)
+        && data.posterAlt is string && data.posterAlt.size() <= 200
+        && data.categoryTarget is string && data.categoryTarget.size() >= 1 && data.categoryTarget.size() <= 60
+        && data.featuredProductId is string && data.featuredProductId.size() <= 64
+        && data.startingPrice is number && data.startingPrice >= 0 && data.startingPrice <= 1000000
+        && data.sortOrder is number && data.sortOrder >= 0 && data.sortOrder <= 100
+        && data.active is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid;
+    }
+
+    function isValidHeroConfig(data) {
+      return data.keys().hasAll(['activeSlideId', 'autoAdvanceSeconds', 'updatedAt', 'updatedByUid'])
+        && data.keys().hasOnly(['activeSlideId', 'autoAdvanceSeconds', 'updatedAt', 'updatedByUid'])
+        && data.activeSlideId is string && data.activeSlideId.size() <= 64
+        && data.autoAdvanceSeconds is number && data.autoAdvanceSeconds >= 3 && data.autoAdvanceSeconds <= 30
+        && data.updatedAt is timestamp
+        && data.updatedByUid is string && data.updatedByUid == request.auth.uid;
+    }
+
+    function isValidAdminUser(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'role', 'createdAt'])
+        && data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.role == 'admin'
+        && data.createdAt is timestamp;
+    }
+
+    // Connection test document (read-only ping)
+    match /test/connection {
+      allow get: if true;
+      allow list, create, update, delete: if false;
+    }
+
+    // Hero video slides collection
+    match /heroVideos/{slideId} {
+      allow get: if isValidId(slideId) && (existing().active == true || isAdmin());
+      allow list: if existing().active == true || isVerifiedAdminToken();
+
+      allow create: if isAdmin()
+        && isValidId(slideId)
+        && isValidHeroVideoSlide(incoming(), slideId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(slideId)
+        && isValidHeroVideoSlide(incoming(), slideId)
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'label',
+          'kicker',
+          'headline',
+          'description',
+          'videoSrc',
+          'posterSrc',
+          'posterAlt',
+          'categoryTarget',
+          'featuredProductId',
+          'startingPrice',
+          'sortOrder',
+          'active',
+          'updatedAt',
+          'updatedByUid'
+        ]);
+
+      allow delete: if isAdmin() && isValidId(slideId);
+    }
+
+    // Hero global playback config
+    match /heroConfig/{configId} {
+      allow get: if isValidId(configId) && configId == 'default';
+      allow list: if false;
+
+      allow create: if isAdmin()
+        && isValidId(configId)
+        && configId == 'default'
+        && isValidHeroConfig(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(configId)
+        && configId == 'default'
+        && isValidHeroConfig(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'activeSlideId',
+          'autoAdvanceSeconds',
+          'updatedAt',
+          'updatedByUid'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // Admin registry (only verified bootstrapped owner can register/remove admins)
+    match /admins/{userId} {
+      allow get: if isAdmin() && isValidId(userId);
+      allow list: if false;
+      allow create: if isVerifiedAdminToken()
+        && isValidId(userId)
+        && isValidAdminUser(incoming(), userId)
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isVerifiedAdminToken() && isValidId(userId);
+    }
+  }
+}

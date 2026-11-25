@@ -122,7 +122,7 @@ function CategoryBrandBadge({ category }: { category: Category }) {
         alt={category.name}
         referrerPolicy="no-referrer"
         onError={() => setImgFailed(true)}
-        className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-200 p-0.5 shrink-0"
+        className="w-10 h-10 rounded-xl object-contain bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-0.5 shrink-0"
       />
     );
   }
@@ -152,7 +152,7 @@ function CategoryBrandBadge({ category }: { category: Category }) {
     );
   }
   return (
-    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/70 flex items-center justify-center text-slate-400 shrink-0">
+    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 shrink-0">
       <ImageIcon className="w-4 h-4" />
     </div>
   );
@@ -557,19 +557,19 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-slate-900">Categories</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Categories</h1>
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setAllCategoriesEnabled((prev) => !prev)}
-              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 inline-flex items-center gap-2 shadow-2xs cursor-pointer transition-colors"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-xs font-semibold text-slate-800 dark:text-slate-200 inline-flex items-center gap-2 shadow-2xs cursor-pointer transition-colors"
               title="Toggle All Categories Page status"
             >
-              <LayoutGrid className="w-3.5 h-3.5 text-slate-600" />
+              <LayoutGrid className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
               <span>All Categories Page</span>
               <span
                 className={`w-2 h-2 rounded-full ${
-                  allCategoriesEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  allCategoriesEnabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
                 }`}
               />
             </button>
@@ -585,7 +585,7 @@ export function AdminInventoryCatalogViews({
         </div>
 
         {catActionError && (
-          <div className="px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs flex items-center justify-between gap-2">
+          <div className="px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300 text-xs flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{catActionError}</span>
@@ -601,13 +601,13 @@ export function AdminInventoryCatalogViews({
           </div>
         )}
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
           <div className="px-6 pt-5 pb-3">
-            <h2 className="text-sm font-bold text-slate-900">Categories</h2>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Categories</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left">
-              <thead className="border-b border-slate-100 text-[11px] font-medium text-slate-500">
+              <thead className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-2.5 pl-6 pr-4 font-medium">Category</th>
                   <th className="py-2.5 px-4 font-medium">Products</th>
@@ -621,7 +621,7 @@ export function AdminInventoryCatalogViews({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
                 {categories.map((cat) => {
                   const count = products.filter(
                     (p) =>
@@ -640,17 +640,17 @@ export function AdminInventoryCatalogViews({
                           <CategoryBrandBadge category={cat} />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-[13px] font-semibold text-slate-900 truncate">
+                              <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate">
                                 {cat.name}
                               </span>
                               {cat.isDefault && (
-                                <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-semibold">
+                                <span className="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[11px] font-semibold">
                                   Default
                                 </span>
                               )}
                             </div>
                             {parentName && (
-                              <div className="text-[11px] text-slate-400 mt-0.5">
+                              <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                                 Inside {parentName}
                               </div>
                             )}
@@ -658,7 +658,7 @@ export function AdminInventoryCatalogViews({
                         </div>
                       </td>
                       <td className="py-3.5 px-4 tabular-nums">
-                        <span className={`text-[13px] ${count === 0 ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span className={`text-[13px] ${count === 0 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}`}>
                           {count} {count === 1 ? 'product' : 'products'}
                         </span>
                       </td>
@@ -668,12 +668,12 @@ export function AdminInventoryCatalogViews({
                           onClick={() => openEditCategoryModal(cat, true)}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                             cat.googleCategory
-                              ? 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 max-w-[200px] truncate'
-                              : 'border border-dashed border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                              ? 'border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 max-w-[200px] truncate'
+                              : 'border border-dashed border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300 hover:text-slate-700 dark:hover:text-slate-200'
                           }`}
                           title={cat.googleCategory || 'Click to set Google category'}
                         >
-                          <span className="font-bold text-slate-400">G</span>
+                          <span className="font-bold text-slate-400 dark:text-slate-500">G</span>
                           <span className="truncate">{cat.googleCategory || 'Not set'}</span>
                         </button>
                       </td>
@@ -692,7 +692,7 @@ export function AdminInventoryCatalogViews({
                             className={`w-4 h-4 ${
                               isFeatured
                                 ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-400 hover:text-amber-400'
+                                : 'text-slate-400 dark:text-slate-500 hover:text-amber-400'
                             }`}
                           />
                         </button>
@@ -704,8 +704,8 @@ export function AdminInventoryCatalogViews({
                           onClick={() => handleQuickToggleCategory(cat, { active: !isActive })}
                           className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
                             isActive
-                              ? 'bg-emerald-100/80 text-emerald-700 hover:bg-emerald-200/70'
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              ? 'bg-emerald-100/80 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200/70'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}
                           title="Click to toggle category status"
                         >
@@ -717,7 +717,7 @@ export function AdminInventoryCatalogViews({
                           <button
                             type="button"
                             onClick={() => openEditCategoryModal(cat)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 transition-colors cursor-pointer"
                             aria-label={`Edit ${cat.name}`}
                             title="Edit category"
                           >
@@ -727,7 +727,7 @@ export function AdminInventoryCatalogViews({
                             type="button"
                             disabled={busy}
                             onClick={() => handleRemoveCategory(cat)}
-                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-500/20 transition-colors cursor-pointer disabled:opacity-50"
                             aria-label={`Remove ${cat.name}`}
                             title="Delete category"
                           >
@@ -744,7 +744,7 @@ export function AdminInventoryCatalogViews({
                 })}
                 {categories.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-xs text-slate-400">
+                    <td colSpan={6} className="py-10 text-center text-xs text-slate-400 dark:text-slate-500">
                       No categories yet. Click &ldquo;+ Add Category&rdquo; to create your first category.
                     </td>
                   </tr>
@@ -761,16 +761,16 @@ export function AdminInventoryCatalogViews({
               role="dialog"
               aria-modal="true"
               aria-labelledby="category-modal-title"
-              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
             >
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-                <h2 id="category-modal-title" className="text-base font-bold text-slate-900">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+                <h2 id="category-modal-title" className="text-base font-bold text-slate-900 dark:text-slate-100">
                   {editingCategory ? 'Edit category' : 'New category'}
                 </h2>
                 <button
                   type="button"
                   onClick={() => setCategoryModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                   aria-label="Close modal"
                 >
                   <X className="w-4 h-4" />
@@ -785,7 +785,7 @@ export function AdminInventoryCatalogViews({
                       <div>
                         <label
                           htmlFor="cat-name-input"
-                          className="block text-[11px] font-medium text-slate-600 mb-1"
+                          className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
                         >
                           Name <span className="text-rose-500">*</span>
                         </label>
@@ -796,17 +796,17 @@ export function AdminInventoryCatalogViews({
                           value={catName}
                           onChange={(e) => setCatName(e.target.value)}
                           placeholder="e.g. Samsung, iPhone, MagSafe Clear"
-                          className="w-full px-3.5 py-2.5 text-sm text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                          className="w-full px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor="cat-url-input"
-                          className="flex items-center gap-1 text-[11px] font-medium text-slate-600 mb-1"
+                          className="flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
                         >
                           <span>URL</span>
-                          <Info className="w-3 h-3 text-slate-400" />
+                          <Info className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                         </label>
                         <input
                           id="cat-url-input"
@@ -817,9 +817,9 @@ export function AdminInventoryCatalogViews({
                             setCatSlug(e.target.value);
                           }}
                           placeholder="made-from-the-name"
-                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                         />
-                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
                           <Link2 className="w-3 h-3 shrink-0" />
                           <span>
                             {catSlugTouched && catSlug.trim()
@@ -834,7 +834,7 @@ export function AdminInventoryCatalogViews({
                       <div>
                         <label
                           htmlFor="cat-parent-select"
-                          className="block text-[11px] font-medium text-slate-600 mb-1"
+                          className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1"
                         >
                           Parent category
                         </label>
@@ -842,7 +842,7 @@ export function AdminInventoryCatalogViews({
                           id="cat-parent-select"
                           value={catParentId}
                           onChange={(e) => setCatParentId(e.target.value)}
-                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
+                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15"
                         >
                           <option value="">None — a top-level category</option>
                           {categories
@@ -858,7 +858,7 @@ export function AdminInventoryCatalogViews({
                       <div>
                         <label
                           htmlFor="cat-description-input"
-                          className="block text-[11px] font-medium text-slate-600 mb-1.5"
+                          className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5"
                         >
                           Description
                         </label>
@@ -868,35 +868,35 @@ export function AdminInventoryCatalogViews({
                           value={catDescription}
                           onChange={(e) => setCatDescription(e.target.value)}
                           placeholder="Add a description..."
-                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-y"
+                          className="w-full px-3.5 py-2.5 text-sm text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 resize-y"
                         />
                       </div>
 
-                      <div className="border-t border-slate-100 pt-3">
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
                         <button
                           type="button"
                           onClick={() => setCatSeoOpen((prev) => !prev)}
                           className="w-full flex items-center justify-between text-left py-1 cursor-pointer group"
                         >
                           <div>
-                            <div className="text-xs font-semibold text-slate-900">SEO</div>
-                            <div className="text-[11px] text-slate-400">
+                            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">SEO</div>
+                            <div className="text-[11px] text-slate-400 dark:text-slate-500">
                               {catGoogleCategory.trim()
                                 ? `${catGoogleCategory.trim()} · ${catSeoTitle.trim() || 'custom listing'}`
                                 : 'No Google category · search listing from the name'}
                             </div>
                           </div>
                           {catSeoOpen ? (
-                            <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
+                            <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600" />
                           ) : (
-                            <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-600" />
+                            <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-slate-600" />
                           )}
                         </button>
 
                         {catSeoOpen && (
                           <div className="mt-3 space-y-3 pt-2">
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                                 Google category
                               </label>
                               <input
@@ -904,11 +904,11 @@ export function AdminInventoryCatalogViews({
                                 value={catGoogleCategory}
                                 onChange={(e) => setCatGoogleCategory(e.target.value)}
                                 placeholder="e.g. Mobile Phone Cases"
-                                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                                 SEO Title
                               </label>
                               <input
@@ -916,11 +916,11 @@ export function AdminInventoryCatalogViews({
                                 value={catSeoTitle}
                                 onChange={(e) => setCatSeoTitle(e.target.value)}
                                 placeholder="Title shown in search engines"
-                                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
                                 SEO Description
                               </label>
                               <textarea
@@ -928,7 +928,7 @@ export function AdminInventoryCatalogViews({
                                 value={catSeoDescription}
                                 onChange={(e) => setCatSeoDescription(e.target.value)}
                                 placeholder="Meta description for search results..."
-                                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                                className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500"
                               />
                             </div>
                           </div>
@@ -939,12 +939,12 @@ export function AdminInventoryCatalogViews({
                     {/* Right Column */}
                     <div className="md:col-span-5 space-y-5">
                       <div>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 mb-2.5">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 mb-2.5">
                           <span>Image / Icon</span>
-                          <Info className="w-3.5 h-3.5 text-slate-400" />
+                          <Info className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-20 h-20 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center justify-center overflow-hidden shrink-0">
+                          <div className="w-20 h-20 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center justify-center overflow-hidden shrink-0">
                             {catImage && !catPreviewFailed ? (
                               <img
                                 key={catImage}
@@ -952,10 +952,10 @@ export function AdminInventoryCatalogViews({
                                 alt="Category preview"
                                 referrerPolicy="no-referrer"
                                 onError={() => setCatPreviewFailed(true)}
-                                className="w-full h-full object-contain p-1 bg-white"
+                                className="w-full h-full object-contain p-1 bg-white dark:bg-slate-900"
                               />
                             ) : (
-                              <ImageIcon className="w-6 h-6 text-slate-400" />
+                              <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500" />
                             )}
                           </div>
                           <div className="space-y-1.5">
@@ -974,12 +974,12 @@ export function AdminInventoryCatalogViews({
                               type="button"
                               disabled={catImageProcessing}
                               onClick={() => catFileInputRef.current?.click()}
-                              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-800 inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
+                              className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-xs font-semibold text-slate-800 dark:text-slate-200 inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60"
                             >
                               {catImageProcessing ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 dark:text-indigo-400" />
                               ) : (
-                                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                                <Upload className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                               )}
                               <span>{catImageProcessing ? 'Processing...' : 'Upload'}</span>
                             </button>
@@ -991,7 +991,7 @@ export function AdminInventoryCatalogViews({
                                     setCatImage('');
                                     setCatPreviewFailed(false);
                                   }}
-                                  className="text-[11px] font-medium text-rose-600 hover:text-rose-700 cursor-pointer"
+                                  className="text-[11px] font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 cursor-pointer"
                                 >
                                   Remove image
                                 </button>
@@ -1002,7 +1002,7 @@ export function AdminInventoryCatalogViews({
                         <div className="mt-3">
                           <label
                             htmlFor="cat-image-url-input"
-                            className="block text-[11px] font-medium text-slate-500 mb-1"
+                            className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1"
                           >
                             Or paste image URL
                           </label>
@@ -1019,17 +1019,17 @@ export function AdminInventoryCatalogViews({
                                 ? 'Uploaded image active (or paste https:// URL to replace)'
                                 : 'https://example.com/category-icon.png'
                             }
-                            className="w-full px-3 py-2 text-xs text-slate-700 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+                            className="w-full px-3 py-2 text-xs text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:border-indigo-500"
                           />
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 pt-4 space-y-3">
-                        <div className="text-xs font-semibold text-slate-900">Visibility</div>
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-3">
+                        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">Visibility</div>
                         <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
                             <span>Active</span>
-                            <Info className="w-3.5 h-3.5 text-slate-400" />
+                            <Info className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                           </span>
                           <button
                             type="button"
@@ -1037,20 +1037,20 @@ export function AdminInventoryCatalogViews({
                             aria-checked={catActive}
                             onClick={() => setCatActive((prev) => !prev)}
                             className={`w-10 h-5.5 rounded-full transition-colors p-0.5 cursor-pointer ${
-                              catActive ? 'bg-[#5B68EB]' : 'bg-slate-200'
+                              catActive ? 'bg-[#5B68EB]' : 'bg-slate-200 dark:bg-slate-700'
                             }`}
                           >
                             <span
-                              className={`block w-4.5 h-4.5 rounded-full bg-white shadow-xs transition-transform ${
+                              className={`block w-4.5 h-4.5 rounded-full bg-white dark:bg-slate-900 shadow-xs transition-transform ${
                                 catActive ? 'translate-x-4.5' : 'translate-x-0'
                               }`}
                             />
                           </button>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                          <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
                             <span>Featured</span>
-                            <Info className="w-3.5 h-3.5 text-slate-400" />
+                            <Info className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                           </span>
                           <button
                             type="button"
@@ -1058,11 +1058,11 @@ export function AdminInventoryCatalogViews({
                             aria-checked={catFeatured}
                             onClick={() => setCatFeatured((prev) => !prev)}
                             className={`w-10 h-5.5 rounded-full transition-colors p-0.5 cursor-pointer ${
-                              catFeatured ? 'bg-[#5B68EB]' : 'bg-indigo-100'
+                              catFeatured ? 'bg-[#5B68EB]' : 'bg-indigo-100 dark:bg-indigo-500/20'
                             }`}
                           >
                             <span
-                              className={`block w-4.5 h-4.5 rounded-full bg-white shadow-xs transition-transform ${
+                              className={`block w-4.5 h-4.5 rounded-full bg-white dark:bg-slate-900 shadow-xs transition-transform ${
                                 catFeatured ? 'translate-x-4.5' : 'translate-x-0'
                               }`}
                             />
@@ -1070,20 +1070,20 @@ export function AdminInventoryCatalogViews({
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 pt-4 space-y-2">
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
+                      <div className="border-t border-slate-100 dark:border-slate-800 pt-4 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900 dark:text-slate-100">
                           <span>Shipping</span>
-                          <Info className="w-3.5 h-3.5 text-slate-400" />
+                          <Info className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                             Shipping class
                           </label>
                           <div className="flex items-center gap-2">
                             <select
                               value={catShippingClass}
                               onChange={(e) => setCatShippingClass(e.target.value)}
-                              className="flex-1 px-3.5 py-2.5 text-xs text-slate-800 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-indigo-500"
+                              className="flex-1 px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
                             >
                               {availableShippingClasses.map((cls) => (
                                 <option key={cls} value={cls}>
@@ -1094,7 +1094,7 @@ export function AdminInventoryCatalogViews({
                             <button
                               type="button"
                               onClick={() => setAddingShippingClass((prev) => !prev)}
-                              className="w-9.5 h-9.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center shrink-0 cursor-pointer"
+                              className="w-9.5 h-9.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-300 flex items-center justify-center shrink-0 cursor-pointer"
                               title="Add shipping class"
                               aria-label="Add shipping class"
                             >
@@ -1108,7 +1108,7 @@ export function AdminInventoryCatalogViews({
                                 value={newShippingClassInput}
                                 onChange={(e) => setNewShippingClassInput(e.target.value)}
                                 placeholder="New shipping class name"
-                                className="flex-1 px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                                className="flex-1 px-3 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                               />
                               <button
                                 type="button"
@@ -1122,7 +1122,7 @@ export function AdminInventoryCatalogViews({
                                   setNewShippingClassInput('');
                                   setAddingShippingClass(false);
                                 }}
-                                className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 cursor-pointer"
+                                className="px-3 py-1.5 rounded-lg bg-slate-900 dark:bg-indigo-600 text-white text-xs font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500 cursor-pointer"
                               >
                                 Add
                               </button>
@@ -1134,14 +1134,14 @@ export function AdminInventoryCatalogViews({
                   </div>
 
                   {catModalError && (
-                    <div className="mt-5 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                    <div className="mt-5 px-3.5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{catModalError}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-white shrink-0">
+                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3 bg-white dark:bg-slate-900 shrink-0">
                   <button
                     type="button"
                     onClick={() => setCategoryModalOpen(false)}
@@ -1170,8 +1170,8 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Brands</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Brands</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Active phone &amp; case accessory brands across your catalog
           </p>
         </div>
@@ -1180,15 +1180,15 @@ export function AdminInventoryCatalogViews({
           {brandSummaries.map((brand) => (
             <div
               key={brand.name}
-              className="bg-white border border-slate-200 rounded-xl p-4 flex items-center justify-between"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                   <Tag className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-sm font-bold text-slate-900">{brand.name}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{brand.name}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
                     {brand.count} SKUs · {brand.totalStock} units in stock
                   </div>
                 </div>
@@ -1204,8 +1204,8 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="max-w-3xl space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Warranties</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Warranties</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Replacement and anti-yellowing protection policies attached to cases
           </p>
         </div>
@@ -1227,7 +1227,7 @@ export function AdminInventoryCatalogViews({
             setNewWarrantyTitle('');
             setNewWarrantyCoverage('');
           }}
-          className="bg-white border border-slate-200 rounded-xl p-4 space-y-3 text-xs"
+          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3 text-xs"
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <input
@@ -1235,14 +1235,14 @@ export function AdminInventoryCatalogViews({
               value={newWarrantyTitle}
               onChange={(e) => setNewWarrantyTitle(e.target.value)}
               placeholder="Warranty policy title..."
-              className="sm:col-span-2 px-3 py-2 border border-slate-200 rounded-lg"
+              className="sm:col-span-2 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
             <input
               type="text"
               value={newWarrantyDuration}
               onChange={(e) => setNewWarrantyDuration(e.target.value)}
               placeholder="Duration (e.g. 6 Months)"
-              className="px-3 py-2 border border-slate-200 rounded-lg"
+              className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
           </div>
           <div className="flex gap-2">
@@ -1251,7 +1251,7 @@ export function AdminInventoryCatalogViews({
               value={newWarrantyCoverage}
               onChange={(e) => setNewWarrantyCoverage(e.target.value)}
               placeholder="Coverage terms..."
-              className="flex-1 px-3 py-2 border border-slate-200 rounded-lg"
+              className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
             <button
               type="submit"
@@ -1262,27 +1262,27 @@ export function AdminInventoryCatalogViews({
           </div>
         </form>
 
-        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
           {warranties.map((w) => (
             <div key={w.id} className="p-4 flex items-start justify-between gap-3 text-xs">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="font-bold text-slate-900">
+                  <div className="font-bold text-slate-900 dark:text-slate-100">
                     {w.title}{' '}
-                    <span className="ml-1.5 px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                    <span className="ml-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-semibold">
                       {w.duration}
                     </span>
                   </div>
-                  <p className="text-slate-500 mt-0.5">{w.coverage}</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">{w.coverage}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setWarranties((prev) => prev.filter((item) => item.id !== w.id))}
-                className="text-slate-400 hover:text-rose-600 p-1"
+                className="text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 p-1"
                 aria-label={`Delete ${w.title}`}
               >
                 <Trash2 className="w-4 h-4" />
@@ -1298,16 +1298,16 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="max-w-3xl space-y-5">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Import Product</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Import Product</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Upload a CSV spreadsheet (title, sku, category, price, stock) or quick-import an item
           </p>
         </div>
 
-        <label className="block bg-white border-2 border-dashed border-slate-200 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors">
+        <label className="block bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors">
           <CloudUpload className="w-8 h-8 text-indigo-500 mx-auto mb-2" />
-          <div className="text-sm font-semibold text-slate-800">Upload CSV file to import products</div>
-          <p className="text-xs text-slate-400 mt-1">Columns: title, sku, category, price, stock</p>
+          <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">Upload CSV file to import products</div>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Columns: title, sku, category, price, stock</p>
           <input
             type="file"
             accept=".csv,text/csv"
@@ -1320,8 +1320,8 @@ export function AdminInventoryCatalogViews({
           />
         </label>
 
-        <form onSubmit={handleImportSingleOrCsv} className="bg-white border border-slate-200 rounded-xl p-5 space-y-3 text-xs">
-          <h2 className="text-sm font-bold text-slate-900">Quick Single Import</h2>
+        <form onSubmit={handleImportSingleOrCsv} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3 text-xs">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Quick Single Import</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
@@ -1329,19 +1329,19 @@ export function AdminInventoryCatalogViews({
               value={importTitle}
               onChange={(e) => setImportTitle(e.target.value)}
               placeholder="Product Name *"
-              className="px-3 py-2 border border-slate-200 rounded-lg"
+              className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
             <input
               type="text"
               value={importSku}
               onChange={(e) => setImportSku(e.target.value)}
               placeholder="SKU (optional)"
-              className="px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
             <select
               value={importCategory}
               onChange={(e) => setImportCategory(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg bg-white"
+              className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
             >
               {categories.map((c) => (
                 <option key={c.id} value={c.name}>
@@ -1356,7 +1356,7 @@ export function AdminInventoryCatalogViews({
                 value={importPrice}
                 onChange={(e) => setImportPrice(e.target.value)}
                 placeholder="Price"
-                className="px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+                className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
               />
               <input
                 type="number"
@@ -1364,12 +1364,12 @@ export function AdminInventoryCatalogViews({
                 value={importStock}
                 onChange={(e) => setImportStock(e.target.value)}
                 placeholder="Stock"
-                className="px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+                className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
               />
             </div>
           </div>
           {importMessage && (
-            <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-700 font-medium flex items-center gap-1.5">
+            <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{importMessage}</span>
             </div>
@@ -1391,20 +1391,20 @@ export function AdminInventoryCatalogViews({
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-indigo-600" />
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               <span>Stock Levels</span>
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">Live availability breakdown across all phone cases</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Live availability breakdown across all phone cases</p>
           </div>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 text-xs">
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 text-xs">
             {(['all', 'healthy', 'low', 'out'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setStockFilter(tab)}
                 className={`px-3 py-1 rounded-md capitalize font-medium ${
-                  stockFilter === tab ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600'
+                  stockFilter === tab ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400' : 'text-slate-600 dark:text-slate-400'
                 }`}
               >
                 {tab === 'out' ? 'Out of stock' : tab === 'low' ? 'Low stock' : tab}
@@ -1413,10 +1413,10 @@ export function AdminInventoryCatalogViews({
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-3 px-4 font-semibold">SKU</th>
                   <th className="py-3 px-4 font-semibold">Product</th>
@@ -1426,38 +1426,38 @@ export function AdminInventoryCatalogViews({
                   <th className="py-3 px-4 font-semibold text-right">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredStockProducts.map((p) => {
                   const isTracked = p.trackStock !== false;
                   const isOut = isTracked && p.stock <= 0;
                   const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/70">
-                      <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
+                      <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">{p.sku}</td>
                       <td className="py-3 px-4">
                         <button
                           type="button"
                           onClick={() => onEditProduct(p)}
-                          className="font-semibold text-slate-900 hover:text-indigo-600 text-left"
+                          className="font-semibold text-slate-900 dark:text-slate-100 hover:text-indigo-600 text-left"
                         >
                           {p.title}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-slate-600">{p.category}</td>
-                      <td className="py-3 px-4 text-right tabular-nums text-slate-500">&lt; 5</td>
-                      <td className="py-3 px-4 text-right tabular-nums font-bold text-slate-900">{p.stock}</td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{p.category}</td>
+                      <td className="py-3 px-4 text-right tabular-nums text-slate-500 dark:text-slate-400">&lt; 5</td>
+                      <td className="py-3 px-4 text-right tabular-nums font-bold text-slate-900 dark:text-slate-100">{p.stock}</td>
                       <td className="py-3 px-4 text-right">
                         {isOut ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[11px] font-semibold">
                             Out of Stock
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[11px] font-semibold">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                             Low Stock
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold">
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold">
                             In stock
                           </span>
                         )}
@@ -1481,34 +1481,34 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-indigo-600" />
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             <span>Stock Tracker</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Track SKU valuation, low-stock alerts, and variant inventory distribution
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="text-xs text-slate-500">Tracked Units</div>
-            <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{totalUnits}</div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">Tracked Units</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">{totalUnits}</div>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="text-xs text-slate-500">Inventory Retail Value</div>
-            <div className="text-xl font-bold text-slate-900 mt-1 tabular-nums">{formatTaka(totalRetail)}</div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400">Inventory Retail Value</div>
+            <div className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">{formatTaka(totalRetail)}</div>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-4">
-            <div className="text-xs text-slate-500 flex items-center gap-1">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
               <span>SKUs Needing Restock</span>
             </div>
-            <div className="text-xl font-bold text-amber-600 mt-1 tabular-nums">{lowCount}</div>
+            <div className="text-xl font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">{lowCount}</div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
           {products.map((p) => {
             const isTracked = p.trackStock !== false;
             const isOut = isTracked && p.stock <= 0;
@@ -1516,31 +1516,31 @@ export function AdminInventoryCatalogViews({
             return (
               <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-3 min-w-0">
-                  <Package className="w-4 h-4 text-slate-400 shrink-0" />
+                  <Package className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-slate-900 truncate">{p.title}</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{p.title}</span>
                       {isOut ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold shrink-0">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-semibold shrink-0">
                           Out of Stock
                         </span>
                       ) : isLow ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold shrink-0">
-                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[10px] font-semibold shrink-0">
+                          <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                           Low Stock
                         </span>
                       ) : null}
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono">
+                    <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
                       {p.sku} · {p.variants?.length ? `${p.variants.length} variants` : `${p.brandModels.length} models`}
                     </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0 tabular-nums">
-                  <div className={`font-bold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'}`}>
+                  <div className={`font-bold ${isOut ? 'text-rose-600 dark:text-rose-400' : isLow ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-slate-100'}`}>
                     {p.stock} units
                   </div>
-                  <div className="text-[11px] text-slate-500">{formatTaka(p.price * p.stock)}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">{formatTaka(p.price * p.stock)}</div>
                 </div>
               </div>
             );
@@ -1554,19 +1554,19 @@ export function AdminInventoryCatalogViews({
     return (
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <SlidersHorizontal className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             <span>Stock Adjustment</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Apply instant +/- stock adjustments or enter a custom quantity delta
           </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-3 px-4 font-semibold">SKU</th>
                   <th className="py-3 px-4 font-semibold">Product</th>
@@ -1574,30 +1574,30 @@ export function AdminInventoryCatalogViews({
                   <th className="py-3 px-4 font-semibold text-right">Adjustment</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {products.map((p) => {
                   const isTracked = p.trackStock !== false;
                   const isOut = isTracked && p.stock <= 0;
                   const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
                   <tr key={p.id}>
-                    <td className="py-3 px-4 font-mono text-slate-500">{p.sku}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">
+                    <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">{p.sku}</td>
+                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>{p.title}</span>
                         {isOut ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-semibold">
                             Out of Stock
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
-                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[10px] font-semibold">
+                            <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                             Low Stock
                           </span>
                         ) : null}
                       </div>
                     </td>
-                    <td className={`py-3 px-4 text-right tabular-nums font-bold ${isOut ? 'text-rose-600' : isLow ? 'text-amber-700' : 'text-slate-900'}`}>
+                    <td className={`py-3 px-4 text-right tabular-nums font-bold ${isOut ? 'text-rose-600 dark:text-rose-400' : isLow ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-slate-100'}`}>
                       {p.stock}
                     </td>
                     <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -1605,14 +1605,14 @@ export function AdminInventoryCatalogViews({
                         <button
                           type="button"
                           onClick={() => onQuickStockChange(p, -1)}
-                          className="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50"
+                          className="px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/70"
                         >
                           -1
                         </button>
                         <button
                           type="button"
                           onClick={() => onQuickStockChange(p, 5)}
-                          className="px-2.5 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold"
+                          className="px-2.5 py-1 rounded border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/20 font-semibold"
                         >
                           +5
                         </button>
@@ -1623,7 +1623,7 @@ export function AdminInventoryCatalogViews({
                             setCustomAdjustMap((prev) => ({ ...prev, [p.id]: e.target.value }))
                           }
                           placeholder="+/-"
-                          className="w-16 px-2 py-1 rounded border border-slate-200 text-center tabular-nums"
+                          className="w-16 px-2 py-1 rounded border border-slate-200 dark:border-slate-800 text-center tabular-nums"
                         />
                         <button
                           type="button"
@@ -1633,7 +1633,7 @@ export function AdminInventoryCatalogViews({
                             await onQuickStockChange(p, delta);
                             setCustomAdjustMap((prev) => ({ ...prev, [p.id]: '' }));
                           }}
-                          className="px-2.5 py-1 rounded bg-slate-900 text-white font-semibold hover:bg-slate-800"
+                          className="px-2.5 py-1 rounded bg-slate-900 dark:bg-indigo-600 text-white font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
                         >
                           Apply
                         </button>
@@ -1655,18 +1655,18 @@ export function AdminInventoryCatalogViews({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Barcode className="w-5 h-5 text-indigo-600" />
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Barcode className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             <span>Barcodes</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Printable SKU barcode labels for inventory shelves and courier parcels
           </p>
         </div>
         <button
           type="button"
           onClick={() => window.print()}
-          className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
+          className="px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5"
         >
           <Printer className="w-3.5 h-3.5" />
           <span>Print Labels</span>
@@ -1677,22 +1677,22 @@ export function AdminInventoryCatalogViews({
         {products.map((p) => (
           <div
             key={p.id}
-            className="bg-white border border-slate-200 rounded-xl p-4 space-y-2.5 text-center"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-2.5 text-center"
           >
-            <div className="text-xs font-bold text-slate-900 truncate">{p.title}</div>
-            <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center gap-0.5 h-12">
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{p.title}</div>
+            <div className="py-2 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-center gap-0.5 h-12">
               {p.sku.split('').map((ch, idx) => (
                 <span
                   key={idx}
-                  className={`inline-block bg-slate-900 h-8 ${
+                  className={`inline-block bg-slate-900 dark:bg-slate-100 h-8 ${
                     ch.charCodeAt(0) % 2 === 0 ? 'w-0.5' : 'w-1'
                   }`}
                 />
               ))}
             </div>
-            <div className="flex items-center justify-between text-[11px] font-mono text-slate-600">
+            <div className="flex items-center justify-between text-[11px] font-mono text-slate-600 dark:text-slate-400">
               <span>{p.sku}</span>
-              <span className="font-sans font-bold text-slate-900">{formatTaka(p.price)}</span>
+              <span className="font-sans font-bold text-slate-900 dark:text-slate-100">{formatTaka(p.price)}</span>
             </div>
           </div>
         ))}

@@ -185,6 +185,27 @@ export interface SystemConfigSettings {
   supportAccessEnabled: boolean;
 }
 
+export interface HeroVideoSlideConfig {
+  id: string;
+  label: string;
+  kicker: string;
+  headline: string;
+  description: string;
+  videoSrc: string;
+  posterSrc: string;
+  posterAlt: string;
+  categoryTarget: string;
+  featuredProductId: string;
+  startingPrice: number;
+  sortOrder: number;
+  active: boolean;
+}
+
+export interface HeroPlaybackSettings {
+  activeSlideId: string;
+  autoAdvanceSeconds: number;
+}
+
 export interface StoreSettings {
   storeName: string;
   tagline: string;
@@ -210,6 +231,11 @@ export interface StoreSettings {
   deliverySettings?: DeliveryConfigSettings;
   marketingSettings?: MarketingConfigSettings;
   systemSettings?: SystemConfigSettings;
+  heroVideos?: {
+    slides: HeroVideoSlideConfig[];
+    config: HeroPlaybackSettings;
+    hiddenBuiltInVideos?: string[];
+  };
 }
 
 export interface Subscriber {

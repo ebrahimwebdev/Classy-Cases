@@ -1,0 +1,1031 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  Check,
+  Cloud,
+  Film,
+  Link2,
+  Loader2,
+  Play,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import type { Category, Product } from '../types';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
+import {
+  DEFAULT_HERO_CONFIG,
+  DEFAULT_HERO_VIDEO_SLIDES,
+  deleteHeroVideoSlideFromFirestore,
+  fetchAdminHeroSlides,
+  fetchPublicHeroConfig,
+  isValidHeroVideoUrl,
+  sanitizeSlideId,
+  saveHeroConfigToFirestore,
+  saveHeroVideoSlideToFirestore,
+  seedDefaultHeroSlidesToFirestore,
+  type HeroPlaybackConfig,
+  type HeroVideoSlide,
+} from '../services/heroVideoFirestore';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+interface VideoLibraryItem {
+  name: string;
+  url: string;
+  source: 'bundled' | 'uploaded';
+  sizeBytes?: number;
+}
+
+interface AdminHeroVideoSettingsProps {
+  adminToken: string;
+  categories?: Category[];
+  products?: Product[];
+  onStatusMessage?: (msg: string) => void;
+}
+
+const PRESET_POSTERS = [
+  {
+    label: 'MagSafe Showcase',
+    url: '/src/assets/images/hero_magsafe_showcase_1795548420846.jpg',
+  },
+  {
+    label: 'Carbon Armor',
+    url: '/src/assets/images/hero_carbon_armor_1795548421139.jpg',
+  },
+  {
+    label: 'Frosted Gold',
+    url: '/src/assets/images/case_magsafe_frosted_gold_1795455910914.jpg',
+  },
+  {
+    label: 'Luxury Carbon Red',
+    url: '/src/assets/images/case_luxury_carbon_red_1795455912097.jpg',
+  },
+];
+
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatFirestoreUiError(err: unknown): string {
+  if (!(err instanceof Error)) return 'Could not save to Firebase Firestore.';
+  try {
+    const parsed = JSON.parse(err.message) as { error?: string };
+    if (parsed?.error) {
+      if (parsed.error.toLowerCase().includes('permission')) {
+        return 'Firestore permission denied. Verify you are signed in with the store owner Google account and that firestore.rules are deployed.';
+      }
+      return parsed.error;
+    }
+  } catch {
+    // Plain error message
+  }
+  return err.message;
+}
+
+function formatAuthUiError(err: unknown): string {
+  const code =
+    typeof err === 'object' && err && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : '';
+  const msg = err instanceof Error ? err.message : String(err || '');
+  if (code === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    return `Google sign-in is blocked because "${host}" is not in Firebase Authorized Domains yet (Firebase Console → Project "${firebaseConfig.projectId}" → Authentication → Settings → Authorized domains). You can still upload, save, and delete hero videos right now.`;
+  }
+  if (code === 'auth/popup-closed-by-user') {
+    return 'Google sign-in popup was closed before finishing.';
+  }
+  return msg || 'Google sign-in failed.';
+}
+
+export function AdminHeroVideoSettings({
+  adminToken,
+  categories = [],
+  products = [],
+  onStatusMessage,
+}: AdminHeroVideoSettingsProps) {
+  const { user, loading: authLoading, signInWithGoogle } = useFirebaseAuth();
+  const [slides, setSlides] = useState<HeroVideoSlide[]>(DEFAULT_HERO_VIDEO_SLIDES);
+  const [selectedSlideId, setSelectedSlideId] = useState<string>(DEFAULT_HERO_VIDEO_SLIDES[0].id);
+  const [heroConfig, setHeroConfig] = useState<HeroPlaybackConfig>(DEFAULT_HERO_CONFIG);
+  const [hasFirestoreDocs, setHasFirestoreDocs] = useState(false);
+  const [hasServerDocs, setHasServerDocs] = useState(false);
+
+  const [libraryVideos, setLibraryVideos] = useState<VideoLibraryItem[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [deletingVideoUrl, setDeletingVideoUrl] = useState<string | null>(null);
+  const [savingFirestore, setSavingFirestore] = useState(false);
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [bannerMsg, setBannerMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const selectedSlide = useMemo(
+    () => slides.find((s) => s.id === selectedSlideId) || slides[0] || DEFAULT_HERO_VIDEO_SLIDES[0],
+    [slides, selectedSlideId]
+  );
+
+  const loadLibrary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/hero-videos/library', {
+        credentials: 'same-origin',
+        headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : undefined,
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { videos?: VideoLibraryItem[] };
+        setLibraryVideos(Array.isArray(data.videos) ? data.videos : []);
+      }
+    } catch {
+      // ignore transient library read failure
+    }
+  }, [adminToken]);
+
+  const persistToBackend = useCallback(
+    async (nextSlides: HeroVideoSlide[], nextConfig: HeroPlaybackConfig) => {
+      const res = await fetch('/api/admin/hero-videos/config', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ slides: nextSlides, config: nextConfig }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save hero video settings.');
+      }
+      setHasServerDocs(true);
+      return data as { slides: HeroVideoSlide[]; config: HeroPlaybackConfig };
+    },
+    [adminToken]
+  );
+
+  const loadFirestoreHeroData = useCallback(async () => {
+    setLoadingData(true);
+    setErrorMsg('');
+    try {
+      const [remoteSlides, remoteConfig, serverRes] = await Promise.all([
+        fetchAdminHeroSlides().catch(() => []),
+        fetchPublicHeroConfig().catch(() => null),
+        fetch('/api/hero-videos')
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null) as Promise<{
+          slides?: HeroVideoSlide[];
+          config?: HeroPlaybackConfig | null;
+        } | null>,
+      ]);
+
+      const serverSlides = Array.isArray(serverRes?.slides) ? serverRes.slides : [];
+      setHasServerDocs(serverSlides.length > 0);
+
+      if (remoteSlides.length > 0) {
+        setSlides(remoteSlides);
+        setHasFirestoreDocs(true);
+        const preferred =
+          remoteConfig?.activeSlideId && remoteSlides.some((s) => s.id === remoteConfig.activeSlideId)
+            ? remoteConfig.activeSlideId
+            : remoteSlides[0].id;
+        setSelectedSlideId(preferred);
+        if (remoteConfig) setHeroConfig(remoteConfig);
+      } else if (serverSlides.length > 0) {
+        setSlides(serverSlides);
+        setHasFirestoreDocs(false);
+        const preferred =
+          serverRes?.config?.activeSlideId &&
+          serverSlides.some((s) => s.id === serverRes.config?.activeSlideId)
+            ? serverRes.config.activeSlideId
+            : serverSlides[0].id;
+        setSelectedSlideId(preferred);
+        if (serverRes?.config) setHeroConfig(serverRes.config);
+      } else {
+        setSlides(DEFAULT_HERO_VIDEO_SLIDES);
+        setHasFirestoreDocs(false);
+        setSelectedSlideId(DEFAULT_HERO_VIDEO_SLIDES[0].id);
+        setHeroConfig(DEFAULT_HERO_CONFIG);
+      }
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLibrary();
+  }, [loadLibrary]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      void loadFirestoreHeroData();
+    }
+  }, [authLoading, user?.uid, loadFirestoreHeroData]);
+
+  function notifySuccess(msg: string) {
+    setBannerMsg(msg);
+    onStatusMessage?.(msg);
+    window.dispatchEvent(new CustomEvent('hero-videos-updated'));
+    window.setTimeout(() => {
+      setBannerMsg((prev) => (prev === msg ? '' : prev));
+    }, 3600);
+  }
+
+  function updateSelectedSlide(patch: Partial<HeroVideoSlide>) {
+    setSlides((prev) =>
+      prev.map((slide) => (slide.id === selectedSlide.id ? { ...slide, ...patch } : slide))
+    );
+  }
+
+  async function handleConnectGoogle() {
+    setConnectingGoogle(true);
+    setErrorMsg('');
+    try {
+      await signInWithGoogle();
+      notifySuccess('Google account connected to Firebase Firestore.');
+      await loadFirestoreHeroData();
+    } catch (err) {
+      setErrorMsg(formatAuthUiError(err));
+    } finally {
+      setConnectingGoogle(false);
+    }
+  }
+
+  async function handleVideoFileUpload(file: File | undefined) {
+    if (!file) return;
+    setErrorMsg('');
+    const lower = file.name.toLowerCase();
+    const validType =
+      file.type.startsWith('video/') || /\.(mp4|webm|mov|ogv)$/i.test(lower);
+    if (!validType) {
+      setErrorMsg('Please upload an MP4, WEBM, MOV, or OGV video file.');
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setErrorMsg('Video size must be under 25 MB.');
+      return;
+    }
+
+    setUploadingVideo(true);
+    try {
+      const res = await fetch('/api/admin/hero-videos/upload', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': file.type || 'video/mp4',
+          'X-Filename': file.name,
+          'X-Requested-With': 'XMLHttpRequest',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: file,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || 'Video upload failed.');
+      }
+
+      const uploadedUrl = String(data.url);
+      const updatedSlide: HeroVideoSlide = { ...selectedSlide, videoSrc: uploadedUrl };
+      const nextSlides = slides.map((s) => (s.id === selectedSlide.id ? updatedSlide : s));
+      setSlides(nextSlides);
+      await loadLibrary();
+
+      setSavingFirestore(true);
+      await persistToBackend(nextSlides, heroConfig);
+
+      if (user) {
+        try {
+          if (!hasFirestoreDocs) {
+            await seedDefaultHeroSlidesToFirestore(nextSlides, heroConfig);
+          } else {
+            await saveHeroVideoSlideToFirestore(updatedSlide);
+          }
+          setHasFirestoreDocs(true);
+          notifySuccess('Video uploaded, saved, and synced to Firebase Firestore.');
+        } catch (fsErr) {
+          setErrorMsg(
+            `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
+          );
+          notifySuccess('Video uploaded and saved to storefront.');
+        }
+      } else {
+        notifySuccess('Video uploaded and saved to storefront.');
+      }
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setUploadingVideo(false);
+      setSavingFirestore(false);
+    }
+  }
+
+  async function handleSaveSlideAndConfig() {
+    setErrorMsg('');
+    if (!isValidHeroVideoUrl(selectedSlide.videoSrc)) {
+      setErrorMsg('Video URL must start with https://, /assets/videos/, or /media/hero-videos/.');
+      return;
+    }
+
+    setSavingFirestore(true);
+    try {
+      await persistToBackend(slides, heroConfig);
+
+      if (user) {
+        try {
+          if (!hasFirestoreDocs) {
+            await seedDefaultHeroSlidesToFirestore(slides, heroConfig);
+          } else {
+            await Promise.all([
+              saveHeroVideoSlideToFirestore(selectedSlide),
+              saveHeroConfigToFirestore(heroConfig),
+            ]);
+          }
+          setHasFirestoreDocs(true);
+          notifySuccess(`Saved "${selectedSlide.label}" and synced to Firebase Firestore.`);
+        } catch (fsErr) {
+          setErrorMsg(
+            `Saved on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
+          );
+          notifySuccess(`Saved "${selectedSlide.label}" to storefront.`);
+        }
+      } else {
+        notifySuccess(`Saved "${selectedSlide.label}" and hero playback settings.`);
+      }
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setSavingFirestore(false);
+    }
+  }
+
+  async function handleSyncAllSlidesToFirestore() {
+    setErrorMsg('');
+    setSavingFirestore(true);
+    try {
+      await persistToBackend(slides, heroConfig);
+      if (!user) {
+        notifySuccess('Saved all hero slides to store server.');
+        return;
+      }
+      await seedDefaultHeroSlidesToFirestore(slides, heroConfig);
+      setHasFirestoreDocs(true);
+      notifySuccess('All hero slides and settings synced to Firebase Firestore.');
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setSavingFirestore(false);
+    }
+  }
+
+  function handleAddNewSlide() {
+    const index = slides.length + 1;
+    const newId = sanitizeSlideId(`hero-slide-${Date.now().toString().slice(-5)}`);
+    const defaultVideo =
+      libraryVideos[0]?.url || DEFAULT_HERO_VIDEO_SLIDES[0].videoSrc;
+    const newSlide: HeroVideoSlide = {
+      id: newId,
+      label: `Hero Reel ${index}`,
+      kicker: 'Featured Drop · Classy Cases',
+      headline: 'New arrival showcase.',
+      description: 'Precision molded protection with slim ergonomic feel.',
+      videoSrc: defaultVideo,
+      posterSrc: PRESET_POSTERS[0].url,
+      posterAlt: 'Hero video showcase slide',
+      categoryTarget: 'All',
+      featuredProductId: products[0]?.id || '',
+      startingPrice: products[0]?.price || 250,
+      sortOrder: slides.length,
+      active: true,
+    };
+    setSlides((prev) => [...prev, newSlide]);
+    setSelectedSlideId(newId);
+  }
+
+  async function handleDeleteSlide(slideId: string) {
+    if (slides.length <= 1) {
+      setErrorMsg('At least one hero video slide is required. Add another slide or replace this video.');
+      return;
+    }
+    setErrorMsg('');
+    const remaining = slides
+      .filter((s) => s.id !== slideId)
+      .map((s, idx) => ({ ...s, sortOrder: idx }));
+    const nextConfig: HeroPlaybackConfig =
+      heroConfig.activeSlideId === slideId
+        ? { ...heroConfig, activeSlideId: remaining[0].id }
+        : heroConfig;
+
+    setSlides(remaining);
+    if (selectedSlideId === slideId) {
+      setSelectedSlideId(remaining[0].id);
+    }
+    setHeroConfig(nextConfig);
+
+    setSavingFirestore(true);
+    try {
+      await persistToBackend(remaining, nextConfig);
+
+      if (user && hasFirestoreDocs) {
+        try {
+          await deleteHeroVideoSlideFromFirestore(slideId);
+          if (nextConfig.activeSlideId !== heroConfig.activeSlideId) {
+            await saveHeroConfigToFirestore(nextConfig);
+          }
+          notifySuccess('Hero slide deleted and synced to Firebase Firestore.');
+        } catch (fsErr) {
+          setErrorMsg(
+            `Deleted on store server, but Firestore sync failed: ${formatFirestoreUiError(fsErr)}`
+          );
+          notifySuccess('Hero slide deleted.');
+        }
+      } else {
+        notifySuccess('Hero slide deleted.');
+      }
+    } catch (err) {
+      setErrorMsg(formatFirestoreUiError(err));
+    } finally {
+      setSavingFirestore(false);
+    }
+  }
+
+  async function handleDeleteLibraryVideo(videoUrl: string) {
+    if (
+      !videoUrl.startsWith('/media/hero-videos/') &&
+      !videoUrl.startsWith('/assets/videos/')
+    ) {
+      return;
+    }
+    setErrorMsg('');
+    setDeletingVideoUrl(videoUrl);
+    try {
+      const res = await fetch('/api/admin/hero-videos/file', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ url: videoUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete video.');
+      }
+
+      const remainingLibrary = libraryVideos.filter((v) => v.url !== videoUrl);
+      const fallbackUrl = remainingLibrary[0]?.url || '';
+
+      const updatedSlides = slides.map((s) =>
+        s.videoSrc === videoUrl ? { ...s, videoSrc: fallbackUrl } : s
+      );
+      const slideChanged = updatedSlides.some((s, idx) => s.videoSrc !== slides[idx]?.videoSrc);
+      setSlides(updatedSlides);
+      setLibraryVideos(remainingLibrary);
+
+      if (slideChanged && fallbackUrl) {
+        await persistToBackend(updatedSlides, heroConfig);
+        if (user && hasFirestoreDocs) {
+          await seedDefaultHeroSlidesToFirestore(updatedSlides, heroConfig).catch(() => {});
+        }
+      }
+
+      notifySuccess(
+        videoUrl.startsWith('/assets/videos/')
+          ? 'Built-in reel deleted from library.'
+          : 'Uploaded video deleted.'
+      );
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to delete video.');
+    } finally {
+      setDeletingVideoUrl(null);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Firebase Firestore Status & Auth Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <Cloud className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Hero Video Storage &amp; Firebase Firestore
+              </h2>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                  hasFirestoreDocs
+                    ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : hasServerDocs
+                      ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                      : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {hasFirestoreDocs
+                  ? 'Synced with Firestore'
+                  : hasServerDocs
+                    ? 'Saved on Store Server'
+                    : 'Using Default Templates'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
+              DB: {firebaseConfig.firestoreDatabaseId}
+              {user?.email ? ` · Signed in: ${user.email}` : ''}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {!user ? (
+            <button
+              type="button"
+              onClick={handleConnectGoogle}
+              disabled={connectingGoogle}
+              className="px-3.5 py-2 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25 inline-flex items-center gap-1.5 disabled:opacity-60"
+            >
+              {connectingGoogle ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ShieldCheck className="w-3.5 h-3.5" />
+              )}
+              <span>Sign in with Google to Sync Firestore</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSyncAllSlidesToFirestore}
+              disabled={savingFirestore}
+              className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5 disabled:opacity-60"
+            >
+              {savingFirestore ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              <span>Sync All Slides to Firestore</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {bannerMsg && (
+        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-xs font-medium text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+          <Check className="w-4 h-4 shrink-0" />
+          <span>{bannerMsg}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-xs font-medium text-rose-700 dark:text-rose-300 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
+
+      {/* Playback Config */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Default Starting Hero Video Slide
+          </label>
+          <select
+            value={heroConfig.activeSlideId}
+            onChange={(e) =>
+              setHeroConfig((prev) => ({ ...prev, activeSlideId: e.target.value }))
+            }
+            className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+          >
+            {slides.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label} ({s.active ? 'Active' : 'Hidden'})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+            Auto-Advance Interval (seconds)
+          </label>
+          <input
+            type="number"
+            min={3}
+            max={30}
+            value={heroConfig.autoAdvanceSeconds}
+            onChange={(e) =>
+              setHeroConfig((prev) => ({
+                ...prev,
+                autoAdvanceSeconds: Math.min(30, Math.max(3, Number(e.target.value) || 9)),
+              }))
+            }
+            className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Main Slides Selector + Editor */}
+      {loadingData ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl py-12 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+          <span>Loading hero video configuration...</span>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left: Slide List */}
+          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Hero Slides ({slides.length})
+              </h3>
+              <button
+                type="button"
+                onClick={handleAddNewSlide}
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-500/25 inline-flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Slide</span>
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {slides.map((slide, idx) => {
+                const isSelected = slide.id === selectedSlide.id;
+                const isDefault = heroConfig.activeSlideId === slide.id;
+                return (
+                  <div
+                    key={slide.id}
+                    className={`rounded-xl border p-3 transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-500/15'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/70'
+                    }`}
+                    onClick={() => setSelectedSlideId(slide.id)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+                            #{idx + 1}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {slide.label}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                          {slide.videoSrc}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDeleteSlide(slide.id);
+                        }}
+                        aria-label={`Delete ${slide.label}`}
+                        title={
+                          slides.length > 1
+                            ? `Delete ${slide.label}`
+                            : 'At least one hero slide is required'
+                        }
+                        className={`p-1 rounded transition-colors ${
+                          slides.length > 1
+                            ? 'text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20'
+                            : 'text-slate-300 cursor-not-allowed'
+                        }`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 text-[10px] font-semibold">
+                      <span
+                        className={
+                          slide.active ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'
+                        }
+                      >
+                        {slide.active ? 'Active' : 'Hidden'}
+                      </span>
+                      {isDefault && (
+                        <span className="text-indigo-600 dark:text-indigo-400">· Default Start</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right: Selected Slide Editor & Video Selector */}
+          <div className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Film className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Editing: {selectedSlide.label}
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedSlide.active}
+                    onChange={(e) => updateSelectedSlide({ active: e.target.checked })}
+                    className="rounded border-slate-300 dark:border-slate-700"
+                  />
+                  <span>Show on Storefront</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSlideAndConfig}
+                  disabled={savingFirestore}
+                  className="px-3.5 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 inline-flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {savingFirestore ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  <span>{user ? 'Save & Sync Firestore' : 'Save Hero Settings'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Hero Video Preview */}
+            <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#240306] relative aspect-[16/7]">
+              {selectedSlide.videoSrc ? (
+                <video
+                  key={selectedSlide.videoSrc}
+                  src={selectedSlide.videoSrc}
+                  poster={selectedSlide.posterSrc || undefined}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs text-slate-300">
+                  Select or upload a video to preview
+                </div>
+              )}
+              <div className="pointer-events-none absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/60 text-[11px] font-medium text-white">
+                Live Hero Video Preview
+              </div>
+            </div>
+
+            {/* Upload or Paste Video URL */}
+            <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  Video Source (Upload File, Paste URL, or Pick from Library)
+                </span>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime,video/ogg,.mp4,.webm,.mov"
+                    className="hidden"
+                    onChange={(e) => {
+                      void handleVideoFileUpload(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingVideo}
+                    className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    {uploadingVideo ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 dark:text-indigo-400" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    )}
+                    <span>{uploadingVideo ? 'Uploading Video...' : 'Upload Video (MP4/WEBM, max 25MB)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  Active Video URL
+                </label>
+                <div className="relative">
+                  <Link2 className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={selectedSlide.videoSrc}
+                    onChange={(e) => updateSelectedSlide({ videoSrc: e.target.value })}
+                    placeholder="https://... or /assets/videos/hero-magsafe-reel.mp4"
+                    className="w-full pl-9 pr-3 py-2 text-xs font-mono border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Selectable Video Library */}
+              {libraryVideos.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    Select from Available Videos
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {libraryVideos.map((vid) => {
+                      const active = selectedSlide.videoSrc === vid.url;
+                      const isDeletingThis = deletingVideoUrl === vid.url;
+                      return (
+                        <div
+                          key={vid.url}
+                          className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 transition-colors ${
+                            active
+                              ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-900 dark:text-indigo-100'
+                              : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedSlide({ videoSrc: vid.url })}
+                            className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                          >
+                            <Play className="w-3.5 h-3.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{vid.name}</div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                {vid.source === 'bundled' ? 'Built-in Reel' : 'Uploaded Video'}
+                                {vid.sizeBytes ? ` · ${formatBytes(vid.sizeBytes)}` : ''}
+                              </div>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {active && <Check className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />}
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteLibraryVideo(vid.url)}
+                              disabled={isDeletingThis}
+                              aria-label={`Delete video ${vid.name}`}
+                              title={
+                                vid.source === 'bundled'
+                                  ? 'Delete built-in reel from library'
+                                  : 'Delete uploaded video file'
+                              }
+                              className="p-1 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded disabled:opacity-50"
+                            >
+                              {isDeletingThis ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Slide Content & Linking */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Slide Tab Label</label>
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={selectedSlide.label}
+                  onChange={(e) => updateSelectedSlide({ label: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Sort Order</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={selectedSlide.sortOrder}
+                  onChange={(e) =>
+                    updateSelectedSlide({ sortOrder: Math.max(0, Number(e.target.value) || 0) })
+                  }
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Eyebrow Kicker</label>
+                <input
+                  type="text"
+                  maxLength={140}
+                  value={selectedSlide.kicker}
+                  onChange={(e) => updateSelectedSlide({ kicker: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Headline</label>
+                <input
+                  type="text"
+                  maxLength={140}
+                  value={selectedSlide.headline}
+                  onChange={(e) => updateSelectedSlide({ headline: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  maxLength={320}
+                  value={selectedSlide.description}
+                  onChange={(e) => updateSelectedSlide({ description: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  Fallback Poster Image URL
+                </label>
+                <input
+                  type="text"
+                  maxLength={1000}
+                  value={selectedSlide.posterSrc}
+                  onChange={(e) => updateSelectedSlide({ posterSrc: e.target.value })}
+                  className="w-full px-3 py-2 text-xs font-mono border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
+                />
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {PRESET_POSTERS.map((p) => (
+                    <button
+                      key={p.url}
+                      type="button"
+                      onClick={() => updateSelectedSlide({ posterSrc: p.url })}
+                      className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] font-medium text-slate-700 dark:text-slate-300"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                    Explore CTA Category Target
+                  </label>
+                  <select
+                    value={selectedSlide.categoryTarget}
+                    onChange={(e) => updateSelectedSlide({ categoryTarget: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="All">All Categories</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                    Featured Product Quick-Link
+                  </label>
+                  <select
+                    value={selectedSlide.featuredProductId}
+                    onChange={(e) => {
+                      const prod = products.find((p) => p.id === e.target.value);
+                      updateSelectedSlide({
+                        featuredProductId: e.target.value,
+                        startingPrice: prod ? prod.price : selectedSlide.startingPrice,
+                      });
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Auto-match by category</option>
+                    {products.map((prod) => (
+                      <option key={prod.id} value={prod.id}>
+                        {prod.title} (৳{prod.price})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

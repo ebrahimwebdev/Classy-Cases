@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -6,53 +6,13 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { formatTaka, type PhoneCaseProduct } from '../models/phoneCase';
-
-interface HeroVideoSlide {
-  id: string;
-  label: string;
-  kicker: string;
-  headline: string;
-  description: string;
-  videoSrc: string;
-  posterSrc: string;
-  posterAlt: string;
-  categoryTarget: string;
-  featuredProductId: string;
-  startingPrice: number;
-}
-
-const HERO_VIDEO_SLIDES: HeroVideoSlide[] = [
-  {
-    id: 'magsafe-video',
-    label: 'MagSafe Frosted',
-    kicker: 'Signature Showcase · Motorola · VIVO · Xiaomi',
-    headline: 'Protect your phone with style.',
-    description:
-      'Frosted anti-fingerprint matte armor with integrated N52 MagSafe rings and raised metallic camera bezels.',
-    videoSrc: '/assets/videos/hero-magsafe-reel.mp4',
-    posterSrc: '/src/assets/images/hero_magsafe_showcase_1795548420846.jpg',
-    posterAlt:
-      'Frosted matte MagSafe phone cases with rose-gold and copper camera bezels on travertine stone',
-    categoryTarget: 'All',
-    featuredProductId: 'prod-1',
-    startingPrice: 250,
-  },
-  {
-    id: 'carbon-video',
-    label: 'Carbon Armor',
-    kicker: 'Executive Edition · Kickstand · Lens Guard',
-    headline: 'Precision fit. Everyday armor.',
-    description:
-      'Woven aramid-textured protection paired with machined aluminum lens framing built for slim daily resilience.',
-    videoSrc: '/assets/videos/hero-carbon-reel.mp4',
-    posterSrc: '/src/assets/images/hero_carbon_armor_1795548421139.jpg',
-    posterAlt:
-      'Woven carbon-fiber smartphone case with crimson trim and aluminum camera lens ring on slate',
-    categoryTarget: 'Motorola',
-    featuredProductId: 'prod-5',
-    startingPrice: 600,
-  },
-];
+import {
+  DEFAULT_HERO_CONFIG,
+  DEFAULT_HERO_VIDEO_SLIDES,
+  fetchPublicHeroConfig,
+  fetchPublicHeroSlides,
+  type HeroVideoSlide,
+} from '../services/heroVideoFirestore';
 
 interface HeroBannerProps {
   products: PhoneCaseProduct[];
@@ -65,11 +25,75 @@ export function HeroBanner({
   onShopNow,
   onInspectProduct,
 }: HeroBannerProps) {
+  const [slides, setSlides] = useState<HeroVideoSlide[]>(DEFAULT_HERO_VIDEO_SLIDES);
+  const [autoAdvanceSeconds, setAutoAdvanceSeconds] = useState<number>(
+    DEFAULT_HERO_CONFIG.autoAdvanceSeconds
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [videoFailed, setVideoFailed] = useState<Record<string, boolean>>({});
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const currentSlide = HERO_VIDEO_SLIDES[activeIndex];
+  const loadPersistedHeroSlides = useCallback(async () => {
+    try {
+      const [remoteSlides, remoteConfig, serverRes] = await Promise.all([
+        fetchPublicHeroSlides().catch(() => []),
+        fetchPublicHeroConfig().catch(() => null),
+        fetch('/api/hero-videos')
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null) as Promise<{
+          slides?: HeroVideoSlide[];
+          config?: { activeSlideId?: string; autoAdvanceSeconds?: number } | null;
+        } | null>,
+      ]);
+
+      const serverSlides = Array.isArray(serverRes?.slides)
+        ? serverRes.slides.filter((s) => s.active !== false)
+        : [];
+      const activeConfig =
+        remoteSlides.length > 0 ? remoteConfig : serverRes?.config || remoteConfig;
+
+      const nextSlides =
+        remoteSlides.length > 0
+          ? remoteSlides
+          : serverSlides.length > 0
+            ? serverSlides
+            : DEFAULT_HERO_VIDEO_SLIDES;
+
+      setSlides(nextSlides);
+      setVideoFailed({});
+
+      if (activeConfig) {
+        if (
+          typeof activeConfig.autoAdvanceSeconds === 'number' &&
+          Number.isFinite(activeConfig.autoAdvanceSeconds)
+        ) {
+          setAutoAdvanceSeconds(activeConfig.autoAdvanceSeconds);
+        }
+        if (activeConfig.activeSlideId) {
+          const matchIdx = nextSlides.findIndex(
+            (s) => s.id === activeConfig.activeSlideId
+          );
+          if (matchIdx >= 0) {
+            setActiveIndex(matchIdx);
+          }
+        }
+      }
+    } catch {
+      // Keep default slides smoothly if Firestore and server are unavailable
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPersistedHeroSlides();
+    function handleRefresh() {
+      void loadPersistedHeroSlides();
+    }
+    window.addEventListener('hero-videos-updated', handleRefresh);
+    return () => window.removeEventListener('hero-videos-updated', handleRefresh);
+  }, [loadPersistedHeroSlides]);
+
+  const safeIndex = activeIndex < slides.length ? activeIndex : 0;
+  const currentSlide = slides[safeIndex] || DEFAULT_HERO_VIDEO_SLIDES[0];
 
   const matchedProduct = useMemo(() => {
     return (
@@ -97,22 +121,24 @@ export function HeroBanner({
         // Browser autoplay policy fallback: keep poster visible cleanly
       });
     }
-  }, [activeIndex, currentSlide.id, videoFailed]);
+  }, [safeIndex, currentSlide.id, currentSlide.videoSrc, videoFailed]);
 
   // Auto-advance slides continuously
   useEffect(() => {
+    if (slides.length <= 1) return;
+    const intervalMs = Math.max(3, autoAdvanceSeconds) * 1000;
     const timer = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % HERO_VIDEO_SLIDES.length);
-    }, 9500);
+      setActiveIndex((prev) => (prev + 1) % slides.length);
+    }, intervalMs);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [slides.length, autoAdvanceSeconds]);
 
   function handlePrevSlide() {
-    setActiveIndex((prev) => (prev - 1 + HERO_VIDEO_SLIDES.length) % HERO_VIDEO_SLIDES.length);
+    setActiveIndex((prev) => (prev - 1 + slides.length) % slides.length);
   }
 
   function handleNextSlide() {
-    setActiveIndex((prev) => (prev + 1) % HERO_VIDEO_SLIDES.length);
+    setActiveIndex((prev) => (prev + 1) % slides.length);
   }
 
   return (
@@ -122,10 +148,13 @@ export function HeroBanner({
     >
       {/* Full-Bleed Video Backdrop */}
       <div className="relative w-full min-h-[380px] sm:min-h-[450px] lg:min-h-[520px] flex items-center">
-        {videoFailed[currentSlide.id] ? (
+        {videoFailed[currentSlide.id] || !currentSlide.videoSrc ? (
           <img
-            src={currentSlide.posterSrc}
-            alt={currentSlide.posterAlt}
+            src={
+              currentSlide.posterSrc ||
+              '/src/assets/images/hero_magsafe_showcase_1795548420846.jpg'
+            }
+            alt={currentSlide.posterAlt || currentSlide.headline}
             referrerPolicy="no-referrer"
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
@@ -134,7 +163,7 @@ export function HeroBanner({
             key={currentSlide.videoSrc}
             ref={videoRef}
             src={currentSlide.videoSrc}
-            poster={currentSlide.posterSrc}
+            poster={currentSlide.posterSrc || undefined}
             autoPlay
             muted
             loop
@@ -200,49 +229,53 @@ export function HeroBanner({
         </div>
 
         {/* Subtle Left / Right Slide Chevrons */}
-        <button
-          type="button"
-          onClick={handlePrevSlide}
-          aria-label="Previous hero video"
-          className="absolute left-2.5 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full text-white/80 hover:text-white hover:bg-black/30 flex items-center justify-center transition-colors cursor-pointer"
-        >
-          <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.75]" />
-        </button>
+        {slides.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={handlePrevSlide}
+              aria-label="Previous hero video"
+              className="absolute left-2.5 sm:left-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full text-white/80 hover:text-white hover:bg-black/30 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.75]" />
+            </button>
 
-        <button
-          type="button"
-          onClick={handleNextSlide}
-          aria-label="Next hero video"
-          className="absolute right-2.5 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full text-white/80 hover:text-white hover:bg-black/30 flex items-center justify-center transition-colors cursor-pointer"
-        >
-          <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.75]" />
-        </button>
+            <button
+              type="button"
+              onClick={handleNextSlide}
+              aria-label="Next hero video"
+              className="absolute right-2.5 sm:right-5 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full text-white/80 hover:text-white hover:bg-black/30 flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.75]" />
+            </button>
 
-        {/* Bottom Center Slide Bars */}
-        <div
-          className="absolute bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
-          role="tablist"
-          aria-label="Hero showcase videos"
-        >
-          {HERO_VIDEO_SLIDES.map((slide, idx) => {
-            const isActive = idx === activeIndex;
-            return (
-              <button
-                key={slide.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-label={`Play ${slide.label} showcase video`}
-                onClick={() => setActiveIndex(idx)}
-                className={`h-1 rounded-full transition-all cursor-pointer ${
-                  isActive
-                    ? 'w-7 bg-white shadow-xs'
-                    : 'w-3.5 bg-white/40 hover:bg-white/70'
-                }`}
-              />
-            );
-          })}
-        </div>
+            {/* Bottom Center Slide Bars */}
+            <div
+              className="absolute bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2"
+              role="tablist"
+              aria-label="Hero showcase videos"
+            >
+              {slides.map((slide, idx) => {
+                const isActive = idx === safeIndex;
+                return (
+                  <button
+                    key={slide.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-label={`Play ${slide.label} showcase video`}
+                    onClick={() => setActiveIndex(idx)}
+                    className={`h-1 rounded-full transition-all cursor-pointer ${
+                      isActive
+                        ? 'w-7 bg-white shadow-xs'
+                        : 'w-3.5 bg-white/40 hover:bg-white/70'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </section>
   );

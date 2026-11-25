@@ -57,7 +57,7 @@ export function TrustHighlights({
               </div>
 
               <div className="min-w-0">
-                <h2 className="font-brand text-base font-semibold text-[#2B1416] tracking-tight">
+                <h2 className="font-brand text-base font-semibold text-[#650108] tracking-tight">
                   {pillar.title}
                 </h2>
                 <p className="mt-1 text-[13px] font-normal text-[#5E4042] leading-relaxed">

@@ -122,10 +122,10 @@ function ToggleRow({
   onChange: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 last:border-0">
+    <div className="flex items-center justify-between gap-4 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div>
-        <div className="text-xs font-semibold text-slate-800">{label}</div>
-        {hint && <div className="text-[11px] text-slate-500 mt-0.5">{hint}</div>}
+        <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">{label}</div>
+        {hint && <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{hint}</div>}
       </div>
       <button
         type="button"
@@ -133,11 +133,11 @@ function ToggleRow({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={`w-10 h-5 rounded-full transition-colors p-0.5 shrink-0 ${
-          checked ? 'bg-indigo-600' : 'bg-slate-300'
+          checked ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
         }`}
       >
         <div
-          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
             checked ? 'translate-x-5' : 'translate-x-0'
           }`}
         />
@@ -182,10 +182,10 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Shop Page') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-        <h2 className="text-sm font-bold text-slate-900">Shop Page Layout</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Shop Page Layout</h2>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1.5">
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5">
             Desktop Product Grid Columns
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-md text-xs">
@@ -196,15 +196,15 @@ export function AdminSettingsPanels({
                 onClick={() => updateStorefront({ shopPageColumns: col })}
                 className={`py-2 rounded-lg border font-semibold cursor-pointer ${
                   sf.shopPageColumns === col
-                    ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                    : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                 }`}
               >
                 {col} Columns
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-slate-500 mt-1.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
             Sets how many product cards appear per row on desktop (4 or 5 recommended), then click Save Changes.
           </p>
         </div>
@@ -220,8 +220,8 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Product Page') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900">Product Page Preferences</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Product Page Preferences</h2>
         <ToggleRow
           label="Show stock availability badge"
           hint="Show remaining unit counts or In Stock indicator next to price"
@@ -240,8 +240,8 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Checkout') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900">Checkout Fields &amp; Flow</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Checkout Fields &amp; Flow</h2>
         <ToggleRow
           label="Require customer email at checkout"
           hint="Make email address mandatory alongside name, phone, and address"
@@ -260,24 +260,24 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Thank-you Page') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Thank-you Page Message</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Thank-you Page Message</h2>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Confirmation Headline</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Confirmation Headline</label>
           <input
             type="text"
             value={sf.thankYouHeadline}
             onChange={(e) => updateStorefront({ thankYouHeadline: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Confirmation Sub-message</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Confirmation Sub-message</label>
           <textarea
             rows={3}
             value={sf.thankYouMessage}
             onChange={(e) => updateStorefront({ thankYouMessage: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
       </div>
@@ -286,8 +286,8 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Product Reviews') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900">Product Reviews</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Product Reviews</h2>
         <ToggleRow
           label="Enable customer reviews &amp; star ratings"
           hint="Show rating breakdown and review submission form in product details"
@@ -306,24 +306,24 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Size Guide') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Size &amp; Device Fit Guide</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Size &amp; Device Fit Guide</h2>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Guide Title</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Guide Title</label>
           <input
             type="text"
             value={sf.sizeGuideTitle}
             onChange={(e) => updateStorefront({ sizeGuideTitle: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Fit Verification Instructions</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Fit Verification Instructions</label>
           <textarea
             rows={3}
             value={sf.sizeGuideNotes}
             onChange={(e) => updateStorefront({ sizeGuideNotes: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
       </div>
@@ -332,24 +332,24 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Offer Page') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Offer Page Configuration</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Offer Page Configuration</h2>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Offer Page Heading</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Offer Page Heading</label>
           <input
             type="text"
             value={sf.offerPageTitle}
             onChange={(e) => updateStorefront({ offerPageTitle: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Promotional Banner Copy</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Promotional Banner Copy</label>
           <textarea
             rows={2}
             value={sf.offerPageBannerText}
             onChange={(e) => updateStorefront({ offerPageBannerText: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
       </div>
@@ -358,8 +358,8 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Popup Offer') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Popup Offer</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Popup Offer</h2>
         <ToggleRow
           label="Enable Storefront Offer Popup"
           hint="Display a promotional discount popup for first-time visitors"
@@ -368,21 +368,21 @@ export function AdminSettingsPanels({
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Popup Headline</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Popup Headline</label>
             <input
               type="text"
               value={sf.popupOfferHeadline}
               onChange={(e) => updateStorefront({ popupOfferHeadline: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Promo Code</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Promo Code</label>
             <input
               type="text"
               value={sf.popupOfferCode}
               onChange={(e) => updateStorefront({ popupOfferCode: e.target.value.toUpperCase() })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono uppercase"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono uppercase"
             />
           </div>
         </div>
@@ -392,15 +392,15 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Order Sources') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Order Sources</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Order Sources</h2>
         <div className="flex gap-2">
           <input
             type="text"
             value={newSource}
             onChange={(e) => setNewSource(e.target.value)}
             placeholder="Add order source (e.g. TikTok Shop, Daraz)"
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg"
+            className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
           <button
             type="button"
@@ -416,14 +416,14 @@ export function AdminSettingsPanels({
             <span>Add</span>
           </button>
         </div>
-        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg">
           {os.sources.map((src) => (
             <div key={src} className="px-3.5 py-2.5 flex items-center justify-between">
-              <span className="font-medium text-slate-800">{src}</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{src}</span>
               <button
                 type="button"
                 onClick={() => updateOrders({ sources: os.sources.filter((s) => s !== src) })}
-                className="text-slate-400 hover:text-rose-600 p-1"
+                className="text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 p-1"
                 aria-label={`Remove ${src}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -437,15 +437,15 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Quick Notes') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Quick Order Notes</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Quick Order Notes</h2>
         <div className="flex gap-2">
           <input
             type="text"
             value={newQuickNote}
             onChange={(e) => setNewQuickNote(e.target.value)}
             placeholder="Add preset dispatch/packing note..."
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg"
+            className="flex-1 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
           <button
             type="button"
@@ -461,14 +461,14 @@ export function AdminSettingsPanels({
             <span>Add</span>
           </button>
         </div>
-        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg">
           {os.quickNotes.map((note) => (
             <div key={note} className="px-3.5 py-2.5 flex items-center justify-between">
-              <span className="text-slate-800">{note}</span>
+              <span className="text-slate-800 dark:text-slate-200">{note}</span>
               <button
                 type="button"
                 onClick={() => updateOrders({ quickNotes: os.quickNotes.filter((n) => n !== note) })}
-                className="text-slate-400 hover:text-rose-600 p-1"
+                className="text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 p-1"
                 aria-label={`Remove ${note}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -482,37 +482,37 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Delivery Charges') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Delivery Charges</h2>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Delivery Charges</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Inside Dhaka (৳)</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Inside Dhaka (৳)</label>
             <input
               type="number"
               min={0}
               value={form.shippingInsideDhaka}
               onChange={(e) => setForm({ ...form, shippingInsideDhaka: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Outside Dhaka (৳)</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Outside Dhaka (৳)</label>
             <input
               type="number"
               min={0}
               value={form.shippingOutsideDhaka}
               onChange={(e) => setForm({ ...form, shippingOutsideDhaka: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Free Shipping Over (৳)</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Free Shipping Over (৳)</label>
             <input
               type="number"
               min={0}
               value={form.freeShippingThreshold}
               onChange={(e) => setForm({ ...form, freeShippingThreshold: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
             />
           </div>
         </div>
@@ -522,9 +522,9 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Shipping Classes & Weight') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Tag className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Tag className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Shipping Classes &amp; Weight</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
@@ -533,7 +533,7 @@ export function AdminSettingsPanels({
             value={newClassName}
             onChange={(e) => setNewClassName(e.target.value)}
             placeholder="Class name (e.g. Heavy Box)"
-            className="sm:col-span-2 px-3 py-2 border border-slate-200 rounded-lg"
+            className="sm:col-span-2 px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
           <input
             type="number"
@@ -541,7 +541,7 @@ export function AdminSettingsPanels({
             value={newClassFee}
             onChange={(e) => setNewClassFee(e.target.value)}
             placeholder="Fee (৳)"
-            className="px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+            className="px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
           />
           <div className="flex gap-1.5">
             <input
@@ -551,7 +551,7 @@ export function AdminSettingsPanels({
               value={newClassWeight}
               onChange={(e) => setNewClassWeight(e.target.value)}
               placeholder="kg"
-              className="w-20 px-2.5 py-2 border border-slate-200 rounded-lg tabular-nums"
+              className="w-20 px-2.5 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
             />
             <button
               type="button"
@@ -575,12 +575,12 @@ export function AdminSettingsPanels({
             </button>
           </div>
         </div>
-        <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg">
           {ds.shippingClasses.map((cls) => (
             <div key={cls.name} className="px-3.5 py-2.5 flex items-center justify-between">
               <div>
-                <span className="font-semibold text-slate-900">{cls.name}</span>
-                <span className="ml-2 text-slate-500 tabular-nums">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{cls.name}</span>
+                <span className="ml-2 text-slate-500 dark:text-slate-400 tabular-nums">
                   ৳{cls.fee} · {cls.defaultWeightKg} kg
                 </span>
               </div>
@@ -591,7 +591,7 @@ export function AdminSettingsPanels({
                     shippingClasses: ds.shippingClasses.filter((c) => c.name !== cls.name),
                   })
                 }
-                className="text-slate-400 hover:text-rose-600 p-1"
+                className="text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 p-1"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -604,14 +604,14 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Courier Integration') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Truck className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Courier Integration</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Active Courier Partner</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Active Courier Partner</label>
             <select
               value={ds.courierProvider}
               onChange={(e) =>
@@ -619,7 +619,7 @@ export function AdminSettingsPanels({
                   courierProvider: e.target.value as DeliveryConfigSettings['courierProvider'],
                 })
               }
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
             >
               <option value="Steadfast">Steadfast Courier</option>
               <option value="Pathao">Pathao Parcel</option>
@@ -628,23 +628,23 @@ export function AdminSettingsPanels({
             </select>
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">API Key</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">API Key</label>
             <input
               type="text"
               value={ds.courierApiKey}
               onChange={(e) => updateDelivery({ courierApiKey: e.target.value })}
               placeholder="Enter courier API key..."
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Secret Key</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Secret Key</label>
             <input
               type="password"
               value={ds.courierSecretKey}
               onChange={(e) => updateDelivery({ courierSecretKey: e.target.value })}
               placeholder="••••••••"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
           </div>
         </div>
@@ -654,9 +654,9 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Fraud Checking Accounts') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Fraud Checking Accounts</span>
         </h2>
         <ToggleRow
@@ -666,7 +666,7 @@ export function AdminSettingsPanels({
           onChange={(v) => updateDelivery({ fraudCheckEnabled: v })}
         />
         <div className="max-w-xs">
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
             Risk Alert Cancellation Threshold (%)
           </label>
           <input
@@ -677,7 +677,7 @@ export function AdminSettingsPanels({
             onChange={(e) =>
               updateDelivery({ fraudThresholdPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
             }
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg tabular-nums"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
           />
         </div>
       </div>
@@ -686,40 +686,40 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Marketing Connections') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Plug className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Plug className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Marketing Connections</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Meta Pixel ID</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Meta Pixel ID</label>
             <input
               type="text"
               value={ms.metaPixelId}
               onChange={(e) => updateMarketing({ metaPixelId: e.target.value })}
               placeholder="e.g. 123456789012345"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Google Tag Manager ID</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Google Tag Manager ID</label>
             <input
               type="text"
               value={ms.gtmId}
               onChange={(e) => updateMarketing({ gtmId: e.target.value })}
               placeholder="e.g. GTM-XXXXXXX"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">TikTok Pixel ID</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">TikTok Pixel ID</label>
             <input
               type="text"
               value={ms.tiktokPixelId}
               onChange={(e) => updateMarketing({ tiktokPixelId: e.target.value })}
               placeholder="Optional"
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg font-mono"
             />
           </div>
         </div>
@@ -729,28 +729,28 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Email') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Mail className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Mail className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Email Sender Settings</span>
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Sender Name</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Sender Name</label>
             <input
               type="text"
               value={sys.smtpFromName}
               onChange={(e) => updateSystem({ smtpFromName: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-medium text-slate-500 mb-1">Reply-To Address</label>
+            <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Reply-To Address</label>
             <input
               type="email"
               value={sys.smtpReplyTo}
               onChange={(e) => updateSystem({ smtpReplyTo: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+              className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
             />
           </div>
         </div>
@@ -760,9 +760,9 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Security') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Shield className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Security</span>
         </h2>
         <ToggleRow
@@ -777,9 +777,9 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Notifications') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Bell className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Bell className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Notifications</span>
         </h2>
         <ToggleRow
@@ -800,27 +800,27 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Print Templates') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Printer className="w-4 h-4 text-indigo-600" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <Printer className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Print Templates (Invoices &amp; Packing Slips)</span>
         </h2>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Invoice Header Subtitle</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Invoice Header Subtitle</label>
           <input
             type="text"
             value={sys.invoiceHeaderNote}
             onChange={(e) => updateSystem({ invoiceHeaderNote: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 mb-1">Invoice Footer Return Policy</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Invoice Footer Return Policy</label>
           <textarea
             rows={2}
             value={sys.invoiceFooterNote}
             onChange={(e) => updateSystem({ invoiceFooterNote: e.target.value })}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-800 rounded-lg"
           />
         </div>
       </div>
@@ -829,9 +829,9 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Export / Import') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Export / Import Settings</h2>
-        <p className="text-slate-600">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Export / Import Settings</h2>
+        <p className="text-slate-600 dark:text-slate-400">
           Download a JSON backup of your store configuration or restore a saved settings file.
         </p>
         <div className="flex flex-wrap gap-3">
@@ -847,7 +847,7 @@ export function AdminSettingsPanels({
               URL.revokeObjectURL(url);
               onStatusMessage('Settings JSON exported.');
             }}
-            className="px-4 py-2 rounded-lg border border-slate-200 bg-white font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+            className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Export Settings JSON</span>
@@ -881,16 +881,16 @@ export function AdminSettingsPanels({
 
   if (activeTab === 'Store data') {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 text-xs">
-        <h2 className="text-sm font-bold text-slate-900">Store Data &amp; Storage</h2>
-        <p className="text-slate-600">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Store Data &amp; Storage</h2>
+        <p className="text-slate-600 dark:text-slate-400">
           Your products, orders, categories, reviews, and configuration are persisted safely in your local JSON store.
         </p>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={onOpenStorefront}
-            className="px-4 py-2 rounded-lg border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
+            className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-800 font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5"
           >
             <Store className="w-3.5 h-3.5" />
             <span>Open Live Storefront</span>
@@ -902,9 +902,9 @@ export function AdminSettingsPanels({
 
   // Support access
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-      <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-        <UserCog className="w-4 h-4 text-indigo-600" />
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+      <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+        <UserCog className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
         <span>Support Access</span>
       </h2>
       <ToggleRow

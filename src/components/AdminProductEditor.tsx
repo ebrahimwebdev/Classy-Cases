@@ -103,35 +103,35 @@ function RichToolbar({ onInsert }: { onInsert: (snippet: string) => void }) {
   const textBtns = ['H1', 'H2', 'H3'];
 
   return (
-    <div className="px-2.5 py-1.5 border-b border-slate-200 bg-white flex flex-wrap items-center gap-1 text-slate-600">
+    <div className="px-2.5 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center gap-1 text-slate-600 dark:text-slate-400">
       {buttons.map((b) => (
         <button
           key={b.label}
           type="button"
           title={b.label}
           onClick={() => onInsert(b.snippet)}
-          className="p-1 rounded hover:bg-slate-100 hover:text-slate-900"
+          className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
         >
           {b.icon}
         </button>
       ))}
-      <span className="w-px h-4 bg-slate-200 mx-1" />
+      <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
       {textBtns.map((t) => (
         <button
           key={t}
           type="button"
           onClick={() => onInsert(`\n${'#'.repeat(Number(t[1]))} Heading\n`)}
-          className="px-1.5 py-0.5 rounded text-[11px] font-semibold hover:bg-slate-100 hover:text-slate-900"
+          className="px-1.5 py-0.5 rounded text-[11px] font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
         >
           {t}
         </button>
       ))}
-      <span className="w-px h-4 bg-slate-200 mx-1" />
+      <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
       <button
         type="button"
         title="Bullet list"
         onClick={() => onInsert('\n- Feature item')}
-        className="p-1 rounded hover:bg-slate-100 hover:text-slate-900"
+        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
       >
         <List className="w-3.5 h-3.5" />
       </button>
@@ -139,7 +139,7 @@ function RichToolbar({ onInsert }: { onInsert: (snippet: string) => void }) {
         type="button"
         title="Numbered list"
         onClick={() => onInsert('\n1. Step or item')}
-        className="p-1 rounded hover:bg-slate-100 hover:text-slate-900"
+        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
       >
         <ListOrdered className="w-3.5 h-3.5" />
       </button>
@@ -147,7 +147,7 @@ function RichToolbar({ onInsert }: { onInsert: (snippet: string) => void }) {
         type="button"
         title="Quote"
         onClick={() => onInsert('\n> Note')}
-        className="p-1 rounded hover:bg-slate-100 hover:text-slate-900"
+        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100"
       >
         <Quote className="w-3.5 h-3.5" />
       </button>
@@ -526,11 +526,11 @@ export function AdminProductEditor({
             type="button"
             onClick={onCancel}
             aria-label="Back to products"
-            className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center justify-center"
+            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center justify-center"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-lg font-bold text-slate-900">
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
             {editingProduct ? 'Edit Product' : 'Add New Product'}
           </h1>
         </div>
@@ -540,7 +540,7 @@ export function AdminProductEditor({
             <button
               type="button"
               onClick={onViewStorefront}
-              className="px-3.5 py-2 rounded-lg border border-slate-200 bg-white text-indigo-600 text-xs font-semibold hover:bg-slate-50 inline-flex items-center gap-1.5"
+              className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               <span>View</span>
@@ -552,7 +552,7 @@ export function AdminProductEditor({
             className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors ${
               canSubmit
                 ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
-                : 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed'
             }`}
           >
             <ClipboardCheck className="w-3.5 h-3.5" />
@@ -570,20 +570,20 @@ export function AdminProductEditor({
       </div>
 
       {formError && (
-        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+        <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-xs font-medium text-rose-700 dark:text-rose-300">
           {formError}
         </div>
       )}
 
       {/* Underline Tabs */}
-      <div className="border-b border-slate-200 flex items-center gap-6 text-xs">
+      <div className="border-b border-slate-200 dark:border-slate-800 flex items-center gap-6 text-xs">
         <button
           type="button"
           onClick={() => setActiveTab('details')}
           className={`pb-2.5 font-semibold border-b-2 transition-colors ${
             activeTab === 'details'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
           }`}
         >
           Product Details
@@ -593,8 +593,8 @@ export function AdminProductEditor({
           onClick={() => setActiveTab('variations')}
           className={`pb-2.5 font-semibold border-b-2 transition-colors ${
             activeTab === 'variations'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-400 hover:text-slate-700'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
           }`}
         >
           Product Variations
@@ -604,22 +604,22 @@ export function AdminProductEditor({
       {activeTab === 'variations' ? (
         <div className="space-y-5">
           {/* Options Card matching screenshot */}
-          <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-            <div className="flex items-center gap-1.5 text-slate-900 pb-3 border-b border-slate-100">
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center gap-1.5 text-slate-900 dark:text-slate-100 pb-3 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-sm font-bold">Options</h2>
-              <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+              <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
             </div>
 
             <div className="space-y-3">
               {variantOptions.map((opt, idx) => (
                 <div
                   key={idx}
-                  className="border border-slate-200 rounded-xl p-4 space-y-3 bg-white"
+                  className="border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3 bg-white dark:bg-slate-900"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-xs font-medium text-slate-700 flex items-center gap-1 shrink-0 w-20">
+                    <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1 shrink-0 w-20">
                       <span>Option {idx + 1}</span>
-                      <HelpCircle className="w-3 h-3 text-slate-400" />
+                      <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                     </div>
                     <input
                       type="text"
@@ -631,7 +631,7 @@ export function AdminProductEditor({
                         setVariantOptions(next);
                       }}
                       placeholder="e.g. Color, Model, Size"
-                      className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                      className="flex-1 px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
                     />
                     <button
                       type="button"
@@ -644,24 +644,24 @@ export function AdminProductEditor({
                         }
                       }}
                       aria-label={`Remove Option ${idx + 1}`}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-50 shrink-0"
+                      className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <div className="border border-slate-200 rounded-lg px-3 py-2 flex flex-wrap items-center gap-1.5 focus-within:border-indigo-500 bg-white">
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 flex flex-wrap items-center gap-1.5 focus-within:border-indigo-500 bg-white dark:bg-slate-900">
                     {opt.values.map((val) => (
                       <span
                         key={val}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-xs font-medium"
                       >
                         <span>{val}</span>
                         <button
                           type="button"
                           onClick={() => removeOptionValue(idx, val)}
                           aria-label={`Remove ${val}`}
-                          className="text-indigo-400 hover:text-rose-600"
+                          className="text-indigo-400 hover:text-rose-600 dark:hover:text-rose-400"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -697,7 +697,7 @@ export function AdminProductEditor({
                         }
                       }}
                       placeholder="Type values, press Enter or comma..."
-                      className="flex-1 min-w-[180px] text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none py-0.5 bg-transparent"
+                      className="flex-1 min-w-[180px] text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none py-0.5 bg-transparent"
                     />
                   </div>
                 </div>
@@ -709,7 +709,7 @@ export function AdminProductEditor({
               onClick={() =>
                 setVariantOptions((prev) => [...prev, { name: '', values: [] }])
               }
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1.5 pt-1"
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 inline-flex items-center gap-1.5 pt-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Option</span>
@@ -717,28 +717,28 @@ export function AdminProductEditor({
           </section>
 
           {/* Variants Card matching screenshot */}
-          <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-2">
-              <h2 className="text-sm font-bold text-slate-900">Variants</h2>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-semibold tabular-nums">
+          <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Variants</h2>
+              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-semibold tabular-nums">
                 {variants.length}
               </span>
             </div>
 
             {variants.length === 0 ? (
               <div className="py-12 px-4 text-center">
-                <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center mx-auto mb-3 text-slate-500">
+                <div className="w-10 h-10 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-500 dark:text-slate-400">
                   <Box className="w-5 h-5" />
                 </div>
-                <p className="text-xs font-bold text-slate-900">No variants yet</p>
-                <p className="text-[11px] text-slate-500 mt-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100">No variants yet</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                   Add options above, then save to create the variants.
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[600px] text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                  <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
                     <tr>
                       <th className="py-2.5 px-4 font-medium">Variant</th>
                       <th className="py-2.5 px-4 font-medium">SKU</th>
@@ -747,10 +747,10 @@ export function AdminProductEditor({
                       <th className="py-2.5 px-4 font-medium text-center">Active</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {variants.map((v, idx) => (
                       <tr key={v.id} className="hover:bg-slate-50/60">
-                        <td className="py-2.5 px-4 font-semibold text-slate-900">{v.label}</td>
+                        <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">{v.label}</td>
                         <td className="py-2.5 px-4">
                           <input
                             type="text"
@@ -761,7 +761,7 @@ export function AdminProductEditor({
                               );
                               setVariants(next);
                             }}
-                            className="w-36 px-2.5 py-1.5 rounded-lg border border-slate-200 font-mono text-xs"
+                            className="w-36 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-xs"
                           />
                         </td>
                         <td className="py-2.5 px-4 text-right">
@@ -775,14 +775,14 @@ export function AdminProductEditor({
                               );
                               setVariants(next);
                             }}
-                            className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 text-right tabular-nums text-xs"
+                            className="w-24 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-right tabular-nums text-xs"
                           />
                         </td>
                         <td className="py-2.5 px-4 text-right">
                           <div className="inline-flex items-center justify-end gap-1.5">
                             {trackStock && v.stock > 0 && v.stock < 5 && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold whitespace-nowrap">
-                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[10px] font-semibold whitespace-nowrap">
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
                                 Low Stock
                               </span>
                             )}
@@ -796,7 +796,7 @@ export function AdminProductEditor({
                                 );
                                 setVariants(next);
                               }}
-                              className="w-20 px-2.5 py-1.5 rounded-lg border border-slate-200 text-right tabular-nums text-xs"
+                              className="w-20 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-right tabular-nums text-xs"
                             />
                           </div>
                         </td>
@@ -810,7 +810,7 @@ export function AdminProductEditor({
                               );
                               setVariants(next);
                             }}
-                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
                           />
                         </td>
                       </tr>
@@ -826,15 +826,15 @@ export function AdminProductEditor({
           {/* LEFT COLUMN (8 cols) */}
           <div className="lg:col-span-8 space-y-5">
             {/* Basics Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 text-slate-900">
-                <Box className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Box className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold">Basics</h2>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div className="relative">
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Name <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -843,14 +843,14 @@ export function AdminProductEditor({
                     value={name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="e.g. Magsafe Frosted Syndee Case for Motorola Edge 50"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                  <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
                     <span>SKU</span>
-                    <HelpCircle className="w-3 h-3 text-slate-400" />
+                    <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -858,12 +858,12 @@ export function AdminProductEditor({
                       value={sku}
                       onChange={(e) => setSku(e.target.value)}
                       placeholder="e.g. CC-MOT-001"
-                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-indigo-500"
+                      className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                     />
                     <button
                       type="button"
                       onClick={handleGenerateSku}
-                      className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-indigo-600 font-semibold hover:bg-indigo-50 inline-flex items-center gap-1.5 shrink-0"
+                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/20 inline-flex items-center gap-1.5 shrink-0"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Generate</span>
@@ -872,9 +872,9 @@ export function AdminProductEditor({
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                  <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
                     <span>URL slug</span>
-                    <HelpCircle className="w-3 h-3 text-slate-400" />
+                    <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </label>
                   <input
                     type="text"
@@ -884,31 +884,31 @@ export function AdminProductEditor({
                       setSlug(e.target.value);
                     }}
                     placeholder="magsafe-frosted-syndee-case"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-slate-700 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 {/* Collapsible SEO listing */}
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setSeoOpen((v) => !v)}
-                    className="w-full px-3 py-2.5 bg-white flex items-center justify-between text-xs font-semibold text-slate-800 hover:bg-slate-50"
+                    className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 flex items-center justify-between text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/70"
                   >
                     <span className="flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-indigo-600" />
+                      <Globe className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       <span>Search engine listing</span>
                     </span>
                     <ChevronDown
-                      className={`w-4 h-4 text-slate-400 transition-transform ${
+                      className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${
                         seoOpen ? 'rotate-180' : ''
                       }`}
                     />
                   </button>
                   {seoOpen && (
-                    <div className="p-3 border-t border-slate-200 space-y-2.5 bg-slate-50/50">
+                    <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5 bg-slate-50/50 dark:bg-slate-800/40">
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                        <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                           Meta Title
                         </label>
                         <input
@@ -916,11 +916,11 @@ export function AdminProductEditor({
                           value={seoTitle}
                           onChange={(e) => setSeoTitle(e.target.value)}
                           placeholder={name || 'SEO Page Title'}
-                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white"
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                        <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                           Meta Description
                         </label>
                         <textarea
@@ -928,7 +928,7 @@ export function AdminProductEditor({
                           value={seoDescription}
                           onChange={(e) => setSeoDescription(e.target.value)}
                           placeholder="Search snippet summary..."
-                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white"
+                          className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                         />
                       </div>
                     </div>
@@ -938,15 +938,15 @@ export function AdminProductEditor({
             </section>
 
             {/* Pricing & Inventory Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 text-slate-900">
-                <DollarSign className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <DollarSign className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold">Pricing &amp; Inventory</h2>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Regular price (৳) <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -955,12 +955,12 @@ export function AdminProductEditor({
                     required
                     value={regularPrice}
                     onChange={(e) => setRegularPrice(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 tabular-nums text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Offer price (৳)
                   </label>
                   <input
@@ -968,12 +968,12 @@ export function AdminProductEditor({
                     min={0}
                     value={offerPrice}
                     onChange={(e) => setOfferPrice(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 tabular-nums text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Cost price (৳)
                   </label>
                   <input
@@ -981,25 +981,25 @@ export function AdminProductEditor({
                     min={0}
                     value={costPrice}
                     onChange={(e) => setCostPrice(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 tabular-nums text-slate-900 focus:outline-none focus:border-indigo-500"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
               {/* Large On hand stock box matching reference */}
-              <div className="border border-slate-200 rounded-xl p-3.5">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <label className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                  <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                     <span>On hand</span>
-                    <HelpCircle className="w-3 h-3 text-slate-400" />
+                    <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </label>
                   {trackStock && (Number(onHand) || 0) <= 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-semibold">
                       Out of Stock
                     </span>
                   ) : trackStock && (Number(onHand) || 0) < 5 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold">
-                      <AlertTriangle className="w-3 h-3 text-amber-600" />
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[10px] font-semibold">
+                      <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                       Low Stock (&lt; 5)
                     </span>
                   ) : null}
@@ -1009,13 +1009,13 @@ export function AdminProductEditor({
                   min={0}
                   value={onHand}
                   onChange={(e) => setOnHand(e.target.value)}
-                  className="w-full text-lg font-bold text-slate-900 tabular-nums focus:outline-none bg-transparent"
+                  className="w-full text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums focus:outline-none bg-transparent"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Low-stock threshold
                   </label>
                   <input
@@ -1023,17 +1023,17 @@ export function AdminProductEditor({
                     min={0}
                     value={lowStockThreshold}
                     onChange={(e) => setLowStockThreshold(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 tabular-nums text-slate-900"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 tabular-nums text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Pre-orders when out of stock
                   </label>
                   <select
                     value={preOrderMode}
                     onChange={(e) => setPreOrderMode(e.target.value as typeof preOrderMode)}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                   >
                     <option value="store_default">Store default (Settings → General)</option>
                     <option value="allow">Allow pre-orders</option>
@@ -1043,18 +1043,18 @@ export function AdminProductEditor({
               </div>
 
               <div className="space-y-1.5">
-                <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                   <span>Stock tracking</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
+                  <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                 </div>
-                <div className="grid grid-cols-2 border border-slate-200 rounded-lg overflow-hidden max-w-xs text-xs">
+                <div className="grid grid-cols-2 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden max-w-xs text-xs">
                   <button
                     type="button"
                     onClick={() => setTrackStock(true)}
                     className={`py-2 font-semibold transition-colors ${
                       trackStock
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-white text-slate-500 hover:bg-slate-50'
+                        ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     Track stock
@@ -1062,10 +1062,10 @@ export function AdminProductEditor({
                   <button
                     type="button"
                     onClick={() => setTrackStock(false)}
-                    className={`py-2 font-semibold border-l border-slate-200 transition-colors ${
+                    className={`py-2 font-semibold border-l border-slate-200 dark:border-slate-800 transition-colors ${
                       !trackStock
-                        ? 'bg-slate-100 text-slate-900'
-                        : 'bg-white text-slate-500 hover:bg-slate-50'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                        : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                     }`}
                   >
                     Don&apos;t track
@@ -1075,19 +1075,19 @@ export function AdminProductEditor({
             </section>
 
             {/* Shipping Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 text-slate-900">
-                <Truck className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Truck className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold flex items-center gap-1">
                   <span>Shipping</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
+                  <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                 </h2>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
                   <span>Requires shipping</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
+                  <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                 </span>
                 <button
                   type="button"
@@ -1095,11 +1095,11 @@ export function AdminProductEditor({
                   aria-checked={requiresShipping}
                   onClick={() => setRequiresShipping((v) => !v)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    requiresShipping ? 'bg-indigo-600' : 'bg-slate-300'
+                    requiresShipping ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
                   }`}
                 >
                   <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-xs ${
+                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white dark:bg-slate-900 transition-transform shadow-xs ${
                       requiresShipping ? 'translate-x-4.5' : 'translate-x-1'
                     }`}
                   />
@@ -1109,32 +1109,32 @@ export function AdminProductEditor({
               {requiresShipping && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
                       <span>Weight</span>
-                      <HelpCircle className="w-3 h-3 text-slate-400" />
+                      <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                     </label>
-                    <div className="flex items-center border border-slate-200 rounded-lg px-3 py-2">
+                    <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
                       <input
                         type="number"
                         step="any"
                         min={0}
                         value={weightKg}
                         onChange={(e) => setWeightKg(e.target.value)}
-                        className="flex-1 bg-transparent text-slate-900 tabular-nums focus:outline-none min-w-0"
+                        className="flex-1 bg-transparent text-slate-900 dark:text-slate-100 tabular-nums focus:outline-none min-w-0"
                       />
-                      <span className="text-slate-500 font-medium ml-2">kg</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium ml-2">kg</span>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                       Shipping class
                     </label>
                     <div className="flex items-center gap-2">
                       <select
                         value={shippingClass}
                         onChange={(e) => setShippingClass(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800"
+                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                       >
                         <option value="No class">No class</option>
                         <option value="Standard Case">Standard Case</option>
@@ -1145,7 +1145,7 @@ export function AdminProductEditor({
                         type="button"
                         onClick={() => setShippingClass('Standard Case')}
                         title="Use Standard Case class"
-                        className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 shrink-0"
+                        className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -1156,17 +1156,17 @@ export function AdminProductEditor({
             </section>
 
             {/* Description Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 text-slate-900">
-                <AlignLeft className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <AlignLeft className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold">Description</h2>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold text-slate-700">
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                   Short description
                 </label>
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
                   <RichToolbar
                     onInsert={(snippet) => setShortDescription((prev) => `${prev}${snippet}`)}
                   />
@@ -1175,16 +1175,16 @@ export function AdminProductEditor({
                     value={shortDescription}
                     onChange={(e) => setShortDescription(e.target.value)}
                     placeholder="One or two lines that sum the product up..."
-                    className="w-full p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none resize-y"
+                    className="w-full p-3 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none resize-y"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold text-slate-700">
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                   Full description
                 </label>
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
                   <RichToolbar
                     onInsert={(snippet) => setFullDescription((prev) => `${prev}${snippet}`)}
                   />
@@ -1193,22 +1193,22 @@ export function AdminProductEditor({
                     value={fullDescription}
                     onChange={(e) => setFullDescription(e.target.value)}
                     placeholder="Features, specifications, what's in the box..."
-                    className="w-full p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none resize-y"
+                    className="w-full p-3 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none resize-y"
                   />
                 </div>
               </div>
             </section>
 
             {/* Key features & specifications */}
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <div className="p-4 flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                    <ListChecks className="w-4 h-4 text-slate-600" />
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                     <span>Key features &amp; specifications</span>
-                    <HelpCircle className="w-3 h-3 text-slate-400" />
+                    <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">Optional</p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Optional</p>
                 </div>
                 <button
                   type="button"
@@ -1218,7 +1218,7 @@ export function AdminProductEditor({
                     }
                     setSpecsOpen((v) => !v);
                   }}
-                  className="text-xs font-semibold text-slate-700 inline-flex items-center gap-1 hover:text-indigo-600"
+                  className="text-xs font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1 hover:text-indigo-600"
                 >
                   <span>Add</span>
                   <ChevronDown
@@ -1227,7 +1227,7 @@ export function AdminProductEditor({
                 </button>
               </div>
               {specsOpen && (
-                <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-2">
+                <div className="px-4 pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   {specifications.map((spec, idx) => (
                     <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs">
                       <input
@@ -1239,7 +1239,7 @@ export function AdminProductEditor({
                           setSpecifications(next);
                         }}
                         placeholder="Feature (e.g. MagSafe)"
-                        className="sm:col-span-5 px-2.5 py-1.5 rounded-lg border border-slate-200"
+                        className="sm:col-span-5 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                       />
                       <input
                         type="text"
@@ -1250,14 +1250,14 @@ export function AdminProductEditor({
                           setSpecifications(next);
                         }}
                         placeholder="Value (e.g. N52 Strong Ring)"
-                        className="sm:col-span-6 px-2.5 py-1.5 rounded-lg border border-slate-200"
+                        className="sm:col-span-6 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                       />
                       <button
                         type="button"
                         onClick={() =>
                           setSpecifications((prev) => prev.filter((_, i) => i !== idx))
                         }
-                        className="sm:col-span-1 p-1.5 text-slate-400 hover:text-rose-600 justify-self-end"
+                        className="sm:col-span-1 p-1.5 text-slate-400 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 justify-self-end"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1268,7 +1268,7 @@ export function AdminProductEditor({
                     onClick={() =>
                       setSpecifications((prev) => [...prev, { label: '', value: '' }])
                     }
-                    className="text-xs font-semibold text-indigo-600 hover:underline inline-flex items-center gap-1 pt-1"
+                    className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-1 pt-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add specification row</span>
@@ -1278,37 +1278,37 @@ export function AdminProductEditor({
             </section>
 
             {/* More options */}
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => setMoreOptionsOpen((v) => !v)}
-                className="w-full p-4 flex items-center justify-between text-xs font-bold text-slate-900 hover:bg-slate-50"
+                className="w-full p-4 flex items-center justify-between text-xs font-bold text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
               >
                 <span className="flex items-center gap-2">
-                  <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+                  <SlidersHorizontal className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>More options</span>
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform ${
+                  className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${
                     moreOptionsOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
               {moreOptionsOpen && (
-                <div className="px-4 pb-4 pt-2 border-t border-slate-100 space-y-3 text-xs">
+                <div className="px-4 pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3 text-xs">
                   <label className="flex items-center justify-between cursor-pointer">
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
                       Feature in Storefront New Arrivals
                     </span>
                     <input
                       type="checkbox"
                       checked={featured}
                       onChange={(e) => setFeatured(e.target.checked)}
-                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
                     />
                   </label>
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                       Quick-edit Compatible Models (comma separated)
                     </label>
                     <input
@@ -1322,7 +1322,7 @@ export function AdminProductEditor({
                             .filter(Boolean)
                         )
                       }
-                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200"
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                     />
                   </div>
                 </div>
@@ -1330,25 +1330,25 @@ export function AdminProductEditor({
             </section>
 
             {/* Ask the customer for... */}
-            <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
               <button
                 type="button"
                 onClick={() => setAskCustomerOpen((v) => !v)}
-                className="w-full p-4 flex items-center justify-between text-xs font-bold text-slate-900 hover:bg-slate-50"
+                className="w-full p-4 flex items-center justify-between text-xs font-bold text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/70"
               >
                 <span className="flex items-center gap-2">
-                  <MessageSquareMore className="w-4 h-4 text-indigo-600" />
+                  <MessageSquareMore className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   <span>Ask the customer for...</span>
                 </span>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform ${
+                  className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${
                     askCustomerOpen ? 'rotate-180' : ''
                   }`}
                 />
               </button>
               {askCustomerOpen && (
-                <div className="px-4 pb-4 pt-2 border-t border-slate-100 text-xs">
-                  <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <div className="px-4 pb-4 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                     Optional customer instruction prompt
                   </label>
                   <input
@@ -1356,7 +1356,7 @@ export function AdminProductEditor({
                     value={customerPrompt}
                     onChange={(e) => setCustomerPrompt(e.target.value)}
                     placeholder="e.g. Confirm your exact phone model before dispatch"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800"
                   />
                 </div>
               )}
@@ -1366,21 +1366,21 @@ export function AdminProductEditor({
           {/* RIGHT COLUMN (4 cols) */}
           <div className="lg:col-span-4 space-y-5">
             {/* Status Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-              <div className="flex items-center gap-1.5 text-slate-900">
-                <Power className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+              <div className="flex items-center gap-1.5 text-slate-900 dark:text-slate-100">
+                <Power className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold">Status</h2>
-                <HelpCircle className="w-3 h-3 text-slate-400" />
+                <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
               </div>
 
-              <div className="grid grid-cols-2 border border-slate-200 rounded-lg overflow-hidden text-xs">
+              <div className="grid grid-cols-2 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden text-xs">
                 <button
                   type="button"
                   onClick={() => setActive(true)}
                   className={`py-2 font-semibold transition-colors ${
                     active
-                      ? 'bg-emerald-50 text-emerald-700'
-                      : 'bg-white text-slate-500 hover:bg-slate-50'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                   }`}
                 >
                   Active
@@ -1388,10 +1388,10 @@ export function AdminProductEditor({
                 <button
                   type="button"
                   onClick={() => setActive(false)}
-                  className={`py-2 font-semibold border-l border-slate-200 transition-colors ${
+                  className={`py-2 font-semibold border-l border-slate-200 dark:border-slate-800 transition-colors ${
                     !active
-                      ? 'bg-slate-100 text-slate-900'
-                      : 'bg-white text-slate-500 hover:bg-slate-50'
+                      ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                      : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70'
                   }`}
                 >
                   Inactive
@@ -1400,17 +1400,17 @@ export function AdminProductEditor({
             </section>
 
             {/* Images Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-900">
-                  <ImageIcon className="w-4 h-4 text-slate-600" />
+                <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                  <ImageIcon className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                   <h2 className="text-xs font-bold">Images</h2>
                 </div>
               </div>
 
-              <div className="text-xs text-slate-700 font-semibold">
+              <div className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
                 Product photos{' '}
-                <span className="font-normal text-slate-400 tabular-nums">
+                <span className="font-normal text-slate-400 dark:text-slate-500 tabular-nums">
                   ({totalPhotosCount} / 5)
                 </span>
               </div>
@@ -1418,18 +1418,18 @@ export function AdminProductEditor({
               {/* Main Photo Dropzone */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-slate-500">Main photo</span>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Main photo</span>
                   <button
                     type="button"
                     onClick={() => setShowPresetPicker((v) => !v)}
-                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                    className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
                   >
                     {showPresetPicker ? 'Hide studio library' : 'Choose studio photo'}
                   </button>
                 </div>
 
                 {showPresetPicker && (
-                  <div className="grid grid-cols-3 gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="grid grid-cols-3 gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
                     {presetImages.map((img) => (
                       <button
                         key={img.url}
@@ -1466,7 +1466,7 @@ export function AdminProductEditor({
                 />
 
                 {mainImage ? (
-                  <div className="relative rounded-xl border border-slate-200 overflow-hidden bg-slate-50 group">
+                  <div className="relative rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-800/60 group">
                     <img
                       src={mainImage}
                       alt={name || 'Main product'}
@@ -1477,7 +1477,7 @@ export function AdminProductEditor({
                       <button
                         type="button"
                         onClick={() => mainFileRef.current?.click()}
-                        className="px-2.5 py-1 rounded-md bg-white/95 text-[11px] font-semibold text-slate-900 hover:bg-white"
+                        className="px-2.5 py-1 rounded-md bg-white/95 dark:bg-slate-900/95 text-[11px] font-semibold text-slate-900 dark:text-slate-100 hover:bg-white"
                       >
                         Replace
                       </button>
@@ -1499,11 +1499,11 @@ export function AdminProductEditor({
                       const file = e.dataTransfer.files?.[0];
                       if (file) void handleFileRead(file, setMainImage);
                     }}
-                    className="border-2 border-dashed border-slate-200 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
                   >
-                    <ImageIcon className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-700">Add main photo</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Add main photo</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                       Drag &amp; drop or click to upload (under 10 MB)
                     </p>
                   </div>
@@ -1512,7 +1512,7 @@ export function AdminProductEditor({
 
               {/* Gallery Photos Dropzone */}
               <div className="space-y-2">
-                <span className="block text-[11px] font-medium text-slate-500">
+                <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400">
                   Gallery photos
                 </span>
 
@@ -1543,7 +1543,7 @@ export function AdminProductEditor({
                     {galleryImages.map((imgUrl, idx) => (
                       <div
                         key={idx}
-                        className="relative aspect-square rounded-lg overflow-hidden border border-slate-200"
+                        className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800"
                       >
                         <img
                           src={imgUrl}
@@ -1583,11 +1583,11 @@ export function AdminProductEditor({
                         )
                       );
                     }}
-                    className="border-2 border-dashed border-slate-200 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
                   >
-                    <ImageIcon className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-700">Add to gallery</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Add to gallery</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                       Drag &amp; drop or click to upload (under 10 MB)
                     </p>
                   </div>
@@ -1596,22 +1596,22 @@ export function AdminProductEditor({
             </section>
 
             {/* Category & Brand Card */}
-            <section className="bg-white border border-slate-200 rounded-xl p-5 space-y-3.5 text-xs">
-              <div className="flex items-center gap-2 text-slate-900">
-                <Tag className="w-4 h-4 text-slate-600" />
+            <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3.5 text-xs">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Tag className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                 <h2 className="text-xs font-bold">Category &amp; Brand</h2>
               </div>
 
               <div>
-                <label className="text-[11px] font-medium text-slate-500 mb-1 flex items-center gap-1">
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
                   <span>Main category</span>
-                  <HelpCircle className="w-3 h-3 text-slate-400" />
+                  <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                 </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={mainCategory}
                     onChange={(e) => setMainCategory(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800"
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.name}>
@@ -1623,7 +1623,7 @@ export function AdminProductEditor({
                     type="button"
                     onClick={() => setAddingCategory((v) => !v)}
                     title="Add new category"
-                    className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 shrink-0"
+                    className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -1636,7 +1636,7 @@ export function AdminProductEditor({
                       value={quickCategoryName}
                       onChange={(e) => setQuickCategoryName(e.target.value)}
                       placeholder="New category name..."
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200"
+                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800"
                     />
                     <button
                       type="button"
@@ -1650,7 +1650,7 @@ export function AdminProductEditor({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                   Also show in
                 </label>
                 <select
@@ -1658,7 +1658,7 @@ export function AdminProductEditor({
                   onChange={(e) =>
                     setAlsoShowIn(e.target.value ? [e.target.value] : [])
                   }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
                 >
                   <option value="">None</option>
                   {categories
@@ -1672,14 +1672,14 @@ export function AdminProductEditor({
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
                   Brand
                 </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800"
+                    className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                   >
                     <option value="">Select brand</option>
                     {categories.map((c) => (
@@ -1694,7 +1694,7 @@ export function AdminProductEditor({
                     type="button"
                     onClick={() => setBrand(mainCategory)}
                     title="Match main category"
-                    className="w-9 h-9 rounded-lg border border-slate-200 flex items-center justify-center text-slate-600 hover:bg-slate-50 shrink-0"
+                    className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>

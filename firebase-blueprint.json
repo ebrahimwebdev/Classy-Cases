@@ -1,0 +1,186 @@
+{
+  "entities": {
+    "HeroVideoSlide": {
+      "title": "HeroVideoSlide",
+      "description": "A hero showcase video slide displayed in the storefront HeroBanner and managed in AdminDashboard settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier matching the document ID.",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Short tab/slide label.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "kicker": {
+          "type": "string",
+          "description": "Eyebrow kicker text above the headline.",
+          "maxLength": 140
+        },
+        "headline": {
+          "type": "string",
+          "description": "Main hero headline.",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "description": {
+          "type": "string",
+          "description": "Supporting hero subtitle.",
+          "maxLength": 320
+        },
+        "videoSrc": {
+          "type": "string",
+          "description": "Uploaded /media/hero-videos path, bundled /assets/videos path, or HTTPS video URL.",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "posterSrc": {
+          "type": "string",
+          "description": "Fallback poster image path or HTTPS URL.",
+          "maxLength": 1000
+        },
+        "posterAlt": {
+          "type": "string",
+          "description": "Accessible alt description for fallback poster.",
+          "maxLength": 200
+        },
+        "categoryTarget": {
+          "type": "string",
+          "description": "Target category filter when clicking Explore.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "featuredProductId": {
+          "type": "string",
+          "description": "Optional featured product ID linked in the hero CTA.",
+          "maxLength": 64
+        },
+        "startingPrice": {
+          "type": "number",
+          "description": "Starting price displayed if matched product is unavailable."
+        },
+        "sortOrder": {
+          "type": "number",
+          "description": "Display order index in the hero slider."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this video slide is active on the public storefront."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the slide was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the slide was last updated."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the authenticated admin who saved the slide.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kicker",
+        "headline",
+        "description",
+        "videoSrc",
+        "posterSrc",
+        "posterAlt",
+        "categoryTarget",
+        "featuredProductId",
+        "startingPrice",
+        "sortOrder",
+        "active",
+        "createdAt",
+        "updatedAt",
+        "updatedByUid"
+      ]
+    },
+    "HeroConfig": {
+      "title": "HeroConfig",
+      "description": "Global hero showcase playback and active slide settings.",
+      "type": "object",
+      "properties": {
+        "activeSlideId": {
+          "type": "string",
+          "description": "Preferred default hero video slide ID.",
+          "maxLength": 64
+        },
+        "autoAdvanceSeconds": {
+          "type": "number",
+          "description": "Seconds between automatic hero slide transitions."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when config was last updated."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the authenticated admin who updated the config.",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "activeSlideId",
+        "autoAdvanceSeconds",
+        "updatedAt",
+        "updatedByUid"
+      ]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized store administrator record keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/heroVideos/{slideId}": {
+      "schema": { "$ref": "#/entities/HeroVideoSlide" },
+      "description": "Hero section video slides managed by admins and read by the public storefront HeroBanner."
+    },
+    "/heroConfig/{configId}": {
+      "schema": { "$ref": "#/entities/HeroConfig" },
+      "description": "Hero carousel playback settings (default slide ID and auto-advance timing)."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Verified store administrator records."
+    }
+  }
+}

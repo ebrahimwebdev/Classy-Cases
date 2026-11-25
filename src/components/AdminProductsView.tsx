@@ -146,49 +146,49 @@ export function AdminProductsView({
       label: 'Products',
       value: kpis.totalProducts.toLocaleString('en-US'),
       icon: <Box className="w-4 h-4" />,
-      badgeClass: 'bg-indigo-50 text-indigo-600',
+      badgeClass: 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400',
     },
     {
       label: 'Available',
       value: kpis.availableUnits.toLocaleString('en-US'),
       icon: <Boxes className="w-4 h-4" />,
-      badgeClass: 'bg-cyan-50 text-cyan-600',
+      badgeClass: 'bg-cyan-50 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
     },
     {
       label: 'Stock value (price)',
       value: formatTaka(kpis.stockValuePrice),
       icon: <Banknote className="w-4 h-4" />,
-      badgeClass: 'bg-emerald-50 text-emerald-600',
+      badgeClass: 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
     },
     {
       label: 'Stock value (cost)',
       value: formatTaka(kpis.stockValueCost),
       icon: <Wallet className="w-4 h-4" />,
-      badgeClass: 'bg-amber-50 text-amber-700',
+      badgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',
     },
     {
       label: 'Out of Stock',
       value: kpis.outOfStockCount.toLocaleString('en-US'),
       icon: <PackageX className="w-4 h-4" />,
-      badgeClass: 'bg-rose-50 text-rose-600',
+      badgeClass: 'bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400',
     },
     {
       label: 'Low Stock',
       value: kpis.lowStockCount.toLocaleString('en-US'),
       icon: <AlertTriangle className="w-4 h-4" />,
-      badgeClass: 'bg-amber-50 text-amber-600',
+      badgeClass: 'bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400',
     },
     {
       label: 'Waiting orders',
       value: kpis.waitingOrdersCount.toLocaleString('en-US'),
       icon: <History className="w-4 h-4" />,
-      badgeClass: 'bg-orange-50 text-orange-600',
+      badgeClass: 'bg-orange-50 dark:bg-orange-500/15 text-orange-600 dark:text-orange-400',
     },
     {
       label: 'Count needed',
       value: kpis.countNeeded.toLocaleString('en-US'),
       icon: <ClipboardCheck className="w-4 h-4" />,
-      badgeClass: 'bg-rose-50 text-rose-500',
+      badgeClass: 'bg-rose-50 dark:bg-rose-500/15 text-rose-500',
     },
   ];
 
@@ -201,11 +201,11 @@ export function AdminProductsView({
     <div className="space-y-5">
       {/* Top Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-slate-900">Products</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Products</h1>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg px-3 py-1.5 flex-1 sm:w-64 sm:flex-initial focus-within:border-indigo-500 transition-colors">
-            <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 flex-1 sm:w-64 sm:flex-initial focus-within:border-indigo-500 transition-colors">
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
             <input
               type="text"
               value={searchQuery}
@@ -214,7 +214,7 @@ export function AdminProductsView({
                 setCurrentPage(1);
               }}
               placeholder="Search by SKU or name..."
-              className="bg-transparent text-xs text-slate-900 placeholder:text-slate-400 w-full focus:outline-none"
+              className="bg-transparent text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 w-full focus:outline-none"
             />
           </div>
 
@@ -223,8 +223,8 @@ export function AdminProductsView({
             onClick={() => setShowFilters((v) => !v)}
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 transition-colors ${
               showFilters || activeFiltersCount > 0
-                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70'
             }`}
           >
             <Filter className="w-3.5 h-3.5" />
@@ -244,16 +244,16 @@ export function AdminProductsView({
 
       {/* Expandable Filter Strip */}
       {showFilters && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 flex flex-wrap items-center gap-3 text-xs">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center gap-3 text-xs">
           <div className="flex items-center gap-2">
-            <label className="text-slate-500 font-medium">Category:</label>
+            <label className="text-slate-500 dark:text-slate-400 font-medium">Category:</label>
             <select
               value={categoryFilter}
               onChange={(e) => {
                 setCategoryFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
             >
               <option value="all">All categories</option>
               {categories.map((c) => (
@@ -265,14 +265,14 @@ export function AdminProductsView({
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-slate-500 font-medium">Stock:</label>
+            <label className="text-slate-500 dark:text-slate-400 font-medium">Stock:</label>
             <select
               value={stockFilter}
               onChange={(e) => {
                 setStockFilter(e.target.value as typeof stockFilter);
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
             >
               <option value="all">All levels</option>
               <option value="in_stock">In stock</option>
@@ -282,14 +282,14 @@ export function AdminProductsView({
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-slate-500 font-medium">Status:</label>
+            <label className="text-slate-500 dark:text-slate-400 font-medium">Status:</label>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as typeof statusFilter);
                 setCurrentPage(1);
               }}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800"
+              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
             >
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -306,7 +306,7 @@ export function AdminProductsView({
                 setStatusFilter('all');
                 setCurrentPage(1);
               }}
-              className="ml-auto text-indigo-600 font-semibold hover:underline"
+              className="ml-auto text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
             >
               Clear filters
             </button>
@@ -319,14 +319,14 @@ export function AdminProductsView({
         {kpiCards.map((card) => (
           <div
             key={card.label}
-            className="bg-white border border-slate-200 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3"
           >
             <div>
-              <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+              <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <span>{card.label}</span>
-                <HelpCircle className="w-3 h-3 text-slate-400" />
+                <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
               </div>
-              <div className="text-lg font-bold text-slate-900 mt-1 tabular-nums">{card.value}</div>
+              <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">{card.value}</div>
             </div>
             <div
               className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${card.badgeClass}`}
@@ -339,15 +339,15 @@ export function AdminProductsView({
 
       {/* Bulk Selection Bar */}
       {selectedIds.length > 0 && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
-          <span className="font-semibold text-indigo-900">
+        <div className="bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
+          <span className="font-semibold text-indigo-900 dark:text-indigo-100">
             {selectedIds.length} {selectedIds.length === 1 ? 'product' : 'products'} selected
           </span>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="text-indigo-700 hover:underline font-medium"
+              className="text-indigo-700 dark:text-indigo-300 hover:underline font-medium"
             >
               Deselect all
             </button>
@@ -356,10 +356,10 @@ export function AdminProductsView({
       )}
 
       {/* Products Data Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-xs">
-            <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500">
+            <thead className="bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="py-3 pl-4 pr-2 w-10">
                   <input
@@ -367,7 +367,7 @@ export function AdminProductsView({
                     checked={allOnPageSelected}
                     onChange={toggleSelectAll}
                     aria-label="Select all products on page"
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
                   />
                 </th>
                 <th className="py-3 px-3 font-medium">Product</th>
@@ -375,27 +375,27 @@ export function AdminProductsView({
                 <th className="py-3 px-3 font-medium">Variants</th>
                 <th className="py-3 px-3 font-medium text-right">
                   <span className="inline-flex items-center gap-1">
-                    Cost price <HelpCircle className="w-3 h-3 text-slate-400" />
+                    Cost price <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </span>
                 </th>
                 <th className="py-3 px-3 font-medium text-right">
                   <span className="inline-flex items-center gap-1">
-                    Price <HelpCircle className="w-3 h-3 text-slate-400" />
+                    Price <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </span>
                 </th>
                 <th className="py-3 px-3 font-medium text-right">
                   <span className="inline-flex items-center gap-1">
-                    Available <HelpCircle className="w-3 h-3 text-slate-400" />
+                    Available <HelpCircle className="w-3 h-3 text-slate-400 dark:text-slate-500" />
                   </span>
                 </th>
                 <th className="py-3 px-3 font-medium text-center">Active</th>
                 <th className="py-3 pl-3 pr-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-500">
+                  <td colSpan={9} className="py-12 text-center text-slate-500 dark:text-slate-400">
                     No products found matching your search or filter.
                   </td>
                 </tr>
@@ -421,7 +421,7 @@ export function AdminProductsView({
                           checked={selectedIds.includes(p.id)}
                           onChange={() => toggleSelectRow(p.id)}
                           aria-label={`Select ${p.title}`}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
                         />
                       </td>
 
@@ -431,17 +431,17 @@ export function AdminProductsView({
                             src={p.image}
                             alt={p.title}
                             referrerPolicy="no-referrer"
-                            className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0 bg-slate-100"
+                            className="w-10 h-10 rounded-full object-cover border border-slate-200 dark:border-slate-800 shrink-0 bg-slate-100 dark:bg-slate-800"
                           />
                           <div className="min-w-0 max-w-[210px]">
                             <button
                               type="button"
                               onClick={() => onEditProduct(p)}
-                              className="font-semibold text-slate-900 hover:text-indigo-600 text-left line-clamp-2 leading-snug"
+                              className="font-semibold text-slate-900 dark:text-slate-100 hover:text-indigo-600 text-left line-clamp-2 leading-snug"
                             >
                               {p.title}
                             </button>
-                            <div className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">
+                            <div className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mt-0.5 truncate">
                               {p.sku}
                             </div>
                           </div>
@@ -449,12 +449,12 @@ export function AdminProductsView({
                       </td>
 
                       <td className="py-3.5 px-3">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-slate-200 bg-white text-[11px] font-medium text-slate-700 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                           {p.category}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-3 text-slate-500 whitespace-nowrap">
+                      <td className="py-3.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {explicitVariantCount > 0
                           ? `${explicitVariantCount} variant${explicitVariantCount === 1 ? '' : 's'}`
                           : hasModelVariants
@@ -462,7 +462,7 @@ export function AdminProductsView({
                             : 'No variants'}
                       </td>
 
-                      <td className="py-3.5 px-3 text-right tabular-nums text-slate-700 font-medium">
+                      <td className="py-3.5 px-3 text-right tabular-nums text-slate-700 dark:text-slate-300 font-medium">
                         {formatTaka(p.costPrice ?? 0)}
                       </td>
 
@@ -470,14 +470,14 @@ export function AdminProductsView({
                         <div className="inline-flex flex-col items-end">
                           <div className="flex items-center gap-1.5">
                             {hasOffer && (
-                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold">
                                 Offer
                               </span>
                             )}
-                            <span className="font-bold text-slate-900">{formatTaka(p.price)}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">{formatTaka(p.price)}</span>
                           </div>
                           {hasOffer && (
-                            <span className="text-[11px] text-slate-400 line-through">
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 line-through">
                               {formatTaka(p.originalPrice)}
                             </span>
                           )}
@@ -489,22 +489,22 @@ export function AdminProductsView({
                           <span
                             className={`font-bold ${
                               isOutOfStock
-                                ? 'text-rose-600'
+                                ? 'text-rose-600 dark:text-rose-400'
                                 : isLowStock
-                                  ? 'text-amber-700'
-                                  : 'text-slate-900'
+                                  ? 'text-amber-700 dark:text-amber-300'
+                                  : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {p.stock}
                           </span>
                           {isOutOfStock ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-[10px] font-semibold whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 text-[10px] font-semibold whitespace-nowrap">
                               <PackageX className="w-3 h-3 shrink-0" />
                               Out of Stock
                             </span>
                           ) : isLowStock ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-semibold whitespace-nowrap">
-                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 text-[10px] font-semibold whitespace-nowrap">
+                              <AlertTriangle className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
                               Low Stock
                             </span>
                           ) : null}
@@ -519,11 +519,11 @@ export function AdminProductsView({
                           aria-label={`Toggle active state for ${p.title}`}
                           onClick={() => onToggleActive(p)}
                           className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                            isActive ? 'bg-emerald-600' : 'bg-slate-300'
+                            isActive ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
                           }`}
                         >
                           <span
-                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-xs ${
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white dark:bg-slate-900 transition-transform shadow-xs ${
                               isActive ? 'translate-x-4.5' : 'translate-x-1'
                             }`}
                           />
@@ -535,7 +535,7 @@ export function AdminProductsView({
                           type="button"
                           onClick={() => setOpenMenuId((cur) => (cur === p.id ? null : p.id))}
                           aria-label={`Actions for ${p.title}`}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                           <MoreVertical className="w-4 h-4" />
                         </button>
@@ -543,7 +543,7 @@ export function AdminProductsView({
                         {openMenuId === p.id && (
                           <div
                             onMouseLeave={() => setOpenMenuId(null)}
-                            className="absolute right-4 top-11 z-30 w-44 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 text-left"
+                            className="absolute right-4 top-11 z-30 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg py-1.5 text-left"
                           >
                             <button
                               type="button"
@@ -551,9 +551,9 @@ export function AdminProductsView({
                                 setOpenMenuId(null);
                                 onEditProduct(p);
                               }}
-                              className="w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              className="w-full px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2"
                             >
-                              <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                              <Edit3 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                               <span>Edit product</span>
                             </button>
                             <button
@@ -562,9 +562,9 @@ export function AdminProductsView({
                                 setOpenMenuId(null);
                                 onQuickRestock(p, 5);
                               }}
-                              className="w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              className="w-full px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2"
                             >
-                              <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                              <Plus className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                               <span>Quick restock (+5)</span>
                             </button>
                             <button
@@ -573,19 +573,19 @@ export function AdminProductsView({
                                 setOpenMenuId(null);
                                 onDuplicateProduct(p);
                               }}
-                              className="w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              className="w-full px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 flex items-center gap-2"
                             >
-                              <Copy className="w-3.5 h-3.5 text-slate-500" />
+                              <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                               <span>Duplicate</span>
                             </button>
-                            <div className="my-1 border-t border-slate-100" />
+                            <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                             <button
                               type="button"
                               onClick={() => {
                                 setOpenMenuId(null);
                                 onDeleteProduct(p.id);
                               }}
-                              className="w-full px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                              className="w-full px-3 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/20 flex items-center gap-2"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Delete product</span>
@@ -602,7 +602,7 @@ export function AdminProductsView({
         </div>
 
         {/* Bottom Pagination Footer */}
-        <div className="px-4 py-3 border-t border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
           <div className="flex items-center gap-3">
             <span className="tabular-nums">
               {filteredProducts.length === 0
@@ -616,7 +616,7 @@ export function AdminProductsView({
                 setCurrentPage(1);
               }}
               aria-label="Products per page"
-              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-xs text-slate-700"
+              className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300"
             >
               <option value={10}>10 / page</option>
               <option value={20}>20 / page</option>
@@ -629,7 +629,7 @@ export function AdminProductsView({
               type="button"
               disabled={safePage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Previous</span>
@@ -645,7 +645,7 @@ export function AdminProductsView({
                   className={`w-7 h-7 rounded-lg text-xs font-semibold tabular-nums transition-colors ${
                     pageNum === safePage
                       ? 'bg-indigo-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {pageNum}
@@ -657,7 +657,7 @@ export function AdminProductsView({
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none inline-flex items-center gap-1"
             >
               <span>Next</span>
               <ArrowRight className="w-3.5 h-3.5" />

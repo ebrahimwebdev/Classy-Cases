@@ -8,6 +8,7 @@ import {
   CreditCard,
   Database,
   FileText,
+  Film,
   Globe,
   HelpCircle,
   Home,
@@ -40,18 +41,20 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { StoreSettings } from '../types';
+import type { Category, Product, StoreSettings } from '../types';
 import { applyDocumentFavicon } from '../utils/branding';
+import { AdminHeroVideoSettings } from './AdminHeroVideoSettings';
 import {
   AdminSettingsPanels,
   type ExtendedSettingsTab,
 } from './AdminSettingsPanels';
 
-type SettingsTab =
+export type SettingsTab =
   | 'General'
   | 'SEO'
   | 'Profile'
   | 'Users'
+  | 'Hero Video'
   | 'Theme'
   | 'Header'
   | 'Home Customization'
@@ -84,6 +87,9 @@ type SettingsTab =
 interface AdminSettingsProps {
   settings: StoreSettings;
   adminToken: string;
+  initialTab?: SettingsTab;
+  categories?: Category[];
+  products?: Product[];
   onSettingsUpdated: (settings: StoreSettings) => void;
   onCloseToDashboard: () => void;
   onOpenStorefront: () => void;
@@ -92,11 +98,14 @@ interface AdminSettingsProps {
 export function AdminSettings({
   settings,
   adminToken,
+  initialTab = 'General',
+  categories = [],
+  products = [],
   onSettingsUpdated,
   onCloseToDashboard,
   onOpenStorefront,
 }: AdminSettingsProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('General');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState<StoreSettings>(settings);
   const [saving, setSaving] = useState(false);
@@ -104,6 +113,10 @@ export function AdminSettings({
   const [errorBanner, setErrorBanner] = useState('');
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const faviconInputRef = useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   async function persistSettings(nextForm: StoreSettings, successMessage = 'Settings saved and synced to live storefront.') {
     setSaving(true);
@@ -226,6 +239,7 @@ export function AdminSettings({
     {
       group: 'Storefront',
       items: [
+        { label: 'Hero Video', icon: <Film className="w-4 h-4" /> },
         { label: 'Theme', icon: <Palette className="w-4 h-4" /> },
         { label: 'Header', icon: <Layout className="w-4 h-4" /> },
         { label: 'Home Customization', icon: <Home className="w-4 h-4" /> },
@@ -314,21 +328,21 @@ export function AdminSettings({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8f9fb] text-slate-900 overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-[#f8f9fb] dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-x-hidden">
       {/* Top Bar matching Screenshot 3 */}
-      <header className="h-14 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-3 sticky top-0 z-20">
+      <header className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 flex items-center justify-between gap-3 sticky top-0 z-20">
         <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
           <button
             type="button"
             onClick={onCloseToDashboard}
-            className="p-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 shrink-0"
+            className="p-1.5 rounded-md border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/70 shrink-0"
             title="Back to Dashboard"
           >
             <Layout className="w-4 h-4" />
           </button>
-          <span className="text-slate-500">Settings</span>
-          <span className="text-slate-400">›</span>
-          <span className="font-semibold text-slate-900 truncate">{activeTab}</span>
+          <span className="text-slate-500 dark:text-slate-400">Settings</span>
+          <span className="text-slate-400 dark:text-slate-500">›</span>
+          <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">{activeTab}</span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -336,7 +350,7 @@ export function AdminSettings({
             type="button"
             onClick={onOpenStorefront}
             title="Open Live Storefront"
-            className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50"
+            className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70"
           >
             <Store className="w-4 h-4" />
           </button>
@@ -344,12 +358,12 @@ export function AdminSettings({
             type="button"
             onClick={onCloseToDashboard}
             title="Back to Operations Dashboard"
-            className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100"
+            className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center hover:bg-indigo-100 dark:hover:bg-indigo-500/25"
           >
             <Monitor className="w-4 h-4" />
           </button>
-          <div className="hidden sm:flex items-center bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 w-52">
-            <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
+          <div className="hidden sm:flex items-center bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 w-52">
+            <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 mr-2 shrink-0" />
             <input
               type="text"
               value={searchTerm}
@@ -362,7 +376,7 @@ export function AdminSettings({
             type="button"
             onClick={onCloseToDashboard}
             aria-label="Close settings"
-            className="p-1.5 text-slate-500 hover:text-slate-900"
+            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
           >
             <X className="w-4 h-4" />
           </button>
@@ -370,7 +384,7 @@ export function AdminSettings({
       </header>
 
       {/* Mobile Settings Tab Bar */}
-      <div className="md:hidden bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+      <div className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
         {allNavItems.map((item) => (
           <button
             key={item.label}
@@ -378,8 +392,8 @@ export function AdminSettings({
             onClick={() => setActiveTab(item.label)}
             className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs whitespace-nowrap shrink-0 transition-colors ${
               activeTab === item.label
-                ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-semibold'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
             }`}
           >
             {item.icon}
@@ -390,10 +404,10 @@ export function AdminSettings({
 
       <div className="flex flex-1 min-h-0">
         {/* Left Settings Sidebar */}
-        <aside className="w-60 bg-[#fcfcfd] border-r border-slate-200 p-3 hidden md:flex flex-col gap-5 overflow-y-auto shrink-0">
+        <aside className="w-60 bg-[#fcfcfd] dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-3 hidden md:flex flex-col gap-5 overflow-y-auto shrink-0">
           {filteredGroups.map((group) => (
             <div key={group.group}>
-              <div className="px-2.5 text-[11px] font-medium text-slate-400 mb-1.5">{group.group}</div>
+              <div className="px-2.5 text-[11px] font-medium text-slate-400 dark:text-slate-500 mb-1.5">{group.group}</div>
               <div className="space-y-0.5">
                 {group.items.map((item) => (
                   <button
@@ -402,8 +416,8 @@ export function AdminSettings({
                     onClick={() => setActiveTab(item.label)}
                     className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors ${
                       activeTab === item.label
-                        ? 'bg-slate-100 text-slate-900 font-semibold'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                     }`}
                   >
                     {item.icon}
@@ -419,71 +433,85 @@ export function AdminSettings({
         <main className="flex-1 p-5 sm:p-8 overflow-y-auto">
           <div className="max-w-5xl mx-auto space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h1 className="text-xl font-bold text-slate-900">{activeTab}</h1>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{activeTab}</h1>
               <div className="flex items-center gap-3">
                 {savedBanner && (
-                  <span className="text-xs font-medium text-emerald-700 inline-flex items-center gap-1">
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1">
                     <Check className="w-3.5 h-3.5" />
                     {savedBanner}
                   </span>
                 )}
-                {errorBanner && <span className="text-xs text-red-600">{errorBanner}</span>}
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
-                >
-                  {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>Save Changes</span>
-                </button>
+                {errorBanner && <span className="text-xs text-red-600 dark:text-red-400">{errorBanner}</span>}
+                {activeTab !== 'Hero Video' && (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>Save Changes</span>
+                  </button>
+                )}
               </div>
             </div>
+
+            {activeTab === 'Hero Video' && (
+              <AdminHeroVideoSettings
+                adminToken={adminToken}
+                categories={categories}
+                products={products}
+                onStatusMessage={(msg) => {
+                  setSavedBanner(msg);
+                  setTimeout(() => setSavedBanner(''), 3500);
+                }}
+              />
+            )}
 
             {activeTab === 'General' && (
               <div className="space-y-4">
                 {/* Row 1: Site Info & Order Numbers */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  <div className="lg:col-span-7 bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-slate-900">Site Info</h2>
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Site Info</h2>
+                      <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Store name</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Store name</label>
                       <input
                         type="text"
                         value={form.storeName}
                         onChange={(e) => setForm({ ...form, storeName: e.target.value })}
-                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Tagline</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Tagline</label>
                       <textarea
                         rows={2}
                         value={form.tagline}
                         onChange={(e) => setForm({ ...form, tagline: e.target.value })}
-                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </div>
 
-                  <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-slate-900">Order Numbers</h2>
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Order Numbers</h2>
+                      <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Order number prefix</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Order number prefix</label>
                       <input
                         type="text"
                         value={form.orderPrefix}
                         onChange={(e) => setForm({ ...form, orderPrefix: e.target.value })}
                         placeholder="Order number prefix (e.g. CC-)"
-                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
-                      <p className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 tabular-nums">
                         Preview: {form.orderPrefix}
                         {form.nextOrderNumber}
                       </p>
@@ -493,26 +521,26 @@ export function AdminSettings({
 
                 {/* Row 2: Inventory & Site Logo & Favicon */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-slate-900">Inventory</h2>
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Inventory</h2>
+                      <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                     </div>
 
                     <div className="flex items-center justify-between py-1">
-                      <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         Take pre-orders
-                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       </span>
                       <button
                         type="button"
                         onClick={() => setForm({ ...form, takePreOrders: !form.takePreOrders })}
                         className={`w-10 h-5 rounded-full transition-colors p-0.5 ${
-                          form.takePreOrders ? 'bg-indigo-500' : 'bg-slate-300'
+                          form.takePreOrders ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
                             form.takePreOrders ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
@@ -520,29 +548,29 @@ export function AdminSettings({
                     </div>
 
                     <div className="flex items-center justify-between py-1">
-                      <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         Auto-move to Pending when stock arrives
-                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       </span>
                       <button
                         type="button"
                         onClick={() => setForm({ ...form, autoMovePending: !form.autoMovePending })}
                         className={`w-10 h-5 rounded-full transition-colors p-0.5 ${
-                          form.autoMovePending ? 'bg-indigo-500' : 'bg-slate-300'
+                          form.autoMovePending ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
                             form.autoMovePending ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
                       </button>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100">
-                      <div className="text-xs font-medium text-slate-700 mb-2 flex items-center gap-1.5">
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
                         <span>Costing method</span>
-                        <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                        <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       </div>
                       <button
                         type="button"
@@ -552,24 +580,24 @@ export function AdminSettings({
                             costingMethod: form.costingMethod === 'FIFO' ? 'Weighted Average' : 'FIFO',
                           })
                         }
-                        className="px-3 py-1.5 rounded-lg border border-indigo-200 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                        className="px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-500/30 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/20"
                       >
                         {form.costingMethod === 'FIFO' ? 'FIFO Costing Active' : 'Enable FIFO Costing'}
                       </button>
                     </div>
                   </div>
 
-                  <div className="lg:col-span-6 bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                  <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-1.5">
-                      <h2 className="text-sm font-semibold text-slate-900">Site Logo &amp; Favicon</h2>
-                      <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Site Logo &amp; Favicon</h2>
+                      <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Logo Upload & URL */}
                       <div className="space-y-2">
-                        <span className="block text-[11px] text-slate-500">Logo</span>
-                        <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 flex items-center justify-center h-16 overflow-hidden">
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">Logo</span>
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-center h-16 overflow-hidden">
                           {form.logoUrl ? (
                             <img
                               src={form.logoUrl}
@@ -578,7 +606,7 @@ export function AdminSettings({
                               className="max-h-11 max-w-full object-contain"
                             />
                           ) : (
-                            <span className="font-brand text-xl font-black text-black truncate">
+                            <span className="font-brand text-xl font-black text-black dark:text-slate-100 truncate">
                               {form.storeName}
                             </span>
                           )}
@@ -604,14 +632,14 @@ export function AdminSettings({
                               ? 'Custom uploaded logo active'
                               : 'Paste HTTPS logo URL...'
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-indigo-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
                         />
 
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => logoInputRef.current?.click()}
-                            className="px-2.5 py-1 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
                             <span>{form.logoUrl ? 'Replace' : 'Upload'}</span>
@@ -620,7 +648,7 @@ export function AdminSettings({
                             <button
                               type="button"
                               onClick={() => handleResetBrandAsset('logoUrl')}
-                              className="px-2.5 py-1 rounded-md text-xs text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-md text-xs text-red-600 dark:text-red-400 hover:bg-red-50 inline-flex items-center gap-1"
                             >
                               <Trash2 className="w-3 h-3" />
                               <span>Reset</span>
@@ -631,14 +659,14 @@ export function AdminSettings({
 
                       {/* Favicon Upload & URL */}
                       <div className="space-y-2">
-                        <span className="block text-[11px] text-slate-500">Favicon</span>
-                        <div className="border border-slate-200 rounded-lg p-3 bg-white flex items-center gap-2.5 h-16">
+                        <span className="block text-[11px] text-slate-500 dark:text-slate-400">Favicon</span>
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-lg p-3 bg-white dark:bg-slate-900 flex items-center gap-2.5 h-16">
                           {form.faviconUrl ? (
                             <img
                               src={form.faviconUrl}
                               alt="Favicon Preview"
                               referrerPolicy="no-referrer"
-                              className="w-8 h-8 rounded object-contain border border-slate-100 shrink-0"
+                              className="w-8 h-8 rounded object-contain border border-slate-100 dark:border-slate-800 shrink-0"
                             />
                           ) : (
                             <div className="w-8 h-8 rounded bg-neutral-900 text-white font-brand font-bold text-xs flex items-center justify-center shrink-0">
@@ -646,10 +674,10 @@ export function AdminSettings({
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-medium text-slate-700 truncate">
+                            <div className="text-[11px] font-medium text-slate-700 dark:text-slate-300 truncate">
                               {form.storeName || 'Classy Cases'}
                             </div>
-                            <div className="text-[10px] text-slate-400 truncate">
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
                               Browser Tab Icon
                             </div>
                           </div>
@@ -675,14 +703,14 @@ export function AdminSettings({
                               ? 'Custom uploaded favicon active'
                               : 'Paste HTTPS favicon URL...'
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-indigo-500"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
                         />
 
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => faviconInputRef.current?.click()}
-                            className="px-2.5 py-1 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1"
                           >
                             <Upload className="w-3 h-3" />
                             <span>{form.faviconUrl ? 'Replace' : 'Upload'}</span>
@@ -691,7 +719,7 @@ export function AdminSettings({
                             <button
                               type="button"
                               onClick={() => handleResetBrandAsset('faviconUrl')}
-                              className="px-2.5 py-1 rounded-md text-xs text-red-600 hover:bg-red-50 inline-flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-md text-xs text-red-600 dark:text-red-400 hover:bg-red-50 inline-flex items-center gap-1"
                             >
                               <Trash2 className="w-3 h-3" />
                               <span>Reset</span>
@@ -704,47 +732,47 @@ export function AdminSettings({
                 </div>
 
                 {/* Row 3: Contact Details */}
-                <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-sm font-semibold text-slate-900">Contact Details</h2>
-                    <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Contact Details</h2>
+                    <HelpCircle className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Phone</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Phone</label>
                       <input
                         type="text"
                         value={form.phone}
                         onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Email</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Email</label>
                       <input
                         type="email"
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Address</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Address</label>
                       <input
                         type="text"
                         value={form.address}
                         onChange={(e) => setForm({ ...form, address: e.target.value })}
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Opening hours</label>
+                      <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Opening hours</label>
                       <input
                         type="text"
                         value={form.openingHours}
                         onChange={(e) => setForm({ ...form, openingHours: e.target.value })}
                         placeholder="Opening hours"
-                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </div>
@@ -756,15 +784,15 @@ export function AdminSettings({
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* bKash */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-[#E2136E] text-white font-bold text-xs flex items-center justify-center">
                           bK
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-900">bKash Online Checkout</h3>
-                          <p className="text-[11px] text-slate-500">Mobile wallet instant verification</p>
+                          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">bKash Online Checkout</h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Mobile wallet instant verification</p>
                         </div>
                       </div>
                       <button
@@ -779,11 +807,11 @@ export function AdminSettings({
                           })
                         }
                         className={`w-10 h-5 rounded-full p-0.5 transition-colors ${
-                          form.paymentGateways.bkash.enabled ? 'bg-indigo-500' : 'bg-slate-300'
+                          form.paymentGateways.bkash.enabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
                             form.paymentGateways.bkash.enabled ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
@@ -791,7 +819,7 @@ export function AdminSettings({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Merchant Number</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Merchant Number</label>
                         <input
                           type="text"
                           value={form.paymentGateways.bkash.merchantNumber}
@@ -804,11 +832,11 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Mode</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Mode</label>
                         <select
                           value={form.paymentGateways.bkash.mode}
                           onChange={(e) =>
@@ -823,7 +851,7 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
                         >
                           <option value="sandbox">Sandbox</option>
                           <option value="live">Live</option>
@@ -833,15 +861,15 @@ export function AdminSettings({
                   </div>
 
                   {/* Nagad */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-[#ED1C24] text-white font-bold text-xs flex items-center justify-center">
                           N
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-900">Nagad Merchant Gateway</h3>
-                          <p className="text-[11px] text-slate-500">Digital financial service checkout</p>
+                          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Nagad Merchant Gateway</h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Digital financial service checkout</p>
                         </div>
                       </div>
                       <button
@@ -856,11 +884,11 @@ export function AdminSettings({
                           })
                         }
                         className={`w-10 h-5 rounded-full p-0.5 transition-colors ${
-                          form.paymentGateways.nagad.enabled ? 'bg-indigo-500' : 'bg-slate-300'
+                          form.paymentGateways.nagad.enabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
                             form.paymentGateways.nagad.enabled ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
@@ -868,7 +896,7 @@ export function AdminSettings({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Merchant Number</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Merchant Number</label>
                         <input
                           type="text"
                           value={form.paymentGateways.nagad.merchantNumber}
@@ -881,11 +909,11 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Mode</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Mode</label>
                         <select
                           value={form.paymentGateways.nagad.mode}
                           onChange={(e) =>
@@ -900,7 +928,7 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
                         >
                           <option value="sandbox">Sandbox</option>
                           <option value="live">Live</option>
@@ -910,15 +938,15 @@ export function AdminSettings({
                   </div>
 
                   {/* SSLCommerz / Card */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
                           <CreditCard className="w-4 h-4" />
                         </div>
                         <div>
-                          <h3 className="text-sm font-semibold text-slate-900">SSLCommerz (Visa / Mastercard)</h3>
-                          <p className="text-[11px] text-slate-500">Debit &amp; credit card processing</p>
+                          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">SSLCommerz (Visa / Mastercard)</h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">Debit &amp; credit card processing</p>
                         </div>
                       </div>
                       <button
@@ -933,11 +961,11 @@ export function AdminSettings({
                           })
                         }
                         className={`w-10 h-5 rounded-full p-0.5 transition-colors ${
-                          form.paymentGateways.card.enabled ? 'bg-indigo-500' : 'bg-slate-300'
+                          form.paymentGateways.card.enabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-slate-700'
                         }`}
                       >
                         <div
-                          className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                          className={`w-4 h-4 rounded-full bg-white dark:bg-slate-900 transition-transform ${
                             form.paymentGateways.card.enabled ? 'translate-x-5' : 'translate-x-0'
                           }`}
                         />
@@ -945,7 +973,7 @@ export function AdminSettings({
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Store ID</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Store ID</label>
                         <input
                           type="text"
                           value={form.paymentGateways.card.storeId}
@@ -958,11 +986,11 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Mode</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Mode</label>
                         <select
                           value={form.paymentGateways.card.mode}
                           onChange={(e) =>
@@ -977,7 +1005,7 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900"
                         >
                           <option value="sandbox">Sandbox</option>
                           <option value="live">Live</option>
@@ -987,13 +1015,13 @@ export function AdminSettings({
                   </div>
 
                   {/* Shipping & COD */}
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-900">Delivery Fees &amp; COD</h3>
-                        <p className="text-[11px] text-slate-500">Nationwide shipping configuration</p>
+                        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Delivery Fees &amp; COD</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Nationwide shipping configuration</p>
                       </div>
-                      <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
                         <input
                           type="checkbox"
                           checked={form.paymentGateways.cod.enabled}
@@ -1006,37 +1034,37 @@ export function AdminSettings({
                               },
                             })
                           }
-                          className="rounded border-slate-300"
+                          className="rounded border-slate-300 dark:border-slate-700"
                         />
                         Allow COD
                       </label>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Inside Dhaka (৳)</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Inside Dhaka (৳)</label>
                         <input
                           type="number"
                           value={form.shippingInsideDhaka}
                           onChange={(e) => setForm({ ...form, shippingInsideDhaka: Number(e.target.value) })}
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg tabular-nums"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Outside Dhaka (৳)</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Outside Dhaka (৳)</label>
                         <input
                           type="number"
                           value={form.shippingOutsideDhaka}
                           onChange={(e) => setForm({ ...form, shippingOutsideDhaka: Number(e.target.value) })}
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg tabular-nums"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Free Over (৳)</label>
+                        <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Free Over (৳)</label>
                         <input
                           type="number"
                           value={form.freeShippingThreshold}
                           onChange={(e) => setForm({ ...form, freeShippingThreshold: Number(e.target.value) })}
-                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg tabular-nums"
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg tabular-nums"
                         />
                       </div>
                     </div>
@@ -1046,24 +1074,24 @@ export function AdminSettings({
             )}
 
             {activeTab === 'SEO' && (
-              <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
-                <h2 className="text-sm font-semibold text-slate-900">Search Engine Optimization</h2>
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Search Engine Optimization</h2>
                 <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">Meta Title</label>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Meta Title</label>
                   <input
                     type="text"
                     value={form.seoTitle}
                     onChange={(e) => setForm({ ...form, seoTitle: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">Meta Description</label>
+                  <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Meta Description</label>
                   <textarea
                     rows={3}
                     value={form.seoDescription}
                     onChange={(e) => setForm({ ...form, seoDescription: e.target.value })}
-                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 dark:border-slate-800 rounded-lg"
                   />
                 </div>
               </div>
@@ -1085,10 +1113,11 @@ export function AdminSettings({
             {activeTab !== 'General' &&
               activeTab !== 'Storefront Payment' &&
               activeTab !== 'SEO' &&
+              activeTab !== 'Hero Video' &&
               !extendedTabs.includes(activeTab as ExtendedSettingsTab) && (
-                <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3">
-                  <h2 className="text-sm font-semibold text-slate-900">{activeTab} Configuration</h2>
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-3">
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{activeTab} Configuration</h2>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                     Customize your {activeTab.toLowerCase()} appearance and storefront metadata. Changes saved here
                     sync directly to your live {form.storeName} storefront.
                   </p>
@@ -1096,7 +1125,7 @@ export function AdminSettings({
                     <button
                       type="button"
                       onClick={onOpenStorefront}
-                      className="px-3.5 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70 inline-flex items-center gap-1.5"
                     >
                       <Store className="w-3.5 h-3.5" />
                       <span>Preview Live Storefront</span>

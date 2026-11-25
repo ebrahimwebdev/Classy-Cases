@@ -10,6 +10,8 @@ import type {
   DashboardAnalytics,
   Expense,
   FulfillmentStatus,
+  HeroPlaybackSettings,
+  HeroVideoSlideConfig,
   Order,
   OrderItem,
   PaymentMethod,
@@ -907,6 +909,22 @@ function computeDashboardAnalytics(): DashboardAnalytics {
 async function startServer() {
   const app = express();
   app.set('trust proxy', 1);
+
+  const ensureHeroVideosDir = () => {
+    const dir = path.resolve(activeDataDir, 'hero-videos');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  };
+
+  app.use('/media/hero-videos', (req, res, next) => {
+    express.static(ensureHeroVideosDir(), {
+      maxAge: '7d',
+      fallthrough: true,
+    })(req, res, next);
+  });
+
   app.use(express.json({ limit: '20mb' }));
 
   app.get('/api/health', (_req, res) => {
@@ -990,6 +1008,21 @@ async function startServer() {
       products: db.products.filter((p) => p.active !== false),
       catalogModified: Boolean(db.catalogModified),
     });
+  });
+
+  app.get('/api/hero-videos', (_req, res) => {
+    const saved = db.settings.heroVideos;
+    if (saved && Array.isArray(saved.slides) && saved.slides.length > 0) {
+      res.json({
+        slides: saved.slides,
+        config: saved.config || {
+          activeSlideId: saved.slides[0].id,
+          autoAdvanceSeconds: 9,
+        },
+      });
+      return;
+    }
+    res.json({ slides: [], config: null });
   });
 
   app.get('/api/reviews', (_req, res) => {
@@ -2254,6 +2287,284 @@ async function startServer() {
       res.json({ settings: s });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to save settings' });
+    }
+  });
+
+  app.get('/api/admin/hero-videos/library', requireAdmin, (_req, res) => {
+    const hiddenSet = new Set(db.settings.heroVideos?.hiddenBuiltInVideos || []);
+    const items: Array<{ name: string; url: string; source: 'bundled' | 'uploaded'; sizeBytes?: number }> = [];
+    const bundledDir = path.resolve(process.cwd(), 'public', 'assets', 'videos');
+    try {
+      if (fs.existsSync(bundledDir)) {
+        for (const file of fs.readdirSync(bundledDir)) {
+          if (/\.(mp4|webm|mov|ogv)$/i.test(file)) {
+            const url = `/assets/videos/${file}`;
+            if (hiddenSet.has(url)) continue;
+            const stat = fs.statSync(path.join(bundledDir, file));
+            items.push({
+              name: file,
+              url,
+              source: 'bundled',
+              sizeBytes: stat.size,
+            });
+          }
+        }
+      }
+    } catch {
+      // ignore bundled dir read error
+    }
+
+    try {
+      const uploadedDir = ensureHeroVideosDir();
+      const uploadedFiles = fs
+        .readdirSync(uploadedDir)
+        .filter((file) => /\.(mp4|webm|mov|ogv)$/i.test(file))
+        .map((file) => {
+          const stat = fs.statSync(path.join(uploadedDir, file));
+          return {
+            name: file,
+            url: `/media/hero-videos/${file}`,
+            source: 'uploaded' as const,
+            sizeBytes: stat.size,
+            mtimeMs: stat.mtimeMs,
+          };
+        })
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+      for (const entry of uploadedFiles) {
+        items.push({
+          name: entry.name,
+          url: entry.url,
+          source: entry.source,
+          sizeBytes: entry.sizeBytes,
+        });
+      }
+    } catch {
+      // ignore uploaded dir read error
+    }
+
+    res.json({ videos: items });
+  });
+
+  app.post(
+    '/api/admin/hero-videos/upload',
+    requireAdmin,
+    express.raw({
+      type: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'application/octet-stream'],
+      limit: '25mb',
+    }),
+    (req, res) => {
+      const rawBuffer = req.body;
+      if (!Buffer.isBuffer(rawBuffer) || rawBuffer.length === 0) {
+        res.status(400).json({ error: 'No video file payload was received.' });
+        return;
+      }
+
+      const rawName = String(req.headers['x-filename'] || 'hero-video.mp4').trim();
+      const extMatch = rawName.toLowerCase().match(/\.(mp4|webm|mov|ogv)$/);
+      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const ext = extMatch
+        ? extMatch[1]
+        : contentType.includes('webm')
+          ? 'webm'
+          : contentType.includes('quicktime')
+            ? 'mov'
+            : contentType.includes('ogg')
+              ? 'ogv'
+              : 'mp4';
+
+      const baseSlug = rawName
+        .replace(/\.[^.]+$/, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'hero-video';
+
+      const filename = `${Date.now()}-${baseSlug}.${ext}`;
+      try {
+        const destDir = ensureHeroVideosDir();
+        fs.writeFileSync(path.join(destDir, filename), rawBuffer);
+        res.status(201).json({
+          url: `/media/hero-videos/${filename}`,
+          filename,
+          sizeBytes: rawBuffer.length,
+        });
+      } catch (err) {
+        res.status(500).json({
+          error: err instanceof Error ? err.message : 'Failed to store uploaded video file',
+        });
+      }
+    }
+  );
+
+  app.put('/api/admin/hero-videos/config', requireAdmin, async (req, res) => {
+    const rawSlides = Array.isArray(req.body?.slides) ? req.body.slides : null;
+    if (!rawSlides || rawSlides.length === 0) {
+      res.status(400).json({ error: 'At least one hero video slide is required.' });
+      return;
+    }
+
+    const isSafeVideo = (url: string) =>
+      url.startsWith('https://') ||
+      url.startsWith('/assets/videos/') ||
+      url.startsWith('/media/hero-videos/');
+
+    const isSafePoster = (url: string) =>
+      url === '' ||
+      url.startsWith('https://') ||
+      url.startsWith('/src/assets/images/') ||
+      url.startsWith('/assets/') ||
+      url.startsWith('/media/');
+
+    const sanitizedSlides: HeroVideoSlideConfig[] = [];
+    const seenIds = new Set<string>();
+
+    for (let idx = 0; idx < rawSlides.length; idx++) {
+      const item = rawSlides[idx] as Record<string, unknown>;
+      if (!item || typeof item !== 'object') continue;
+      const rawId = typeof item.id === 'string' ? item.id.trim().toLowerCase() : `slide-${idx + 1}`;
+      const cleanId = rawId.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || `slide-${idx + 1}`;
+      if (seenIds.has(cleanId)) continue;
+      seenIds.add(cleanId);
+
+      const videoSrc = typeof item.videoSrc === 'string' ? item.videoSrc.trim().slice(0, 1000) : '';
+      if (!videoSrc || !isSafeVideo(videoSrc)) {
+        res.status(400).json({
+          error: `Invalid video URL for slide "${typeof item.label === 'string' ? item.label : cleanId}".`,
+        });
+        return;
+      }
+
+      const posterSrc = typeof item.posterSrc === 'string' ? item.posterSrc.trim().slice(0, 1000) : '';
+      if (!isSafePoster(posterSrc)) {
+        res.status(400).json({
+          error: `Invalid poster URL for slide "${typeof item.label === 'string' ? item.label : cleanId}".`,
+        });
+        return;
+      }
+
+      sanitizedSlides.push({
+        id: cleanId,
+        label: (typeof item.label === 'string' && item.label.trim() ? item.label.trim() : 'Hero Video').slice(0, 60),
+        kicker: (typeof item.kicker === 'string' ? item.kicker.trim() : '').slice(0, 140),
+        headline: (typeof item.headline === 'string' && item.headline.trim() ? item.headline.trim() : 'Protect your phone with style.').slice(0, 140),
+        description: (typeof item.description === 'string' ? item.description.trim() : '').slice(0, 320),
+        videoSrc,
+        posterSrc,
+        posterAlt: (typeof item.posterAlt === 'string' ? item.posterAlt.trim() : 'Hero showcase slide').slice(0, 200),
+        categoryTarget: (typeof item.categoryTarget === 'string' && item.categoryTarget.trim() ? item.categoryTarget.trim() : 'All').slice(0, 60),
+        featuredProductId: (typeof item.featuredProductId === 'string' ? item.featuredProductId.trim() : '').slice(0, 64),
+        startingPrice: Math.min(1000000, Math.max(0, Number(item.startingPrice) || 0)),
+        sortOrder: Math.min(100, Math.max(0, Math.round(Number(item.sortOrder) ?? idx))),
+        active: item.active !== false,
+      });
+    }
+
+    if (sanitizedSlides.length === 0) {
+      res.status(400).json({ error: 'At least one valid hero video slide is required.' });
+      return;
+    }
+
+    const rawConfig = (req.body?.config && typeof req.body.config === 'object' ? req.body.config : {}) as Record<string, unknown>;
+    const requestedActiveId = typeof rawConfig.activeSlideId === 'string' ? rawConfig.activeSlideId.trim().slice(0, 64) : '';
+    const activeSlideId = sanitizedSlides.some((s) => s.id === requestedActiveId)
+      ? requestedActiveId
+      : sanitizedSlides[0].id;
+    const autoAdvanceSeconds = Math.min(
+      30,
+      Math.max(3, Math.round(Number(rawConfig.autoAdvanceSeconds) || 9))
+    );
+
+    const sanitizedConfig: HeroPlaybackSettings = {
+      activeSlideId,
+      autoAdvanceSeconds,
+    };
+
+    db.settings.heroVideos = {
+      slides: sanitizedSlides.sort((a, b) => a.sortOrder - b.sortOrder),
+      config: sanitizedConfig,
+      hiddenBuiltInVideos: db.settings.heroVideos?.hiddenBuiltInVideos || [],
+    };
+
+    try {
+      if (isSqlConfigured()) {
+        await saveStoreConfigToSql({ settings: db.settings });
+      }
+      saveDatabase();
+      res.json(db.settings.heroVideos);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Failed to save hero video configuration',
+      });
+    }
+  });
+
+  app.delete('/api/admin/hero-videos/file', requireAdmin, async (req, res) => {
+    const rawUrl = typeof req.body?.url === 'string' ? req.body.url.trim() : '';
+    const isUploaded = rawUrl.startsWith('/media/hero-videos/');
+    const isBundled = rawUrl.startsWith('/assets/videos/');
+    if (!isUploaded && !isBundled) {
+      res.status(400).json({ error: 'Only library hero video files can be deleted.' });
+      return;
+    }
+
+    const fileName = path.basename(rawUrl);
+    if (!fileName || !/^[a-zA-Z0-9._-]+$/.test(fileName)) {
+      res.status(400).json({ error: 'Invalid video file name.' });
+      return;
+    }
+
+    if (isBundled) {
+      const normalizedUrl = `/assets/videos/${fileName}`;
+      const existingHero = db.settings.heroVideos;
+      const hidden = new Set(existingHero?.hiddenBuiltInVideos || []);
+      hidden.add(normalizedUrl);
+      db.settings.heroVideos = {
+        slides: existingHero?.slides || [],
+        config: existingHero?.config || { activeSlideId: 'magsafe-video', autoAdvanceSeconds: 9 },
+        hiddenBuiltInVideos: Array.from(hidden),
+      };
+
+      const bundledDir = path.resolve(process.cwd(), 'public', 'assets', 'videos');
+      const targetPath = path.resolve(bundledDir, fileName);
+      if (targetPath.startsWith(bundledDir + path.sep) && fs.existsSync(targetPath)) {
+        try {
+          fs.unlinkSync(targetPath);
+        } catch {
+          // Public folder may be read-only in production; hiddenBuiltInVideos persists removal
+        }
+      }
+
+      try {
+        if (isSqlConfigured()) {
+          await saveStoreConfigToSql({ settings: db.settings });
+        }
+        saveDatabase();
+        res.json({ ok: true, deletedUrl: normalizedUrl });
+      } catch (err) {
+        res.status(500).json({
+          error: err instanceof Error ? err.message : 'Failed to remove built-in reel',
+        });
+      }
+      return;
+    }
+
+    const destDir = ensureHeroVideosDir();
+    const targetPath = path.resolve(destDir, fileName);
+    if (!targetPath.startsWith(destDir + path.sep)) {
+      res.status(400).json({ error: 'Invalid file path.' });
+      return;
+    }
+
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+      }
+      res.json({ ok: true, deletedUrl: `/media/hero-videos/${fileName}` });
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Failed to delete uploaded video file',
+      });
     }
   });
 

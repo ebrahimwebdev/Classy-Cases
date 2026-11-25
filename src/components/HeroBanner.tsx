@@ -224,14 +224,14 @@ export function HeroBanner({
           />
         )}
 
-        {/* Editorial Contrast Scrims */}
+        {/* Editorial Contrast Scrims (hidden on mobile phones per user request) */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#1A0203]/80 via-[#1A0203]/45 to-[#1A0203]/20"
+          className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-r from-[#1A0203]/80 via-[#1A0203]/45 to-[#1A0203]/20"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1A0203]/85 via-[#1A0203]/25 to-[#1A0203]/25"
+          className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1A0203]/85 via-[#1A0203]/25 to-[#1A0203]/25"
         />
 
         {/* Foreground Content Aligned to Storefront Container */}

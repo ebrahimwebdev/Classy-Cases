@@ -214,6 +214,50 @@ export function AdminHeroVideoSettings({
     setPreviewVideoError(false);
   }, [selectedSlide.id, selectedSlide.videoSrc]);
 
+  const repairedUrlsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const src = selectedSlide.videoSrc?.trim() || '';
+    if (!src.startsWith('/media/hero-videos/') || !adminToken || repairedUrlsRef.current.has(src)) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const serverCheck = await fetch(src, { method: 'HEAD', cache: 'no-store' });
+        if (serverCheck.ok || cancelled) return;
+        const cachedRes = await fetch(src, { cache: 'force-cache' }).catch(() => null);
+        if (!cachedRes || !cachedRes.ok || cancelled) return;
+        const blob = await cachedRes.blob();
+        if (!blob || blob.size === 0 || blob.size > 25 * 1024 * 1024 || cancelled) return;
+        const basename = src.split('/').pop() || 'hero-video.mp4';
+        repairedUrlsRef.current.add(src);
+        const uploadRes = await fetch('/api/admin/hero-videos/upload', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': blob.type || 'video/mp4',
+            'X-Filename': basename,
+            'X-Preserve-Filename': basename,
+            'X-Requested-With': 'XMLHttpRequest',
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: blob,
+        });
+        if (uploadRes.ok && !cancelled) {
+          setPreviewVideoError(false);
+          setBannerMsg('Video synced to server database so it plays on both PC and phone.');
+          window.dispatchEvent(new CustomEvent('hero-videos-updated'));
+        }
+      } catch {
+        // ignore cache recovery errors
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSlide.videoSrc, adminToken]);
+
   const loadLibrary = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/hero-videos/library', {
@@ -1199,7 +1243,7 @@ export function AdminHeroVideoSettings({
             {/* Live Hero Video Preview */}
             <div className="space-y-2">
               <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#240306] relative aspect-[16/7]">
-                {selectedSlide.videoSrc ? (
+                {selectedSlide.videoSrc && !previewVideoError ? (
                   <video
                     key={selectedSlide.videoSrc}
                     src={selectedSlide.videoSrc}
@@ -1208,6 +1252,7 @@ export function AdminHeroVideoSettings({
                     muted
                     loop
                     playsInline
+                    preload="metadata"
                     controls
                     onLoadStart={() => setPreviewVideoError(false)}
                     onLoadedData={() => setPreviewVideoError(false)}
@@ -1216,8 +1261,23 @@ export function AdminHeroVideoSettings({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs text-slate-300">
-                    Select or upload a video to preview
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2.5 p-4 text-center bg-gradient-to-br from-[#2B0407] via-[#1B0204] to-[#0E0102]">
+                    <p className="text-xs text-slate-200 max-w-sm">
+                      {previewVideoError
+                        ? 'Video file is missing on this server instance.'
+                        : 'Select or upload a video to preview'}
+                    </p>
+                    {previewVideoError && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingVideo}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Re-upload Video</span>
+                      </button>
+                    )}
                   </div>
                 )}
                 <div className="pointer-events-none absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/60 text-[11px] font-medium text-white">
@@ -1229,7 +1289,7 @@ export function AdminHeroVideoSettings({
                 <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                   <span>
-                    Video file (<code className="font-mono">{selectedSlide.videoSrc}</code>) could not be loaded on the server. Please upload your video again or paste an HTTPS video URL, then click <strong>Save Hero Settings</strong>.
+                    Video file (<code className="font-mono">{selectedSlide.videoSrc}</code>) was not found on this server instance (it was uploaded before database persistence or on another session). Open this page on your PC to auto-sync, or upload your video once more here so it stays synced across PC and phone.
                   </span>
                 </div>
               )}

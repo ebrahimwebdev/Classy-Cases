@@ -28,15 +28,19 @@ import { isSqlConfigured } from './src/db/index.ts';
 import {
   deleteCategoryFromSql,
   deleteExpenseFromSql,
+  deleteHeroMediaFromSql,
   deleteProductFromSql,
   deleteReviewFromSql,
+  getHeroMediaFromSql,
   insertCouponToSql,
   insertExpenseToSql,
   insertOrderToSql,
   insertReviewToSql,
   insertSubscriberToSql,
+  listHeroMediaFromSql,
   loadOrSeedStoreFromSql,
   replaceProductsInSql,
+  saveHeroMediaToSql,
   saveStoreConfigToSql,
   updateOrderInSql,
   updateReviewVerifiedInSql,
@@ -993,6 +997,59 @@ async function startServer() {
     }
   };
 
+  const inferHeroMediaMime = (fileName: string, fallback = 'video/mp4') => {
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith('.webm')) return 'video/webm';
+    if (lower.endsWith('.mov')) return 'video/quicktime';
+    if (lower.endsWith('.ogv')) return 'video/ogg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.mp4')) return 'video/mp4';
+    return fallback;
+  };
+
+  const serveMediaBufferWithRange = (
+    req: Request,
+    res: Response,
+    buffer: Buffer,
+    mimeType: string
+  ) => {
+    const total = buffer.length;
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=604800');
+    res.setHeader('Content-Type', mimeType);
+
+    if (req.method === 'HEAD') {
+      res.setHeader('Content-Length', total);
+      res.status(200).end();
+      return;
+    }
+
+    const rangeHeader = req.headers.range;
+    if (rangeHeader && typeof rangeHeader === 'string' && rangeHeader.startsWith('bytes=')) {
+      const match = rangeHeader.replace('bytes=', '').match(/^(\d*)-(\d*)$/);
+      if (match) {
+        const start = match[1] ? Number.parseInt(match[1], 10) : 0;
+        const end = match[2] ? Math.min(total - 1, Number.parseInt(match[2], 10)) : total - 1;
+        if (!Number.isNaN(start) && !Number.isNaN(end) && start >= 0 && start <= end && start < total) {
+          const chunk = buffer.subarray(start, end + 1);
+          res.status(206);
+          res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+          res.setHeader('Content-Length', chunk.length);
+          res.end(chunk);
+          return;
+        }
+        res.status(416).setHeader('Content-Range', `bytes */${total}`).end();
+        return;
+      }
+    }
+
+    res.status(200);
+    res.setHeader('Content-Length', total);
+    res.end(buffer);
+  };
+
   app.use('/media/hero-videos', (req, res, next) => {
     express.static(ensureHeroVideosDir(), {
       maxAge: '7d',
@@ -1024,7 +1081,29 @@ async function startServer() {
     })(req, res, next);
   });
 
-  app.use('/media/hero-videos', (_req, res) => {
+  app.use('/media/hero-videos', async (req, res) => {
+    const rawBase = path.basename(req.path || '').trim();
+    if (isSqlConfigured() && rawBase && /^[a-zA-Z0-9._-]+$/.test(rawBase)) {
+      try {
+        const record = await getHeroMediaFromSql(rawBase);
+        if (record && record.buffer.length > 0) {
+          try {
+            writeHeroMediaMirrors(rawBase, record.buffer);
+          } catch {
+            // ignore mirror cache errors
+          }
+          serveMediaBufferWithRange(
+            req,
+            res,
+            record.buffer,
+            inferHeroMediaMime(rawBase, record.mimeType)
+          );
+          return;
+        }
+      } catch {
+        // fall through to 404
+      }
+    }
     res.status(404).json({ error: 'Hero video file not found' });
   });
 
@@ -2825,7 +2904,7 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/hero-videos/library', requireAdmin, (_req, res) => {
+  app.get('/api/admin/hero-videos/library', requireAdmin, async (_req, res) => {
     const hiddenSet = new Set(db.settings.heroVideos?.hiddenBuiltInVideos || []);
     const items: Array<{ name: string; url: string; source: 'bundled' | 'uploaded'; sizeBytes?: number }> = [];
     const bundledDir = path.resolve(process.cwd(), 'public', 'assets', 'videos');
@@ -2880,6 +2959,27 @@ async function startServer() {
       }
     }
 
+    if (isSqlConfigured()) {
+      try {
+        const sqlFiles = await listHeroMediaFromSql();
+        for (const entry of sqlFiles) {
+          if (!/\.(mp4|webm|mov|ogv)$/i.test(entry.filename)) continue;
+          const url = `/media/hero-videos/${entry.filename}`;
+          if (seenUrls.has(url)) continue;
+          seenUrls.add(url);
+          uploadedEntries.push({
+            name: entry.filename,
+            url,
+            source: 'uploaded',
+            sizeBytes: entry.sizeBytes,
+            mtimeMs: entry.mtimeMs,
+          });
+        }
+      } catch {
+        // ignore SQL library list fallback error
+      }
+    }
+
     uploadedEntries.sort((a, b) => b.mtimeMs - a.mtimeMs);
     for (const entry of uploadedEntries) {
       items.push({
@@ -2900,7 +3000,7 @@ async function startServer() {
       type: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'application/octet-stream'],
       limit: '25mb',
     }),
-    (req, res) => {
+    async (req, res) => {
       const rawBuffer = req.body;
       if (!Buffer.isBuffer(rawBuffer) || rawBuffer.length === 0) {
         res.status(400).json({ error: 'No video file payload was received.' });
@@ -2908,6 +3008,7 @@ async function startServer() {
       }
 
       const rawName = String(req.headers['x-filename'] || 'hero-video.mp4').trim();
+      const preserveRaw = String(req.headers['x-preserve-filename'] || '').trim();
       const extMatch = rawName.toLowerCase().match(/\.(mp4|webm|mov|ogv)$/);
       const contentType = String(req.headers['content-type'] || '').toLowerCase();
       const ext = extMatch
@@ -2927,9 +3028,17 @@ async function startServer() {
         .replace(/^-+|-+$/g, '')
         .slice(0, 40) || 'hero-video';
 
-      const filename = `${Date.now()}-${baseSlug}.${ext}`;
+      const filename =
+        preserveRaw && /^[a-zA-Z0-9._-]+\.(mp4|webm|mov|ogv)$/i.test(preserveRaw)
+          ? path.basename(preserveRaw)
+          : `${Date.now()}-${baseSlug}.${ext}`;
+      const mimeType = inferHeroMediaMime(filename, contentType || 'video/mp4');
+
       try {
         writeHeroMediaMirrors(filename, rawBuffer);
+        if (isSqlConfigured()) {
+          await saveHeroMediaToSql(filename, mimeType, rawBuffer);
+        }
         res.status(201).json({
           url: `/media/hero-videos/${filename}`,
           filename,
@@ -2950,7 +3059,7 @@ async function startServer() {
       type: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/octet-stream'],
       limit: '2mb',
     }),
-    (req, res) => {
+    async (req, res) => {
       const rawBuffer = req.body;
       if (!Buffer.isBuffer(rawBuffer) || rawBuffer.length === 0) {
         res.status(400).json({ error: 'No poster image payload was received.' });
@@ -2973,8 +3082,12 @@ async function startServer() {
           .slice(0, 36) || 'hero-poster';
 
       const filename = `poster-${Date.now()}-${baseSlug}.${ext}`;
+      const mimeType = inferHeroMediaMime(filename, contentType || 'image/jpeg');
       try {
         writeHeroMediaMirrors(filename, rawBuffer);
+        if (isSqlConfigured()) {
+          await saveHeroMediaToSql(filename, mimeType, rawBuffer);
+        }
         res.status(201).json({
           url: `/media/hero-videos/${filename}`,
           filename,
@@ -3174,6 +3287,9 @@ async function startServer() {
         if (fs.existsSync(targetPath)) {
           fs.unlinkSync(targetPath);
         }
+      }
+      if (isSqlConfigured()) {
+        await deleteHeroMediaFromSql(fileName);
       }
       res.json({ ok: true, deletedUrl: `/media/hero-videos/${fileName}` });
     } catch (err) {

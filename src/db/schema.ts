@@ -176,3 +176,11 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
     references: [products.id],
   }),
 }));
+
+export const heroMedia = pgTable('hero_media', {
+  filename: text('filename').primaryKey(),
+  mimeType: text('mime_type').notNull().default('video/mp4'),
+  sizeBytes: integer('size_bytes').notNull().default(0),
+  dataBase64: text('data_base64').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

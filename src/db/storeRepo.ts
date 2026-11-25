@@ -1,4 +1,4 @@
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import type {
   Category,
   Coupon,
@@ -14,6 +14,7 @@ import {
   categories,
   coupons,
   expenses,
+  heroMedia,
   orders,
   products,
   reviews,
@@ -731,6 +732,119 @@ export async function deleteReviewFromSql(reviewId: string) {
   } catch (error) {
     console.error('Database query failed in deleteReviewFromSql:', error);
     throw new Error('Failed to delete review.', { cause: error });
+  }
+}
+
+let heroMediaTableReadyPromise: Promise<void> | null = null;
+
+async function ensureHeroMediaTable(): Promise<void> {
+  if (heroMediaTableReadyPromise) {
+    return heroMediaTableReadyPromise;
+  }
+  heroMediaTableReadyPromise = (async () => {
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS hero_media (
+          filename text PRIMARY KEY,
+          mime_type text NOT NULL DEFAULT 'video/mp4',
+          size_bytes integer NOT NULL DEFAULT 0,
+          data_base64 text NOT NULL,
+          created_at timestamp NOT NULL DEFAULT now()
+        )
+      `);
+    } catch (err) {
+      heroMediaTableReadyPromise = null;
+      throw err;
+    }
+  })();
+  return heroMediaTableReadyPromise;
+}
+
+export async function saveHeroMediaToSql(
+  filename: string,
+  mimeType: string,
+  buffer: Buffer
+): Promise<void> {
+  try {
+    await ensureHeroMediaTable();
+    const dataBase64 = buffer.toString('base64');
+    await db
+      .insert(heroMedia)
+      .values({
+        filename,
+        mimeType: mimeType || 'video/mp4',
+        sizeBytes: buffer.length,
+        dataBase64,
+        createdAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: heroMedia.filename,
+        set: {
+          mimeType: mimeType || 'video/mp4',
+          sizeBytes: buffer.length,
+          dataBase64,
+        },
+      });
+  } catch (error) {
+    console.error('Database query failed in saveHeroMediaToSql:', error);
+    throw new Error('Failed to persist hero media file.', { cause: error });
+  }
+}
+
+export async function getHeroMediaFromSql(
+  filename: string
+): Promise<{ mimeType: string; buffer: Buffer } | null> {
+  try {
+    await ensureHeroMediaTable();
+    const rows = await db
+      .select()
+      .from(heroMedia)
+      .where(eq(heroMedia.filename, filename))
+      .limit(1);
+    const row = rows[0];
+    if (!row || !row.dataBase64) return null;
+    return {
+      mimeType: row.mimeType || 'video/mp4',
+      buffer: Buffer.from(row.dataBase64, 'base64'),
+    };
+  } catch (error) {
+    console.error('Database query failed in getHeroMediaFromSql:', error);
+    return null;
+  }
+}
+
+export async function listHeroMediaFromSql(): Promise<
+  Array<{ filename: string; mimeType: string; sizeBytes: number; mtimeMs: number }>
+> {
+  try {
+    await ensureHeroMediaTable();
+    const rows = await db
+      .select({
+        filename: heroMedia.filename,
+        mimeType: heroMedia.mimeType,
+        sizeBytes: heroMedia.sizeBytes,
+        createdAt: heroMedia.createdAt,
+      })
+      .from(heroMedia)
+      .orderBy(desc(heroMedia.createdAt));
+    return rows.map((row) => ({
+      filename: row.filename,
+      mimeType: row.mimeType,
+      sizeBytes: row.sizeBytes,
+      mtimeMs: row.createdAt ? new Date(row.createdAt).getTime() : Date.now(),
+    }));
+  } catch (error) {
+    console.error('Database query failed in listHeroMediaFromSql:', error);
+    return [];
+  }
+}
+
+export async function deleteHeroMediaFromSql(filename: string): Promise<void> {
+  try {
+    await ensureHeroMediaTable();
+    await db.delete(heroMedia).where(eq(heroMedia.filename, filename));
+  } catch (error) {
+    console.error('Database query failed in deleteHeroMediaFromSql:', error);
   }
 }
 

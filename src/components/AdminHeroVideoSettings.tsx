@@ -1286,11 +1286,27 @@ export function AdminHeroVideoSettings({
               </div>
 
               {previewVideoError && (
-                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                  <span>
-                    Video file (<code className="font-mono">{selectedSlide.videoSrc}</code>) was not found on this server instance (it was uploaded before database persistence or on another session). Open this page on your PC to auto-sync, or upload your video once more here so it stays synced across PC and phone.
-                  </span>
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      This old video (<code className="font-mono">{selectedSlide.videoSrc}</code>) is missing from Cloud SQL because it was uploaded before the database video table was created. Re-upload it once now and it will stay saved permanently across restarts, PC, and phone.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-xs font-medium text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {bannerMsg && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-xs font-medium text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{bannerMsg}</span>
                 </div>
               )}
             </div>

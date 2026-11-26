@@ -26,6 +26,7 @@ import type {
   FooterLinkItem,
   HeaderConfigSettings,
   HeaderNavLink,
+  HomeCustomizationConfig,
   MobileBottomBarItemId,
   OrderItem,
   Product,
@@ -41,8 +42,11 @@ import { PhoneCaseGrid } from './PhoneCaseGrid';
 import { ProductDetailView } from './ProductDetailView';
 import { ProductQuickViewModal } from './ProductQuickViewModal';
 import { StorefrontSearchBar } from './StorefrontSearchBar';
-import { CatalogFilterBar, type CatalogSortOption } from './CatalogFilterBar';
-import { CatalogShowcaseSections } from './CatalogShowcaseSections';
+import type { CatalogSortOption } from './CatalogFilterBar';
+import {
+  BestsellingShowcaseSection,
+  PhoneCasesShowcaseSection,
+} from './CatalogShowcaseSections';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
 import { HeroBanner } from './HeroBanner';
@@ -55,12 +59,15 @@ import {
   mergeHeaderConfig,
   normalizeWhatsAppUrl,
 } from '../utils/headerFooterDefaults';
+import { mergeHomeCustomization } from '../utils/homeCustomizationDefaults';
 import {
   getCategoryAndDescendantNames,
+  getCategoryByName,
   getRootCategoryFor,
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
+import { ShopCategoryPage } from './ShopCategoryPage';
 import { StorefrontFooter } from './StorefrontFooter';
 import {
   resolveHeaderCategories,
@@ -85,6 +92,7 @@ export interface PublicStoreSettings {
   freeShippingThreshold: number;
   reviewsEnabled?: boolean;
   homeReviewsOnlyFiveStar?: boolean;
+  homeCustomization?: HomeCustomizationConfig;
   shopPageColumns?: 2 | 3 | 4 | 5;
   headerConfig?: HeaderConfigSettings;
   footerConfig?: FooterConfigSettings;
@@ -141,6 +149,7 @@ function saveCachedStorefrontMeta(
 
 type StorefrontRoute =
   | { view: 'home' }
+  | { view: 'shop'; categoryKey: string }
   | { view: 'checkout' }
   | { view: 'orders' }
   | { view: 'product'; productKey: string };
@@ -158,6 +167,20 @@ function parseStorefrontRoute(): StorefrontRoute {
   }
   if (lower === '/orders') {
     return { view: 'orders' };
+  }
+  if (lower === '/shop') {
+    return { view: 'shop', categoryKey: 'All' };
+  }
+  if (lower.startsWith('/shop/')) {
+    const rawKey = normalized.slice('/shop/'.length);
+    if (rawKey) {
+      try {
+        return { view: 'shop', categoryKey: decodeURIComponent(rawKey) || 'All' };
+      } catch {
+        return { view: 'shop', categoryKey: rawKey || 'All' };
+      }
+    }
+    return { view: 'shop', categoryKey: 'All' };
   }
   if (lower.startsWith('/product/')) {
     const rawKey = normalized.slice('/product/'.length);
@@ -197,6 +220,35 @@ function findProductByKey(
   );
 }
 
+function findCategoryNameByKey(categories: Category[], key: string): string | null {
+  const trimmed = key.trim().toLowerCase();
+  if (!trimmed || trimmed === 'all') return 'All';
+  const slugified = (val: string) =>
+    val
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  const matched = categories.find(
+    (c) =>
+      (c.slug || '').trim().toLowerCase() === trimmed ||
+      c.name.trim().toLowerCase() === trimmed ||
+      slugified(c.name) === trimmed
+  );
+  return matched ? matched.name : null;
+}
+
+function getCategorySlug(categories: Category[], categoryName: string): string {
+  const trimmed = categoryName.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'all') return 'all';
+  const cat = getCategoryByName(categories, trimmed);
+  if (cat?.slug?.trim()) return cat.slug.trim();
+  return trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 export function Storefront({ onOpenAdmin }: StorefrontProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -225,7 +277,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   );
   const [loading, setLoading] = useState(() => !hasCachedCatalog);
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
+    if (initialRoute.view === 'shop') {
+      return findCategoryNameByKey(initialMeta.categories, initialRoute.categoryKey) || 'All';
+    }
+    return 'All';
+  });
   const [selectedModel, setSelectedModel] = useState<string>('All');
   const [sortBy, setSortBy] = useState<CatalogSortOption>('featured');
   const [inStockOnly, setInStockOnly] = useState(false);
@@ -266,6 +323,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   const [infoModal, setInfoModal] = useState<{ title: string; content: string } | null>(null);
 
   // Active sub-views
+  const [shopOpen, setShopOpen] = useState(() => initialRoute.view === 'shop');
+  const [pendingShopCategoryKey, setPendingShopCategoryKey] = useState<string | null>(() =>
+    initialRoute.view === 'shop' ? initialRoute.categoryKey : null
+  );
+  const [returnToShop, setReturnToShop] = useState(false);
   const [pendingProductKey, setPendingProductKey] = useState<string | null>(() =>
     initialRoute.view === 'product' ? initialRoute.productKey : null
   );
@@ -348,21 +410,38 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     function handlePopState() {
       const route = parseStorefrontRoute();
       if (route.view === 'checkout') {
+        setShopOpen(false);
         setMyOrdersOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
         setCheckoutOpen(true);
       } else if (route.view === 'orders') {
+        setShopOpen(false);
         setCheckoutOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
         setMyOrdersOpen(true);
       } else if (route.view === 'product') {
+        setShopOpen(false);
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
         setPendingProductKey(route.productKey);
         setActiveProduct(findProductByKey(products, route.productKey));
+      } else if (route.view === 'shop') {
+        setCheckoutOpen(false);
+        setMyOrdersOpen(false);
+        setActiveProduct(null);
+        setPendingProductKey(null);
+        setShopOpen(true);
+        const resolved = findCategoryNameByKey(categories, route.categoryKey);
+        if (resolved) {
+          setSelectedCategory(resolved);
+          setPendingShopCategoryKey(null);
+        } else {
+          setPendingShopCategoryKey(route.categoryKey);
+        }
       } else {
+        setShopOpen(false);
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
         setActiveProduct(null);
@@ -375,7 +454,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', handlePopState);
     };
-  }, [products]);
+  }, [products, categories]);
 
   useEffect(() => {
     if (!settings) return;
@@ -408,6 +487,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function navigateHome(scrollTop = false) {
+    setShopOpen(false);
+    setPendingShopCategoryKey(null);
+    setReturnToShop(false);
     setCheckoutOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
@@ -419,6 +501,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function navigateProduct(product: PhoneCaseProduct) {
+    setReturnToShop(shopOpen);
+    setShopOpen(false);
     setCheckoutOpen(false);
     setMyOrdersOpen(false);
     setPendingProductKey(product.slug || product.id);
@@ -428,6 +512,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function navigateCheckout() {
+    setShopOpen(false);
     setMyOrdersOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
@@ -437,6 +522,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   function openMyOrders() {
+    setShopOpen(false);
     setCheckoutOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
@@ -466,6 +552,40 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     }
     return Array.from(seen.values());
   }, [categories, products]);
+
+  useEffect(() => {
+    if (!pendingShopCategoryKey) return;
+    const matched = findCategoryNameByKey(effectiveCategories, pendingShopCategoryKey);
+    if (matched) {
+      setSelectedCategory(matched);
+      setPendingShopCategoryKey(null);
+    } else if (!loading && effectiveCategories.length > 0) {
+      setSelectedCategory('All');
+      setPendingShopCategoryKey(null);
+    }
+  }, [effectiveCategories, pendingShopCategoryKey, loading]);
+
+  function navigateShop(
+    categoryName = 'All',
+    options?: { sort?: CatalogSortOption; clearSearch?: boolean }
+  ) {
+    setCheckoutOpen(false);
+    setMyOrdersOpen(false);
+    setActiveProduct(null);
+    setPendingProductKey(null);
+    setPendingShopCategoryKey(null);
+    setShopOpen(true);
+    if (options?.clearSearch) {
+      setSearchQuery('');
+    }
+    if (options?.sort) {
+      setSortBy(options.sort);
+    }
+    applyCategorySelection(categoryName);
+    const slug = getCategorySlug(effectiveCategories, categoryName);
+    pushStorefrontPath(categoryName === 'All' || !slug ? '/shop' : `/shop/${encodeURIComponent(slug)}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const topLevelCategories = useMemo(
     () => getTopLevelCategories(effectiveCategories),
@@ -568,20 +688,20 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   function handleSearchChange(nextQuery: string) {
     setSearchQuery(nextQuery);
     setCarouselPage(0);
-    if (nextQuery.trim() !== '') {
+    if (nextQuery.trim() !== '' && (checkoutOpen || myOrdersOpen || activeProduct)) {
       navigateHome();
     }
   }
 
   function handleQuickSelectCategory(categoryName: string) {
-    navigateHome();
-    applyCategorySelection(categoryName);
-    setTimeout(() => {
-      document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
-    }, 30);
+    navigateShop(categoryName, { clearSearch: true });
   }
 
   function scrollToCatalog() {
+    if (shopOpen) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     navigateHome();
     setTimeout(() => {
       const el = document.getElementById('new-arrivals-section');
@@ -674,6 +794,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     [settings?.headerConfig]
   );
 
+  const homeCustomization = useMemo(
+    () => mergeHomeCustomization(settings?.homeCustomization),
+    [settings?.homeCustomization]
+  );
+
   const footerConfig = useMemo(
     () =>
       mergeFooterConfig(settings?.footerConfig, {
@@ -713,9 +838,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     } else if (item.action === 'orders') {
       openMyOrders();
     } else if (item.action === 'shop') {
-      applyCategorySelection('All');
-      setViewAll(true);
-      scrollToCatalog();
+      navigateShop('All', { clearSearch: true });
     }
   }
 
@@ -723,7 +846,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     if (item.action === 'orders') {
       openMyOrders();
     } else if (item.action === 'catalog') {
-      scrollToCatalog();
+      navigateShop('All', { clearSearch: true });
     } else if (item.action === 'modal') {
       setInfoModal({
         title: item.label,
@@ -741,13 +864,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   );
 
   function handleOpenOffers() {
-    navigateHome();
-    applyCategorySelection('All');
-    setSortBy('discount_desc');
-    setViewAll(true);
-    setTimeout(() => {
-      document.getElementById('new-arrivals-section')?.scrollIntoView({ behavior: 'smooth' });
-    }, 30);
+    navigateShop('All', { sort: 'discount_desc', clearSearch: true });
   }
 
   function handleOpenWhatsAppModal() {
@@ -776,9 +893,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         setMobileMenuOpen(true);
         break;
       case 'shop':
-        applyCategorySelection('All');
-        setViewAll(true);
-        scrollToCatalog();
+        navigateShop('All', { clearSearch: true });
         break;
       case 'search':
         setMobileMenuOpen(true);
@@ -793,7 +908,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   const isHomeBannerVisible =
-    !checkoutOpen && !myOrdersOpen && !activeProduct && searchQuery.trim() === '';
+    !checkoutOpen && !myOrdersOpen && !activeProduct && !shopOpen && searchQuery.trim() === '';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F2E8D2] text-[#2B1416] overflow-x-clip">
@@ -903,7 +1018,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             shippingInsideDhaka={settings?.shippingInsideDhaka}
             shippingOutsideDhaka={settings?.shippingOutsideDhaka}
             freeShippingThreshold={settings?.freeShippingThreshold}
-            onBack={() => navigateHome(true)}
+            onBack={() =>
+              returnToShop ? navigateShop(selectedCategory) : navigateHome(true)
+            }
             onSelectProduct={navigateProduct}
             onToggleWishlist={toggleWishlist}
             onAddToCart={(product, model, qty = 1, meta) => {
@@ -928,202 +1045,302 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             <div className="w-8 h-8 rounded-full border-2 border-[#650108]/25 border-t-[#650108] animate-spin" />
             <p className="text-sm font-medium text-[#6B4C4E]">Loading product...</p>
           </div>
-        ) : (
-          <>
-            {/* Premium Hero Banner & Trust Section (collapsed during active top search so filtered results appear right away) */}
-            {searchQuery.trim() === '' && (
-              <>
-                <HeroBanner
-                  products={products}
-                  onShopNow={(categoryName) => {
-                    applyCategorySelection(categoryName || 'All');
-                    document
-                      .getElementById('new-arrivals-section')
-                      ?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  onInspectProduct={navigateProduct}
-                />
-                <TrustHighlights
-                  shippingInsideDhaka={settings?.shippingInsideDhaka}
-                  shippingOutsideDhaka={settings?.shippingOutsideDhaka}
-                  freeShippingThreshold={settings?.freeShippingThreshold}
-                />
-              </>
-            )}
-
-            {/* Featured Categories (collapsed during active top search so filtered results appear right away) */}
-            {searchQuery.trim() === '' && (
-              <FeaturedCategoriesSlider
-                categories={effectiveCategories}
-                selectedCategory={selectedCategory}
-                failedCatImages={failedCatImages}
-                onImageError={(catId) =>
-                  setFailedCatImages((prev) => ({ ...prev, [catId]: true }))
-                }
-                onSelectCategory={(categoryName) => {
-                  applyCategorySelection(categoryName);
-                  document
-                    .getElementById('new-arrivals-section')
-                    ?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* Bestselling & Brand-Tabbed Phone Cases Showcase Rows */}
-            {searchQuery.trim() === '' && (
-              <CatalogShowcaseSections
-                products={products}
-                categories={effectiveCategories}
-                wishlist={wishlist}
-                loading={loading}
-                desktopColumns={desktopColumns}
-                onSelectProduct={navigateProduct}
-                onQuickView={(product) => setQuickViewProduct(product)}
-                onToggleWishlist={toggleWishlist}
-                onAddToCart={(product) => addToCart(product)}
-                onViewAll={(categoryName) => {
-                  applyCategorySelection(categoryName || 'All');
-                  setViewAll(true);
-                  document
-                    .getElementById('new-arrivals-section')
-                    ?.scrollIntoView({ behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* Explore More Products / Full Filterable Catalog */}
-            <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16">
-              <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
-                <div>
-                  <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
-                    {searchQuery.trim() !== ''
-                      ? selectedCategory === 'All'
-                        ? `Results for "${searchQuery.trim()}"`
-                        : `${selectedCategory} Cases matching "${searchQuery.trim()}"`
-                      : selectedCategory === 'All'
-                        ? 'Explore More Products'
-                        : `${selectedCategory} Cases`}
-                  </h2>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                    <div className="w-10 h-[3px] bg-[#650108]" />
-                    {hasActiveFilters && (
-                      <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
-                        {filteredProducts.length} {filteredProducts.length === 1 ? 'case' : 'cases'} found
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  {selectedCategory !== 'All' && searchQuery.trim() !== '' && (
-                    <button
-                      type="button"
-                      onClick={() => applyCategorySelection('All')}
-                      className="text-[13px] font-semibold text-[#650108]/80 hover:text-[#650108] whitespace-nowrap cursor-pointer"
-                    >
-                      Search all brands
-                    </button>
-                  )}
+        ) : shopOpen ? (
+          <ShopCategoryPage
+            categories={effectiveCategories}
+            products={filteredProducts}
+            loading={loading}
+            selectedCategory={selectedCategory}
+            selectedModel={selectedModel}
+            availableModels={availableModels}
+            sortBy={sortBy}
+            inStockOnly={inStockOnly}
+            searchQuery={searchQuery}
+            wishlist={wishlist}
+            desktopColumns={desktopColumns}
+            onNavigateHome={() => {
+              resetAllFilters();
+              navigateHome(true);
+            }}
+            onSelectCategory={(catName) => navigateShop(catName)}
+            onSelectModel={(model) => setSelectedModel(model)}
+            onSortChange={(nextSort) => setSortBy(nextSort)}
+            onToggleInStockOnly={() => setInStockOnly((prev) => !prev)}
+            onSearchChange={(q) => setSearchQuery(q)}
+            onResetFilters={() => {
+              resetAllFilters();
+              navigateShop('All');
+            }}
+            onSelectProduct={navigateProduct}
+            onQuickView={(product) => setQuickViewProduct(product)}
+            onToggleWishlist={toggleWishlist}
+            onAddToCart={(product) => addToCart(product)}
+          />
+        ) : searchQuery.trim() !== '' ? (
+          <section id="new-arrivals-section" className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16">
+            <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
+              <div>
+                <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
+                  {selectedCategory === 'All'
+                    ? `Results for "${searchQuery.trim()}"`
+                    : `${selectedCategory} Cases matching "${searchQuery.trim()}"`}
+                </h2>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                  <div className="w-10 h-[3px] bg-[#650108]" />
                   {hasActiveFilters && (
-                    <button
-                      type="button"
-                      onClick={resetAllFilters}
-                      className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
-                    >
-                      Reset filters
-                    </button>
-                  )}
-                  {!hasActiveFilters && (
-                    <button
-                      type="button"
-                      onClick={() => setViewAll((v) => !v)}
-                      className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
-                    >
-                      <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
+                      {filteredProducts.length} {filteredProducts.length === 1 ? 'case' : 'cases'} found
+                    </span>
                   )}
                 </div>
               </div>
 
-              <CatalogFilterBar
-                categories={effectiveCategories}
-                products={products}
-                selectedCategory={selectedCategory}
-                selectedModel={selectedModel}
-                availableModels={availableModels}
-                sortBy={sortBy}
-                inStockOnly={inStockOnly}
-                searchQuery={searchQuery}
-                onSelectCategory={applyCategorySelection}
-                onSelectModel={(model) => {
-                  setSelectedModel(model);
-                  setCarouselPage(0);
-                }}
-                onSortChange={(nextSort) => {
-                  setSortBy(nextSort);
-                  setCarouselPage(0);
-                }}
-                onToggleInStockOnly={() => {
-                  setInStockOnly((prev) => !prev);
-                  setCarouselPage(0);
-                }}
-                onSearchChange={handleSearchChange}
-              />
-
-              <PhoneCaseGrid
-                products={displayedProducts}
-                mobileProducts={filteredProducts}
-                loading={loading}
-                wishlist={wishlist}
-                searchQuery={searchQuery}
-                desktopColumns={desktopColumns}
-                showCarouselControls={!viewAll && !hasActiveFilters}
-                currentPage={safePage}
-                totalPages={totalPages}
-                onPageChange={setCarouselPage}
-                onSelectProduct={navigateProduct}
-                onQuickView={(product) => setQuickViewProduct(product)}
-                onToggleWishlist={toggleWishlist}
-                onAddToCart={(product) => addToCart(product)}
-                onResetFilters={resetAllFilters}
-              />
-
-              {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
-                <div className="mt-6 flex justify-center">
+              <div className="flex items-center gap-4">
+                {selectedCategory !== 'All' && (
                   <button
                     type="button"
-                    onClick={() => setViewAll(true)}
-                    className="px-6 py-3 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
+                    onClick={() => applyCategorySelection('All')}
+                    className="text-[13px] font-semibold text-[#650108]/80 hover:text-[#650108] whitespace-nowrap cursor-pointer"
                   >
-                    <span>Explore More Products</span>
-                    <ArrowRight className="w-4 h-4" />
+                    Search all brands
                   </button>
-                </div>
-              )}
-            </section>
+                )}
+                {hasActiveFilters && (
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
+                  >
+                    Reset filters
+                  </button>
+                )}
+              </div>
+            </div>
 
-            {/* Customer Reviews Carousel */}
-            {settings?.reviewsEnabled !== false && (
-              <CustomerReviewsCarousel
-                homeReviewsOnlyFiveStar={settings?.homeReviewsOnlyFiveStar}
-                onSelectProduct={(productId) => {
-                  const found = products.find((p) => p.id === productId);
-                  if (found) {
-                    navigateProduct(found);
-                  }
-                }}
-              />
-            )}
-
-            {/* Trusted By Partner Marquee & Testimonials */}
-            <TrustedBySection
-              paymentLogos={{
-                bkash: settings?.paymentGateways?.bkash?.logoUrl,
-                nagad: settings?.paymentGateways?.nagad?.logoUrl,
-                card: settings?.paymentGateways?.card?.logoUrl,
-              }}
+            <PhoneCaseGrid
+              products={displayedProducts}
+              mobileProducts={filteredProducts}
+              loading={loading}
+              wishlist={wishlist}
+              searchQuery={searchQuery}
+              desktopColumns={desktopColumns}
+              showCarouselControls={false}
+              currentPage={safePage}
+              totalPages={totalPages}
+              onPageChange={setCarouselPage}
+              onSelectProduct={navigateProduct}
+              onQuickView={(product) => setQuickViewProduct(product)}
+              onToggleWishlist={toggleWishlist}
+              onAddToCart={(product) => addToCart(product)}
+              onResetFilters={resetAllFilters}
             />
+          </section>
+        ) : (
+          <>
+            {homeCustomization.sections.map((section) => {
+              if (!section.enabled) return null;
+
+              if (section.id === 'hero') {
+                return (
+                  <HeroBanner
+                    key="home-hero"
+                    products={products}
+                    onShopNow={(categoryName) => {
+                      navigateShop(categoryName || 'All', { clearSearch: true });
+                    }}
+                    onInspectProduct={navigateProduct}
+                  />
+                );
+              }
+
+              if (section.id === 'trust_highlights') {
+                return (
+                  <TrustHighlights
+                    key="home-trust"
+                    shippingInsideDhaka={settings?.shippingInsideDhaka}
+                    shippingOutsideDhaka={settings?.shippingOutsideDhaka}
+                    freeShippingThreshold={settings?.freeShippingThreshold}
+                  />
+                );
+              }
+
+              if (section.id === 'featured_categories') {
+                return (
+                  <FeaturedCategoriesSlider
+                    key="home-featured-cats"
+                    title={section.title}
+                    categories={effectiveCategories}
+                    selectedCategory={selectedCategory}
+                    failedCatImages={failedCatImages}
+                    onImageError={(catId) =>
+                      setFailedCatImages((prev) => ({ ...prev, [catId]: true }))
+                    }
+                    onSelectCategory={(categoryName) => {
+                      navigateShop(categoryName, { clearSearch: true });
+                    }}
+                  />
+                );
+              }
+
+              if (section.id === 'bestselling') {
+                return (
+                  <BestsellingShowcaseSection
+                    key="home-bestselling"
+                    title={section.title}
+                    limit={homeCustomization.bestsellingLimit}
+                    products={products}
+                    wishlist={wishlist}
+                    loading={loading}
+                    desktopColumns={desktopColumns}
+                    onSelectProduct={navigateProduct}
+                    onQuickView={(product) => setQuickViewProduct(product)}
+                    onToggleWishlist={toggleWishlist}
+                    onAddToCart={(product) => addToCart(product)}
+                    onViewAll={(categoryName) => {
+                      navigateShop(categoryName || 'All', { clearSearch: true });
+                    }}
+                  />
+                );
+              }
+
+              if (section.id === 'phone_cases') {
+                return (
+                  <PhoneCasesShowcaseSection
+                    key="home-phone-cases"
+                    title={section.title}
+                    limit={homeCustomization.phoneCasesLimit}
+                    products={products}
+                    categories={effectiveCategories}
+                    wishlist={wishlist}
+                    loading={loading}
+                    desktopColumns={desktopColumns}
+                    onSelectProduct={navigateProduct}
+                    onQuickView={(product) => setQuickViewProduct(product)}
+                    onToggleWishlist={toggleWishlist}
+                    onAddToCart={(product) => addToCart(product)}
+                    onViewAll={(categoryName) => {
+                      navigateShop(categoryName || 'All', { clearSearch: true });
+                    }}
+                  />
+                );
+              }
+
+              if (section.id === 'explore_more') {
+                return (
+                  <section
+                    key="home-explore-more"
+                    id="new-arrivals-section"
+                    className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16"
+                  >
+                    <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
+                      <div>
+                        <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
+                          {selectedCategory === 'All'
+                            ? section.title?.trim() || 'Explore More Products'
+                            : `${selectedCategory} Cases`}
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                          <div className="w-10 h-[3px] bg-[#650108]" />
+                          {hasActiveFilters && (
+                            <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
+                              {filteredProducts.length}{' '}
+                              {filteredProducts.length === 1 ? 'case' : 'cases'} found
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        {hasActiveFilters && (
+                          <button
+                            type="button"
+                            onClick={resetAllFilters}
+                            className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
+                          >
+                            Reset filters
+                          </button>
+                        )}
+                        {!hasActiveFilters && (
+                          <button
+                            type="button"
+                            onClick={() => setViewAll((v) => !v)}
+                            className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
+                          >
+                            <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <PhoneCaseGrid
+                      products={displayedProducts}
+                      mobileProducts={filteredProducts}
+                      loading={loading}
+                      wishlist={wishlist}
+                      searchQuery={searchQuery}
+                      desktopColumns={desktopColumns}
+                      showCarouselControls={!viewAll && !hasActiveFilters}
+                      currentPage={safePage}
+                      totalPages={totalPages}
+                      onPageChange={setCarouselPage}
+                      onSelectProduct={navigateProduct}
+                      onQuickView={(product) => setQuickViewProduct(product)}
+                      onToggleWishlist={toggleWishlist}
+                      onAddToCart={(product) => addToCart(product)}
+                      onResetFilters={resetAllFilters}
+                    />
+
+                    {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
+                      <div className="mt-6 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setViewAll(true)}
+                          className="px-6 py-3 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
+                        >
+                          <span>{section.title?.trim() || 'Explore More Products'}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                );
+              }
+
+              if (section.id === 'customer_reviews') {
+                if (settings?.reviewsEnabled === false) return null;
+                return (
+                  <CustomerReviewsCarousel
+                    key="home-reviews"
+                    title={section.title}
+                    homeReviewsOnlyFiveStar={settings?.homeReviewsOnlyFiveStar}
+                    onSelectProduct={(productId) => {
+                      const found = products.find((p) => p.id === productId);
+                      if (found) {
+                        navigateProduct(found);
+                      }
+                    }}
+                  />
+                );
+              }
+
+              if (section.id === 'trusted_by') {
+                return (
+                  <TrustedBySection
+                    key="home-trusted-by"
+                    title={section.title}
+                    subtitle={section.subtitle}
+                    paymentLogos={{
+                      bkash: settings?.paymentGateways?.bkash?.logoUrl,
+                      nagad: settings?.paymentGateways?.nagad?.logoUrl,
+                      card: settings?.paymentGateways?.card?.logoUrl,
+                    }}
+                  />
+                );
+              }
+
+              return null;
+            })}
           </>
         )}
       </main>
@@ -1154,7 +1371,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         headerConfig={headerConfig}
         wishlistCount={wishlistProducts.length}
         cartCount={cartCount}
-        activeTab={myOrdersOpen ? 'account' : 'home'}
+        activeTab={myOrdersOpen ? 'account' : shopOpen ? 'shop' : 'home'}
         whatsappHref={whatsappHref}
         onAction={handleMobileBottomAction}
       />
@@ -1246,7 +1463,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   onSubmit={(e) => {
                     e.preventDefault();
                     setMobileMenuOpen(false);
-                    scrollToCatalog();
+                    navigateShop(selectedCategory || 'All');
                   }}
                   className="mt-1 mb-3 flex items-center gap-2.5 bg-[#FFFDF8] border border-[#DFCFB0] rounded-xl px-3.5 py-2.5 focus-within:ring-1 focus-within:ring-[#650108]"
                 >
@@ -1288,9 +1505,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    applyCategorySelection('All');
-                    setViewAll(true);
-                    scrollToCatalog();
+                    navigateShop('All', { clearSearch: true });
                   }}
                   className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
                 >
@@ -1300,8 +1515,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    applyCategorySelection('All');
-                    scrollToCatalog();
+                    navigateShop('All', { clearSearch: true });
                   }}
                   className="w-full text-left py-3.5 text-[15px] font-medium text-[#2B1416] hover:text-[#650108] cursor-pointer"
                 >
@@ -1321,13 +1535,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                           type="button"
                           onClick={() => {
                             setMobileMenuOpen(false);
-                            navigateHome();
-                            applyCategorySelection(cat.name);
-                            setTimeout(() => {
-                              document
-                                .getElementById('new-arrivals-section')
-                                ?.scrollIntoView({ behavior: 'smooth' });
-                            }, 40);
+                            navigateShop(cat.name, { clearSearch: true });
                           }}
                           className={`flex-1 text-left py-3.5 text-[15px] transition-colors cursor-pointer ${
                             isExactActive || isBranchActive
@@ -1371,13 +1579,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                                 type="button"
                                 onClick={() => {
                                   setMobileMenuOpen(false);
-                                  navigateHome();
-                                  applyCategorySelection(sub.name);
-                                  setTimeout(() => {
-                                    document
-                                      .getElementById('new-arrivals-section')
-                                      ?.scrollIntoView({ behavior: 'smooth' });
-                                  }, 40);
+                                  navigateShop(sub.name, { clearSearch: true });
                                 }}
                                 className={`w-full text-left py-2 px-2.5 rounded-lg text-[13.5px] transition-colors cursor-pointer ${
                                   subActive
@@ -1544,7 +1746,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                     type="button"
                     onClick={() => {
                       setWishlistOpen(false);
-                      scrollToCatalog();
+                      navigateShop('All', { clearSearch: true });
                     }}
                     className="mt-2 px-4 py-2 rounded-xl bg-[#650108] text-[#F2E8D2] text-xs font-semibold hover:bg-[#4D0106] cursor-pointer"
                   >

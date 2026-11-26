@@ -409,6 +409,7 @@ export function AdminSettings({
 
   const extendedTabs: ExtendedSettingsTab[] = [
     'Header',
+    'Home Customization',
     'Footer',
     'Shop Page',
     'Product Page',
@@ -1406,6 +1407,7 @@ export function AdminSettings({
                 setForm={setForm}
                 categories={categories}
                 onOpenStorefront={onOpenStorefront}
+                onNavigateSettingsTab={(tab) => setActiveTab(tab as SettingsTab)}
                 onStatusMessage={(msg) => {
                   setSavedBanner(msg);
                   setTimeout(() => setSavedBanner(''), 3500);

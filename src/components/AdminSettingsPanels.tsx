@@ -30,11 +30,14 @@ import {
   mergeFooterConfig,
   mergeHeaderConfig,
 } from '../utils/headerFooterDefaults';
+import { mergeHomeCustomization } from '../utils/homeCustomizationDefaults';
 import { AdminFooterSettingsPanel } from './AdminFooterSettingsPanel';
 import { AdminHeaderSettingsPanel } from './AdminHeaderSettingsPanel';
+import { AdminHomeCustomizationPanel } from './AdminHomeCustomizationPanel';
 
 export type ExtendedSettingsTab =
   | 'Header'
+  | 'Home Customization'
   | 'Footer'
   | 'Shop Page'
   | 'Product Page'
@@ -65,6 +68,7 @@ interface AdminSettingsPanelsProps {
   setForm: React.Dispatch<React.SetStateAction<StoreSettings>>;
   categories?: Category[];
   onOpenStorefront: () => void;
+  onNavigateSettingsTab?: (tab: string) => void;
   onStatusMessage: (msg: string) => void;
 }
 
@@ -80,6 +84,7 @@ const DEFAULT_STOREFRONT: StorefrontPageConfig = {
   reviewsEnabled: true,
   reviewsAutoApprove: true,
   homeReviewsOnlyFiveStar: true,
+  homeCustomization: mergeHomeCustomization(),
   sizeGuideTitle: 'Phone Model & Case Fit Guide',
   sizeGuideNotes: 'Verify your exact device model under Settings -> About Phone before selecting your case.',
   offerPageTitle: 'Flash Deals & Combo Offers',
@@ -165,6 +170,7 @@ export function AdminSettingsPanels({
   setForm,
   categories = [],
   onOpenStorefront,
+  onNavigateSettingsTab,
   onStatusMessage,
 }: AdminSettingsPanelsProps) {
   const [newSource, setNewSource] = useState('');
@@ -221,6 +227,19 @@ export function AdminSettingsPanels({
         categories={categories}
         updateHeader={updateHeader}
         onOpenStorefront={onOpenStorefront}
+      />
+    );
+  }
+
+  if (activeTab === 'Home Customization') {
+    return (
+      <AdminHomeCustomizationPanel
+        form={form}
+        sf={sf}
+        updateStorefront={updateStorefront}
+        onOpenStorefront={onOpenStorefront}
+        onNavigateSettingsTab={onNavigateSettingsTab}
+        onStatusMessage={onStatusMessage}
       />
     );
   }

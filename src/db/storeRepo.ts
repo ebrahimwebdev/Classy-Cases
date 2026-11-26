@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import type {
   Category,
   Coupon,
@@ -735,38 +735,12 @@ export async function deleteReviewFromSql(reviewId: string) {
   }
 }
 
-let heroMediaTableReadyPromise: Promise<void> | null = null;
-
-async function ensureHeroMediaTable(): Promise<void> {
-  if (heroMediaTableReadyPromise) {
-    return heroMediaTableReadyPromise;
-  }
-  heroMediaTableReadyPromise = (async () => {
-    try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS hero_media (
-          filename text PRIMARY KEY,
-          mime_type text NOT NULL DEFAULT 'video/mp4',
-          size_bytes integer NOT NULL DEFAULT 0,
-          data_base64 text NOT NULL,
-          created_at timestamp NOT NULL DEFAULT now()
-        )
-      `);
-    } catch (err) {
-      heroMediaTableReadyPromise = null;
-      throw err;
-    }
-  })();
-  return heroMediaTableReadyPromise;
-}
-
 export async function saveHeroMediaToSql(
   filename: string,
   mimeType: string,
   buffer: Buffer
 ): Promise<void> {
   try {
-    await ensureHeroMediaTable();
     const dataBase64 = buffer.toString('base64');
     await db
       .insert(heroMedia)
@@ -795,7 +769,6 @@ export async function getHeroMediaFromSql(
   filename: string
 ): Promise<{ mimeType: string; buffer: Buffer } | null> {
   try {
-    await ensureHeroMediaTable();
     const rows = await db
       .select()
       .from(heroMedia)
@@ -817,7 +790,6 @@ export async function listHeroMediaFromSql(): Promise<
   Array<{ filename: string; mimeType: string; sizeBytes: number; mtimeMs: number }>
 > {
   try {
-    await ensureHeroMediaTable();
     const rows = await db
       .select({
         filename: heroMedia.filename,
@@ -841,7 +813,6 @@ export async function listHeroMediaFromSql(): Promise<
 
 export async function deleteHeroMediaFromSql(filename: string): Promise<void> {
   try {
-    await ensureHeroMediaTable();
     await db.delete(heroMedia).where(eq(heroMedia.filename, filename));
   } catch (error) {
     console.error('Database query failed in deleteHeroMediaFromSql:', error);

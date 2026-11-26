@@ -4,6 +4,7 @@ import { getRootCategoryFor, getTopLevelCategories } from '../utils/categoryTree
 import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogos';
 
 interface FeaturedCategoriesSliderProps {
+  title?: string;
   categories: Category[];
   selectedCategory: string;
   failedCatImages: Record<string, boolean>;
@@ -12,6 +13,7 @@ interface FeaturedCategoriesSliderProps {
 }
 
 export function FeaturedCategoriesSlider({
+  title,
   categories,
   selectedCategory,
   failedCatImages,
@@ -92,7 +94,7 @@ export function FeaturedCategoriesSlider({
     <section className="pt-8 sm:pt-10 pb-6 sm:pb-8">
       <div className="max-w-[1180px] mx-auto px-4 sm:px-8">
         <h2 className="font-brand text-xl sm:text-2xl font-semibold text-[#650108] text-center mb-5 sm:mb-7 tracking-tight">
-          Featured Categories
+          {title?.trim() || 'Featured Categories'}
         </h2>
       </div>
 

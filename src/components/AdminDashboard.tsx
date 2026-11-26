@@ -1008,6 +1008,7 @@ export function AdminDashboard({
           reviewsEnabled: settings.storefrontConfig?.reviewsEnabled ?? true,
           reviewsAutoApprove: settings.storefrontConfig?.reviewsAutoApprove ?? true,
           homeReviewsOnlyFiveStar: nextValue,
+          homeCustomization: settings.storefrontConfig?.homeCustomization,
           sizeGuideTitle: settings.storefrontConfig?.sizeGuideTitle ?? 'Phone Model & Case Fit Guide',
           sizeGuideNotes: settings.storefrontConfig?.sizeGuideNotes ?? '',
           offerPageTitle: settings.storefrontConfig?.offerPageTitle ?? 'Flash Deals & Combo Offers',

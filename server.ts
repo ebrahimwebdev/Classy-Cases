@@ -57,6 +57,7 @@ import {
   mergeFooterConfig,
   mergeHeaderConfig,
 } from './src/utils/headerFooterDefaults.ts';
+import { mergeHomeCustomization } from './src/utils/homeCustomizationDefaults.ts';
 
 dotenv.config();
 
@@ -148,6 +149,7 @@ function createInitialData(): StoreDatabase {
         reviewsEnabled: true,
         reviewsAutoApprove: true,
         homeReviewsOnlyFiveStar: true,
+        homeCustomization: mergeHomeCustomization(),
         sizeGuideTitle: 'Phone Model & Case Fit Guide',
         sizeGuideNotes: 'Verify your exact device model under Settings -> About Phone before selecting your case.',
         offerPageTitle: 'Flash Deals & Combo Offers',
@@ -706,6 +708,7 @@ function sanitizeSettingsForPublic(settings: StoreSettings) {
     freeShippingThreshold: settings.freeShippingThreshold,
     reviewsEnabled: settings.storefrontConfig?.reviewsEnabled !== false,
     homeReviewsOnlyFiveStar: settings.storefrontConfig?.homeReviewsOnlyFiveStar !== false,
+    homeCustomization: mergeHomeCustomization(settings.storefrontConfig?.homeCustomization),
     shopPageColumns: ([2, 3, 4, 5].includes(Number(settings.storefrontConfig?.shopPageColumns))
       ? Number(settings.storefrontConfig?.shopPageColumns)
       : 5) as 2 | 3 | 4 | 5,
@@ -2815,6 +2818,9 @@ async function startServer() {
         reviewsEnabled: sc.reviewsEnabled !== false,
         reviewsAutoApprove: sc.reviewsAutoApprove !== false,
         homeReviewsOnlyFiveStar: sc.homeReviewsOnlyFiveStar !== false,
+        homeCustomization: mergeHomeCustomization(
+          sc.homeCustomization || s.storefrontConfig?.homeCustomization
+        ),
         sizeGuideTitle: typeof sc.sizeGuideTitle === 'string' ? sc.sizeGuideTitle.trim() : 'Phone Model & Case Fit Guide',
         sizeGuideNotes: typeof sc.sizeGuideNotes === 'string' ? sc.sizeGuideNotes.trim() : '',
         offerPageTitle: typeof sc.offerPageTitle === 'string' ? sc.offerPageTitle.trim() : 'Flash Deals & Combo Offers',
@@ -2997,7 +3003,7 @@ async function startServer() {
     '/api/admin/hero-videos/upload',
     requireAdmin,
     express.raw({
-      type: ['video/mp4', 'video/webm', 'video/quicktime', 'video/ogg', 'application/octet-stream'],
+      type: () => true,
       limit: '25mb',
     }),
     async (req, res) => {
@@ -3056,7 +3062,7 @@ async function startServer() {
     '/api/admin/hero-videos/poster',
     requireAdmin,
     express.raw({
-      type: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/octet-stream'],
+      type: () => true,
       limit: '2mb',
     }),
     async (req, res) => {

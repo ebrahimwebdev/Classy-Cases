@@ -29,6 +29,7 @@ interface StorefrontReviewsPayload {
 }
 
 interface CustomerReviewsCarouselProps {
+  title?: string;
   homeReviewsOnlyFiveStar?: boolean;
   onSelectProduct: (productId: string) => void;
 }
@@ -102,6 +103,7 @@ function saveCachedReviews(onlyFiveStar: boolean | undefined, payload: Storefron
 }
 
 export function CustomerReviewsCarousel({
+  title,
   homeReviewsOnlyFiveStar,
   onSelectProduct,
 }: CustomerReviewsCarouselProps) {
@@ -228,7 +230,7 @@ export function CustomerReviewsCarousel({
               id="customer-reviews-heading"
               className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight [text-wrap:balance]"
             >
-              Customer Reviews
+              {title?.trim() || 'Customer Reviews'}
             </h2>
             <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-[#6B4C4E] tabular-nums">
               <div

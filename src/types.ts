@@ -149,6 +149,30 @@ export interface PaymentGatewaySettings {
   };
 }
 
+export type HomeSectionId =
+  | 'hero'
+  | 'trust_highlights'
+  | 'featured_categories'
+  | 'bestselling'
+  | 'phone_cases'
+  | 'explore_more'
+  | 'customer_reviews'
+  | 'trusted_by';
+
+export interface HomeSectionConfig {
+  id: HomeSectionId;
+  label: string;
+  enabled: boolean;
+  title: string;
+  subtitle?: string;
+}
+
+export interface HomeCustomizationConfig {
+  sections: HomeSectionConfig[];
+  bestsellingLimit: number;
+  phoneCasesLimit: number;
+}
+
 export interface StorefrontPageConfig {
   shopPageColumns: 2 | 3 | 4 | 5;
   showOutOfStock: boolean;
@@ -161,6 +185,7 @@ export interface StorefrontPageConfig {
   reviewsEnabled: boolean;
   reviewsAutoApprove: boolean;
   homeReviewsOnlyFiveStar?: boolean;
+  homeCustomization?: HomeCustomizationConfig;
   sizeGuideTitle: string;
   sizeGuideNotes: string;
   offerPageTitle: string;

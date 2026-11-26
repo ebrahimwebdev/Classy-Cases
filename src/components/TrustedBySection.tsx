@@ -8,6 +8,8 @@ interface PartnerLogo {
 }
 
 interface TrustedBySectionProps {
+  title?: string;
+  subtitle?: string;
   paymentLogos?: {
     bkash?: string;
     nagad?: string;
@@ -138,7 +140,7 @@ const PARTNER_TESTIMONIALS: PartnerTestimonial[] = [
   },
 ];
 
-export function TrustedBySection({ paymentLogos }: TrustedBySectionProps) {
+export function TrustedBySection({ title, subtitle, paymentLogos }: TrustedBySectionProps) {
   const logos = React.useMemo(
     () =>
       PARTNER_LOGOS.map((partner) => {
@@ -234,10 +236,11 @@ export function TrustedBySection({ paymentLogos }: TrustedBySectionProps) {
               id="trusted-by-heading"
               className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight [text-wrap:balance]"
             >
-              Trusted by Retail Partners, Couriers &amp; Payment Networks
+              {title?.trim() || 'Trusted by Retail Partners, Couriers & Payment Networks'}
             </h2>
             <p className="text-[13px] sm:text-sm font-normal text-[#6B4C4E] mt-2 leading-relaxed">
-              Backed by nationwide express logistics, verified payment gateways, and precision OEM case manufacturing across Bangladesh.
+              {subtitle?.trim() ||
+                'Backed by nationwide express logistics, verified payment gateways, and precision OEM case manufacturing across Bangladesh.'}
             </p>
           </div>
 

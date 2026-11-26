@@ -204,6 +204,7 @@ export function AdminHeroVideoSettings({
   const [errorMsg, setErrorMsg] = useState('');
   const [previewVideoError, setPreviewVideoError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const preserveFilenameRef = useRef<string>('');
 
   const selectedSlide = useMemo(
     () => slides.find((s) => s.id === selectedSlideId) || slides[0] || DEFAULT_HERO_VIDEO_SLIDES[0],
@@ -487,18 +488,26 @@ export function AdminHeroVideoSettings({
       return;
     }
 
+    const preserveName = preserveFilenameRef.current;
+    preserveFilenameRef.current = '';
+
     setUploadingVideo(true);
     try {
+      const uploadHeaders: Record<string, string> = {
+        'Content-Type': file.type || 'video/mp4',
+        'X-Filename': file.name,
+        'X-Requested-With': 'XMLHttpRequest',
+        Authorization: `Bearer ${adminToken}`,
+      };
+      if (preserveName) {
+        uploadHeaders['X-Preserve-Filename'] = preserveName;
+      }
+
       const [uploadRes, capturedPosterBlob] = await Promise.all([
         fetch('/api/admin/hero-videos/upload', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: {
-            'Content-Type': file.type || 'video/mp4',
-            'X-Filename': file.name,
-            'X-Requested-With': 'XMLHttpRequest',
-            Authorization: `Bearer ${adminToken}`,
-          },
+          headers: uploadHeaders,
           body: file,
         }),
         capturePosterBlobFromVideoFile(file).catch(() => null),
@@ -1270,7 +1279,15 @@ export function AdminHeroVideoSettings({
                     {previewVideoError && (
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={() => {
+                          const src = selectedSlide.videoSrc?.trim() || '';
+                          if (src.startsWith('/media/hero-videos/')) {
+                            preserveFilenameRef.current = src.split('/').pop() || '';
+                          } else {
+                            preserveFilenameRef.current = '';
+                          }
+                          fileInputRef.current?.click();
+                        }}
                         disabled={uploadingVideo}
                         className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
                       >
@@ -1330,7 +1347,10 @@ export function AdminHeroVideoSettings({
                   />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      preserveFilenameRef.current = '';
+                      fileInputRef.current?.click();
+                    }}
                     disabled={uploadingVideo}
                     className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-60"
                   >
@@ -1354,7 +1374,7 @@ export function AdminHeroVideoSettings({
                     type="text"
                     value={selectedSlide.videoSrc}
                     onChange={(e) => updateSelectedSlide({ videoSrc: e.target.value })}
-                    placeholder="https://... or /assets/videos/hero-magsafe-reel.mp4"
+                    placeholder="https://... or /media/hero-videos/your-video.mp4"
                     className="w-full pl-9 pr-3 py-2 text-xs font-mono border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500"
                   />
                 </div>

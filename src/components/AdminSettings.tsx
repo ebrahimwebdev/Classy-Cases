@@ -57,7 +57,7 @@ export type SettingsTab =
   | 'Hero Video'
   | 'Theme'
   | 'Header'
-  | 'Home Customization'
+  | 'Home Sections'
   | 'Store Pages'
   | 'Footer'
   | 'Shop Page'
@@ -347,7 +347,7 @@ export function AdminSettings({
         { label: 'Hero Video', icon: <Film className="w-4 h-4" /> },
         { label: 'Theme', icon: <Palette className="w-4 h-4" /> },
         { label: 'Header', icon: <Layout className="w-4 h-4" /> },
-        { label: 'Home Customization', icon: <Home className="w-4 h-4" /> },
+        { label: 'Home Sections', icon: <Home className="w-4 h-4" /> },
         { label: 'Store Pages', icon: <FileText className="w-4 h-4" /> },
         { label: 'Footer', icon: <Monitor className="w-4 h-4" /> },
         { label: 'Shop Page', icon: <ShoppingBag className="w-4 h-4" /> },
@@ -409,7 +409,7 @@ export function AdminSettings({
 
   const extendedTabs: ExtendedSettingsTab[] = [
     'Header',
-    'Home Customization',
+    'Home Sections',
     'Footer',
     'Shop Page',
     'Product Page',
@@ -1406,6 +1406,12 @@ export function AdminSettings({
                 form={form}
                 setForm={setForm}
                 categories={categories}
+                hasUnsavedChanges={JSON.stringify(form) !== JSON.stringify(settings)}
+                onDiscardChanges={() => {
+                  setForm(settings);
+                  setSavedBanner('Unsaved changes discarded.');
+                  setTimeout(() => setSavedBanner(''), 3000);
+                }}
                 onOpenStorefront={onOpenStorefront}
                 onNavigateSettingsTab={(tab) => setActiveTab(tab as SettingsTab)}
                 onStatusMessage={(msg) => {

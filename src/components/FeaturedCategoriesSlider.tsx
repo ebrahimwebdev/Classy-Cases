@@ -5,6 +5,7 @@ import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogo
 
 interface FeaturedCategoriesSliderProps {
   title?: string;
+  categoryShape?: 'rounded' | 'circle';
   categories: Category[];
   selectedCategory: string;
   failedCatImages: Record<string, boolean>;
@@ -14,6 +15,7 @@ interface FeaturedCategoriesSliderProps {
 
 export function FeaturedCategoriesSlider({
   title,
+  categoryShape = 'rounded',
   categories,
   selectedCategory,
   failedCatImages,
@@ -106,11 +108,13 @@ export function FeaturedCategoriesSlider({
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => onSelectCategory(isActive ? 'All' : cat.name)}
-                className="group flex flex-col items-center focus:outline-none"
+                onClick={() => onSelectCategory(cat.name)}
+                className="group flex flex-col items-center focus:outline-none cursor-pointer"
               >
                 <div
-                  className={`w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border bg-[#FFFDF8] flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
+                  className={`w-28 h-28 sm:w-32 sm:h-32 ${
+                    categoryShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
+                  } border bg-[#FFFDF8] flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
                     isActive
                       ? 'border-[#650108] ring-2 ring-[#650108]'
                       : 'border-[#DFCFB0] group-hover:border-[#650108]/50'
@@ -154,7 +158,7 @@ export function FeaturedCategoriesSlider({
           onPointerMove={(e) => {
             if (!draggingRef.current) return;
             const deltaX = dragStartXRef.current - e.clientX;
-            if (!dragMovedRef.current && Math.abs(deltaX) > 6) {
+            if (!dragMovedRef.current && Math.abs(deltaX) > 10) {
               dragMovedRef.current = true;
               setIsDragging(true);
               if (pointerIdRef.current !== null && !e.currentTarget.hasPointerCapture(pointerIdRef.current)) {
@@ -173,11 +177,17 @@ export function FeaturedCategoriesSlider({
             draggingRef.current = false;
             pointerIdRef.current = null;
             setIsDragging(false);
+            window.setTimeout(() => {
+              dragMovedRef.current = false;
+            }, 0);
           }}
           onPointerCancel={() => {
             draggingRef.current = false;
             pointerIdRef.current = null;
             setIsDragging(false);
+            window.setTimeout(() => {
+              dragMovedRef.current = false;
+            }, 0);
           }}
           className={`w-full relative overflow-hidden py-2 -my-2 select-none touch-pan-y ${
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
@@ -195,12 +205,14 @@ export function FeaturedCategoriesSlider({
                         dragMovedRef.current = false;
                         return;
                       }
-                      onSelectCategory(isActive ? 'All' : cat.name);
+                      onSelectCategory(cat.name);
                     }}
-                    className="group flex flex-col items-center focus:outline-none"
+                    className="group flex flex-col items-center focus:outline-none cursor-pointer"
                   >
                     <div
-                      className={`w-[104px] h-[104px] sm:w-32 sm:h-32 rounded-2xl border bg-[#FFFDF8] flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
+                      className={`w-[104px] h-[104px] sm:w-32 sm:h-32 ${
+                        categoryShape === 'circle' ? 'rounded-full' : 'rounded-2xl'
+                      } border bg-[#FFFDF8] flex items-center justify-center transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md p-2 overflow-hidden ${
                         isActive
                           ? 'border-[#650108] ring-2 ring-[#650108]'
                           : 'border-[#DFCFB0] group-hover:border-[#650108]/50'

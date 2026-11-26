@@ -37,7 +37,7 @@ import { AdminHomeCustomizationPanel } from './AdminHomeCustomizationPanel';
 
 export type ExtendedSettingsTab =
   | 'Header'
-  | 'Home Customization'
+  | 'Home Sections'
   | 'Footer'
   | 'Shop Page'
   | 'Product Page'
@@ -67,6 +67,8 @@ interface AdminSettingsPanelsProps {
   form: StoreSettings;
   setForm: React.Dispatch<React.SetStateAction<StoreSettings>>;
   categories?: Category[];
+  hasUnsavedChanges?: boolean;
+  onDiscardChanges?: () => void;
   onOpenStorefront: () => void;
   onNavigateSettingsTab?: (tab: string) => void;
   onStatusMessage: (msg: string) => void;
@@ -169,6 +171,8 @@ export function AdminSettingsPanels({
   form,
   setForm,
   categories = [],
+  hasUnsavedChanges = false,
+  onDiscardChanges,
   onOpenStorefront,
   onNavigateSettingsTab,
   onStatusMessage,
@@ -231,12 +235,15 @@ export function AdminSettingsPanels({
     );
   }
 
-  if (activeTab === 'Home Customization') {
+  if (activeTab === 'Home Sections') {
     return (
       <AdminHomeCustomizationPanel
         form={form}
         sf={sf}
+        categories={categories}
+        hasUnsavedChanges={hasUnsavedChanges}
         updateStorefront={updateStorefront}
+        onDiscardChanges={onDiscardChanges}
         onOpenStorefront={onOpenStorefront}
         onNavigateSettingsTab={onNavigateSettingsTab}
         onStatusMessage={onStatusMessage}

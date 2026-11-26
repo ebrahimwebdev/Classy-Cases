@@ -50,6 +50,12 @@ import {
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
 import { HeroBanner } from './HeroBanner';
+import {
+  BrandStripSection,
+  CustomProductRowSection,
+  PromoBannerSection,
+  ScrollingNoticeBar,
+} from './HomeExtraSections';
 import { TrustHighlights } from './TrustHighlights';
 import { TrustedBySection } from './TrustedBySection';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
@@ -442,6 +448,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         }
       } else {
         setShopOpen(false);
+        setPendingShopCategoryKey(null);
+        setSelectedCategory('All');
+        setSelectedModel('All');
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
         setActiveProduct(null);
@@ -1140,10 +1149,19 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             {homeCustomization.sections.map((section) => {
               if (!section.enabled) return null;
 
-              if (section.id === 'hero') {
+              if (section.type === 'scrolling_notice') {
+                return (
+                  <ScrollingNoticeBar
+                    key={section.id}
+                    notices={section.notices || []}
+                  />
+                );
+              }
+
+              if (section.type === 'hero') {
                 return (
                   <HeroBanner
-                    key="home-hero"
+                    key={section.id}
                     products={products}
                     onShopNow={(categoryName) => {
                       navigateShop(categoryName || 'All', { clearSearch: true });
@@ -1153,10 +1171,10 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 );
               }
 
-              if (section.id === 'trust_highlights') {
+              if (section.type === 'trust_highlights') {
                 return (
                   <TrustHighlights
-                    key="home-trust"
+                    key={section.id}
                     shippingInsideDhaka={settings?.shippingInsideDhaka}
                     shippingOutsideDhaka={settings?.shippingOutsideDhaka}
                     freeShippingThreshold={settings?.freeShippingThreshold}
@@ -1164,11 +1182,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 );
               }
 
-              if (section.id === 'featured_categories') {
+              if (section.type === 'featured_categories') {
                 return (
                   <FeaturedCategoriesSlider
-                    key="home-featured-cats"
+                    key={section.id}
                     title={section.title}
+                    categoryShape={section.categoryShape || 'rounded'}
                     categories={effectiveCategories}
                     selectedCategory={selectedCategory}
                     failedCatImages={failedCatImages}
@@ -1182,136 +1201,206 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 );
               }
 
-              if (section.id === 'bestselling') {
+              if (section.type === 'brand_strip') {
                 return (
-                  <BestsellingShowcaseSection
-                    key="home-bestselling"
+                  <BrandStripSection
+                    key={section.id}
                     title={section.title}
-                    limit={homeCustomization.bestsellingLimit}
-                    products={products}
-                    wishlist={wishlist}
-                    loading={loading}
-                    desktopColumns={desktopColumns}
-                    onSelectProduct={navigateProduct}
-                    onQuickView={(product) => setQuickViewProduct(product)}
-                    onToggleWishlist={toggleWishlist}
-                    onAddToCart={(product) => addToCart(product)}
-                    onViewAll={(categoryName) => {
-                      navigateShop(categoryName || 'All', { clearSearch: true });
-                    }}
-                  />
-                );
-              }
-
-              if (section.id === 'phone_cases') {
-                return (
-                  <PhoneCasesShowcaseSection
-                    key="home-phone-cases"
-                    title={section.title}
-                    limit={homeCustomization.phoneCasesLimit}
-                    products={products}
                     categories={effectiveCategories}
-                    wishlist={wishlist}
-                    loading={loading}
-                    desktopColumns={desktopColumns}
-                    onSelectProduct={navigateProduct}
-                    onQuickView={(product) => setQuickViewProduct(product)}
-                    onToggleWishlist={toggleWishlist}
-                    onAddToCart={(product) => addToCart(product)}
-                    onViewAll={(categoryName) => {
+                    failedCatImages={failedCatImages}
+                    onImageError={(catId) =>
+                      setFailedCatImages((prev) => ({ ...prev, [catId]: true }))
+                    }
+                    onSelectCategory={(categoryName) => {
+                      navigateShop(categoryName, { clearSearch: true });
+                    }}
+                  />
+                );
+              }
+
+              if (section.type === 'promo_banner') {
+                return (
+                  <PromoBannerSection
+                    key={section.id}
+                    title={section.title}
+                    subtitle={section.subtitle}
+                    badge={section.promoBadge}
+                    ctaLabel={section.promoCtaLabel}
+                    targetCategory={section.promoTargetCategory}
+                    imageUrl={section.promoImageUrl}
+                    theme={section.promoTheme}
+                    onShopNow={(categoryName) => {
                       navigateShop(categoryName || 'All', { clearSearch: true });
                     }}
                   />
                 );
               }
 
-              if (section.id === 'explore_more') {
-                return (
-                  <section
-                    key="home-explore-more"
-                    id="new-arrivals-section"
-                    className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16"
-                  >
-                    <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
-                      <div>
-                        <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
-                          {selectedCategory === 'All'
-                            ? section.title?.trim() || 'Explore More Products'
-                            : `${selectedCategory} Cases`}
-                        </h2>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                          <div className="w-10 h-[3px] bg-[#650108]" />
-                          {hasActiveFilters && (
-                            <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
-                              {filteredProducts.length}{' '}
-                              {filteredProducts.length === 1 ? 'case' : 'cases'} found
-                            </span>
-                          )}
-                        </div>
-                      </div>
+              if (section.type === 'product_grid') {
+                const mode = section.sourceMode || 'category';
+                const rowCols = section.columns || desktopColumns;
+                const rowLimit =
+                  section.limit ||
+                  (section.id === 'bestselling'
+                    ? homeCustomization.bestsellingLimit
+                    : section.id === 'phone_cases'
+                      ? homeCustomization.phoneCasesLimit
+                      : 5);
 
-                      <div className="flex items-center gap-4">
-                        {hasActiveFilters && (
-                          <button
-                            type="button"
-                            onClick={resetAllFilters}
-                            className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
-                          >
-                            Reset filters
-                          </button>
-                        )}
-                        {!hasActiveFilters && (
-                          <button
-                            type="button"
-                            onClick={() => setViewAll((v) => !v)}
-                            className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
-                          >
-                            <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <PhoneCaseGrid
-                      products={displayedProducts}
-                      mobileProducts={filteredProducts}
-                      loading={loading}
+                if (mode === 'bestselling' && section.id === 'bestselling') {
+                  return (
+                    <BestsellingShowcaseSection
+                      key={section.id}
+                      title={section.title}
+                      limit={rowLimit}
+                      products={products}
                       wishlist={wishlist}
-                      searchQuery={searchQuery}
-                      desktopColumns={desktopColumns}
-                      showCarouselControls={!viewAll && !hasActiveFilters}
-                      currentPage={safePage}
-                      totalPages={totalPages}
-                      onPageChange={setCarouselPage}
+                      loading={loading}
+                      desktopColumns={rowCols}
                       onSelectProduct={navigateProduct}
                       onQuickView={(product) => setQuickViewProduct(product)}
                       onToggleWishlist={toggleWishlist}
                       onAddToCart={(product) => addToCart(product)}
-                      onResetFilters={resetAllFilters}
+                      onViewAll={(categoryName) => {
+                        navigateShop(categoryName || 'All', { clearSearch: true });
+                      }}
                     />
+                  );
+                }
 
-                    {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
-                      <div className="mt-6 flex justify-center">
-                        <button
-                          type="button"
-                          onClick={() => setViewAll(true)}
-                          className="px-6 py-3 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
-                        >
-                          <span>{section.title?.trim() || 'Explore More Products'}</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
+                if (mode === 'brand_tabs') {
+                  return (
+                    <PhoneCasesShowcaseSection
+                      key={section.id}
+                      title={section.title}
+                      limit={rowLimit}
+                      products={products}
+                      categories={effectiveCategories}
+                      wishlist={wishlist}
+                      loading={loading}
+                      desktopColumns={rowCols}
+                      onSelectProduct={navigateProduct}
+                      onQuickView={(product) => setQuickViewProduct(product)}
+                      onToggleWishlist={toggleWishlist}
+                      onAddToCart={(product) => addToCart(product)}
+                      onViewAll={(categoryName) => {
+                        navigateShop(categoryName || 'All', { clearSearch: true });
+                      }}
+                    />
+                  );
+                }
+
+                if (mode === 'explore_all') {
+                  return (
+                    <section
+                      key={section.id}
+                      id="new-arrivals-section"
+                      className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-8 pb-16"
+                    >
+                      <div className="flex flex-wrap items-end justify-between mb-5 gap-4">
+                        <div>
+                          <h2 className="font-brand text-2xl sm:text-[28px] font-semibold text-[#650108] tracking-tight">
+                            {selectedCategory === 'All'
+                              ? section.title?.trim() || 'Explore More Products'
+                              : `${selectedCategory} Cases`}
+                          </h2>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                            <div className="w-10 h-[3px] bg-[#650108]" />
+                            {hasActiveFilters && (
+                              <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
+                                {filteredProducts.length}{' '}
+                                {filteredProducts.length === 1 ? 'case' : 'cases'} found
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          {hasActiveFilters && (
+                            <button
+                              type="button"
+                              onClick={resetAllFilters}
+                              className="text-[13px] font-semibold text-[#6B4C4E] hover:text-[#650108] whitespace-nowrap cursor-pointer"
+                            >
+                              Reset filters
+                            </button>
+                          )}
+                          {!hasActiveFilters && (
+                            <button
+                              type="button"
+                              onClick={() => setViewAll((v) => !v)}
+                              className="hidden sm:inline-flex text-xs font-semibold tracking-[1.6px] uppercase text-[#650108] items-center gap-1.5 hover:opacity-75 whitespace-nowrap shrink-0 cursor-pointer"
+                            >
+                              <span>{viewAll ? 'SHOW CAROUSEL' : 'VIEW ALL ITEMS'}</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </section>
+
+                      <PhoneCaseGrid
+                        products={displayedProducts}
+                        mobileProducts={filteredProducts}
+                        loading={loading}
+                        wishlist={wishlist}
+                        searchQuery={searchQuery}
+                        desktopColumns={rowCols}
+                        showCarouselControls={!viewAll && !hasActiveFilters}
+                        currentPage={safePage}
+                        totalPages={totalPages}
+                        onPageChange={setCarouselPage}
+                        onSelectProduct={navigateProduct}
+                        onQuickView={(product) => setQuickViewProduct(product)}
+                        onToggleWishlist={toggleWishlist}
+                        onAddToCart={(product) => addToCart(product)}
+                        onResetFilters={resetAllFilters}
+                      />
+
+                      {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
+                        <div className="mt-6 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setViewAll(true)}
+                            className="px-6 py-3 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
+                          >
+                            <span>{section.title?.trim() || 'Explore More Products'}</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  );
+                }
+
+                return (
+                  <CustomProductRowSection
+                    key={section.id}
+                    sectionId={section.id}
+                    title={section.title}
+                    sourceMode={mode}
+                    categoryName={section.categoryName}
+                    limit={rowLimit}
+                    desktopColumns={rowCols}
+                    products={products}
+                    categories={effectiveCategories}
+                    wishlist={wishlist}
+                    loading={loading}
+                    onSelectProduct={navigateProduct}
+                    onQuickView={(product) => setQuickViewProduct(product)}
+                    onToggleWishlist={toggleWishlist}
+                    onAddToCart={(product) => addToCart(product)}
+                    onViewAll={(categoryName) => {
+                      navigateShop(categoryName || 'All', { clearSearch: true });
+                    }}
+                  />
                 );
               }
 
-              if (section.id === 'customer_reviews') {
+              if (section.type === 'customer_reviews') {
                 if (settings?.reviewsEnabled === false) return null;
                 return (
                   <CustomerReviewsCarousel
-                    key="home-reviews"
+                    key={section.id}
                     title={section.title}
                     homeReviewsOnlyFiveStar={settings?.homeReviewsOnlyFiveStar}
                     onSelectProduct={(productId) => {
@@ -1324,10 +1413,10 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 );
               }
 
-              if (section.id === 'trusted_by') {
+              if (section.type === 'trusted_by') {
                 return (
                   <TrustedBySection
-                    key="home-trusted-by"
+                    key={section.id}
                     title={section.title}
                     subtitle={section.subtitle}
                     paymentLogos={{

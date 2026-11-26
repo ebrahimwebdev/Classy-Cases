@@ -107,16 +107,38 @@ export function ShopCategoryPage({
     () => (isAllSelected ? undefined : getRootCategoryFor(categories, selectedCategory)),
     [categories, selectedCategory, isAllSelected]
   );
-  const rootSubcategories = useMemo(
-    () => (activeRoot ? getSubcategories(categories, activeRoot.id) : []),
-    [categories, activeRoot]
-  );
+  const branchSubcategories = useMemo(() => {
+    if (!activeRoot) return [];
+    const byParent = new Map<string, Category[]>();
+    for (const c of categories) {
+      if (c.parentId && c.parentId !== c.id) {
+        const list = byParent.get(c.parentId) || [];
+        list.push(c);
+        byParent.set(c.parentId, list);
+      }
+    }
+    const collected: Category[] = [];
+    const visited = new Set<string>([activeRoot.id]);
+    const visit = (parentId: string) => {
+      const children = byParent.get(parentId) || [];
+      for (const child of children) {
+        if (visited.has(child.id)) continue;
+        visited.add(child.id);
+        collected.push(child);
+        visit(child.id);
+      }
+    };
+    visit(activeRoot.id);
+    return collected;
+  }, [categories, activeRoot]);
+
   const ancestorTrail = useMemo(
     () => (isAllSelected ? [] : getCategoryTrail(categories, selectedCategory)),
     [categories, selectedCategory, isAllSelected]
   );
 
-  const showBranchSubcategories = Boolean(activeRoot && rootSubcategories.length > 0);
+  const showSelectedBranchOnly = !isAllSelected;
+  const branchRootName = activeRoot?.name || selectedCategory;
   const extraFilterCount =
     (selectedModel !== 'All' ? 1 : 0) +
     (inStockOnly ? 1 : 0) +
@@ -209,28 +231,28 @@ export function ShopCategoryPage({
       <div
         role="tablist"
         aria-label={
-          showBranchSubcategories && activeRoot
-            ? `${activeRoot.name} collections`
+          showSelectedBranchOnly
+            ? `${branchRootName} collections`
             : 'Browse categories'
         }
         className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-4 sm:flex-wrap"
       >
-        {showBranchSubcategories && activeRoot ? (
+        {showSelectedBranchOnly ? (
           <>
             <button
               type="button"
               role="tab"
-              aria-selected={selectedCategory.toLowerCase() === activeRoot.name.toLowerCase()}
-              onClick={() => onSelectCategory(activeRoot.name)}
+              aria-selected={selectedCategory.toLowerCase() === branchRootName.toLowerCase()}
+              onClick={() => onSelectCategory(branchRootName)}
               className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
-                selectedCategory.toLowerCase() === activeRoot.name.toLowerCase()
+                selectedCategory.toLowerCase() === branchRootName.toLowerCase()
                   ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
                   : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
               }`}
             >
-              All {activeRoot.name}
+              {branchSubcategories.length > 0 ? `All ${branchRootName}` : branchRootName}
             </button>
-            {rootSubcategories.map((sub) => {
+            {branchSubcategories.map((sub) => {
               const subActive = selectedCategory.toLowerCase() === sub.name.toLowerCase();
               return (
                 <button

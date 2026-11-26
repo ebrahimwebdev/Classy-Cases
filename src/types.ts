@@ -149,22 +149,47 @@ export interface PaymentGatewaySettings {
   };
 }
 
-export type HomeSectionId =
+export type HomeSectionId = string;
+
+export type HomeSectionType =
+  | 'scrolling_notice'
   | 'hero'
-  | 'trust_highlights'
   | 'featured_categories'
-  | 'bestselling'
-  | 'phone_cases'
-  | 'explore_more'
+  | 'product_grid'
+  | 'brand_strip'
+  | 'promo_banner'
+  | 'trust_highlights'
   | 'customer_reviews'
   | 'trusted_by';
 
+export type ProductGridSourceMode =
+  | 'bestselling'
+  | 'brand_tabs'
+  | 'explore_all'
+  | 'category'
+  | 'newest'
+  | 'discounted'
+  | 'featured';
+
 export interface HomeSectionConfig {
-  id: HomeSectionId;
+  id: string;
+  type: HomeSectionType;
   label: string;
   enabled: boolean;
+  locked?: boolean;
   title: string;
   subtitle?: string;
+  notices?: string[];
+  categoryShape?: 'rounded' | 'circle';
+  sourceMode?: ProductGridSourceMode;
+  categoryName?: string;
+  limit?: number;
+  columns?: 2 | 3 | 4 | 5;
+  promoBadge?: string;
+  promoCtaLabel?: string;
+  promoTargetCategory?: string;
+  promoImageUrl?: string;
+  promoTheme?: 'maroon' | 'cream' | 'dark';
 }
 
 export interface HomeCustomizationConfig {

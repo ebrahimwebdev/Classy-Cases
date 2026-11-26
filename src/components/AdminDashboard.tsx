@@ -56,6 +56,7 @@ import {
   X,
 } from 'lucide-react';
 import type {
+  AdminCustomerRecord,
   Category,
   Coupon,
   DashboardAnalytics,
@@ -239,6 +240,7 @@ export function AdminDashboard({
     AdminCustomerActivityEvent[]
   >([]);
   const [firestoreLiveOrders, setFirestoreLiveOrders] = useState<Order[]>([]);
+  const [serverCustomers, setServerCustomers] = useState<AdminCustomerRecord[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState('');
   const [activityLastSyncedAt, setActivityLastSyncedAt] = useState<string | null>(null);
@@ -396,6 +398,21 @@ export function AdminDashboard({
       setCoupons(data.coupons || []);
       setExpenses(data.expenses || []);
       setReviews(data.reviews || []);
+
+      try {
+        const custRes = await fetch('/api/admin/customers?status=registered&sortBy=newest&limit=25', {
+          credentials: 'same-origin',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (custRes.ok) {
+          const custData = await custRes.json().catch(() => ({}));
+          if (Array.isArray(custData.customers)) {
+            setServerCustomers(custData.customers as AdminCustomerRecord[]);
+          }
+        }
+      } catch {
+        // Non-fatal: Firestore stream still provides live registrations
+      }
     } finally {
       setDataLoading(false);
     }
@@ -494,8 +511,8 @@ export function AdminDashboard({
   }, []);
 
   const mergedActivityEvents = useMemo(
-    () => mergeActivityFeeds(firestoreActivityEvents, orders, 40),
-    [firestoreActivityEvents, orders]
+    () => mergeActivityFeeds(firestoreActivityEvents, orders, serverCustomers, 40),
+    [firestoreActivityEvents, orders, serverCustomers]
   );
 
   const handleMarkAllActivityRead = useCallback(() => {

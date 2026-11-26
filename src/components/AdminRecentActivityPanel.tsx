@@ -2,8 +2,10 @@ import React, { useEffect, useState } from 'react';
 import {
   ArrowUpRight,
   Bell,
+  Check,
   CheckCheck,
   Clock,
+  Copy,
   Database,
   Loader2,
   PanelRightOpen,
@@ -12,6 +14,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
+import { formatFirebaseAuthError } from '../context/FirebaseAuthContext';
 import type { AdminCustomerActivityEvent } from '../services/adminActivityService';
 
 type ActivityFilter = 'all' | 'registration' | 'order';
@@ -216,6 +219,7 @@ export function AdminRecentActivityPanel({
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState('');
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   const registrationCount = events.filter((e) => e.type === 'registration').length;
   const orderCount = events.filter((e) => e.type === 'order').length;
@@ -227,10 +231,18 @@ export function AdminRecentActivityPanel({
     try {
       await onConnectGoogleAdmin();
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Google Admin sign-in failed.');
+      setConnectError(formatFirebaseAuthError(err));
     } finally {
       setConnecting(false);
     }
+  }
+
+  function handleCopyDomain() {
+    if (typeof window === 'undefined' || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(window.location.hostname).then(() => {
+      setCopiedDomain(true);
+      window.setTimeout(() => setCopiedDomain(false), 2000);
+    });
   }
 
   return (
@@ -329,13 +341,41 @@ export function AdminRecentActivityPanel({
 
       {!authLoading && !firebaseConnected && (
         <div className="p-3 rounded-lg border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/70 dark:bg-indigo-500/10 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[11px] text-slate-700 dark:text-slate-300">
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              Connect Google Admin
-            </span>{' '}
-            to stream real-time Firestore user registrations and live customer orders.
+          <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-1.5 max-w-2xl">
+            <div>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                Connect Google Admin
+              </span>{' '}
+              to stream real-time Firestore user registrations and live customer orders.
+            </div>
             {connectError && (
-              <span className="block text-rose-600 dark:text-rose-400 mt-0.5">{connectError}</span>
+              <div className="space-y-1.5">
+                <p className="text-rose-600 dark:text-rose-400 font-medium">{connectError}</p>
+                {connectError.includes('Authorized domains') && typeof window !== 'undefined' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300">
+                      {window.location.hostname}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyDomain}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 cursor-pointer"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-500" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy domain</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <button
@@ -413,6 +453,7 @@ export function AdminRecentActivityDrawer({
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState('');
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -435,10 +476,18 @@ export function AdminRecentActivityDrawer({
     try {
       await onConnectGoogleAdmin();
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Google Admin sign-in failed.');
+      setConnectError(formatFirebaseAuthError(err));
     } finally {
       setConnecting(false);
     }
+  }
+
+  function handleCopyDomain() {
+    if (typeof window === 'undefined' || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(window.location.hostname).then(() => {
+      setCopiedDomain(true);
+      window.setTimeout(() => setCopiedDomain(false), 2000);
+    });
   }
 
   return (
@@ -540,7 +589,35 @@ export function AdminRecentActivityDrawer({
                 Sign in with your verified Google Admin account to receive real-time Firestore notifications for customer registrations and orders.
               </p>
               {connectError && (
-                <p className="text-[11px] text-rose-600 dark:text-rose-400">{connectError}</p>
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                    {connectError}
+                  </p>
+                  {connectError.includes('Authorized domains') && typeof window !== 'undefined' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <code className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300 break-all">
+                        {window.location.hostname}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={handleCopyDomain}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 cursor-pointer shrink-0"
+                      >
+                        {copiedDomain ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-500" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy domain</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
               <button
                 type="button"

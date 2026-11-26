@@ -11,6 +11,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth, googleAuthProvider } from '../lib/firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 export function formatFirebaseAuthError(error: unknown): string {
   const rawCode =
@@ -18,6 +19,11 @@ export function formatFirebaseAuthError(error: unknown): string {
       ? String((error as { code?: unknown }).code || '')
       : '';
   const msg = error instanceof Error ? error.message : String(error || 'Authentication failed');
+
+  if (rawCode === 'auth/unauthorized-domain' || msg.includes('auth/unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    return `Domain "${host}" is not authorized for Google Sign-In in Firebase project "${firebaseConfig.projectId}". Add it under Firebase Console → Authentication → Settings → Authorized domains.`;
+  }
 
   switch (rawCode) {
     case 'auth/invalid-email':

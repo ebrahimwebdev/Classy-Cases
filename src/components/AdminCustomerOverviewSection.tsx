@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
+  Check,
+  Copy,
   Database,
   Loader2,
   RefreshCw,
@@ -9,7 +11,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { useFirebaseAuth } from '../context/FirebaseAuthContext';
+import { formatFirebaseAuthError, useFirebaseAuth } from '../context/FirebaseAuthContext';
 import {
   fetchAdminCustomerOverviewFromFirestore,
   subscribeAdminCustomerOverviewFromFirestore,
@@ -46,6 +48,8 @@ export function AdminCustomerOverviewSection({
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [connectError, setConnectError] = useState('');
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   const refreshManually = useCallback(async () => {
     if (!firebaseUser) return;
@@ -72,6 +76,7 @@ export function AdminCustomerOverviewSection({
 
     setLoading(true);
     setErrorMsg('');
+    setConnectError('');
     const unsubscribe = subscribeAdminCustomerOverviewFromFirestore(
       (nextStats) => {
         setStats(nextStats);
@@ -92,13 +97,22 @@ export function AdminCustomerOverviewSection({
   async function handleConnect() {
     setConnecting(true);
     setErrorMsg('');
+    setConnectError('');
     try {
       await onConnectGoogleAdmin();
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Google Admin sign-in failed.');
+      setConnectError(formatFirebaseAuthError(err));
     } finally {
       setConnecting(false);
     }
+  }
+
+  function handleCopyDomain() {
+    if (typeof window === 'undefined' || !navigator.clipboard) return;
+    void navigator.clipboard.writeText(window.location.hostname).then(() => {
+      setCopiedDomain(true);
+      window.setTimeout(() => setCopiedDomain(false), 2000);
+    });
   }
 
   const totalRegistered = stats?.totalRegisteredUsers ?? 0;
@@ -162,13 +176,44 @@ export function AdminCustomerOverviewSection({
 
       {!authLoading && !firebaseUser ? (
         <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/70 dark:bg-indigo-500/10 flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-0.5 text-xs">
+          <div className="space-y-1 text-xs max-w-2xl">
             <div className="font-semibold text-slate-900 dark:text-slate-100">
               Connect verified Admin Google account to view live Firestore customer metrics
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-400">
               Firestore security rules restrict reading the <span className="font-mono">users</span> collection to verified admins.
             </p>
+            {connectError && (
+              <div className="pt-1 space-y-1.5">
+                <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                  {connectError}
+                </p>
+                {connectError.includes('Authorized domains') && typeof window !== 'undefined' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[10px] text-slate-700 dark:text-slate-300">
+                      {window.location.hostname}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyDomain}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 cursor-pointer"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-500" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy domain</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <button
             type="button"

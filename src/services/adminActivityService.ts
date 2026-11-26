@@ -1,6 +1,6 @@
 import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import type { FulfillmentStatus, Order } from '../types';
+import type { AdminCustomerRecord, FulfillmentStatus, Order } from '../types';
 import { normalizeOrderDoc } from './orderFirestore';
 
 export type AdminActivityEventType = 'registration' | 'order';
@@ -127,9 +127,39 @@ export function buildOrderActivityEvent(
   };
 }
 
+export function buildRegistrationEventFromRecord(
+  customer: AdminCustomerRecord
+): AdminCustomerActivityEvent {
+  const customerId = (customer.uid || customer.id || '').trim();
+  const displayName =
+    customer.displayName?.trim() ||
+    (customer.email ? customer.email.split('@')[0] : 'Registered Customer');
+  const parsedDate = parseFirestoreDate(customer.createdAt) || new Date();
+  const detailParts: string[] = [];
+  if (customer.email) detailParts.push(customer.email);
+  if (customer.phone) detailParts.push(customer.phone);
+  if (detailParts.length === 0) detailParts.push('Registered customer account');
+
+  return {
+    id: `reg:${customerId}`,
+    type: 'registration',
+    title: `${displayName} registered`,
+    subtitle: detailParts.join(' · '),
+    customerId: customerId || undefined,
+    customerName: displayName,
+    customerEmail: customer.email || '',
+    customerPhone: customer.phone || undefined,
+    photoUrl: customer.photoUrl || undefined,
+    timestamp: parsedDate.toISOString(),
+    timestampMs: parsedDate.getTime(),
+    source: 'storefront',
+  };
+}
+
 export function mergeActivityFeeds(
   firestoreEvents: AdminCustomerActivityEvent[],
   serverOrders: Order[],
+  serverCustomers: AdminCustomerRecord[] = [],
   limit = 40
 ): AdminCustomerActivityEvent[] {
   const byId = new Map<string, AdminCustomerActivityEvent>();
@@ -142,6 +172,16 @@ export function mergeActivityFeeds(
     const key = `ord:${ord.id}`;
     if (!byId.has(key)) {
       byId.set(key, buildOrderActivityEvent(ord, 'storefront'));
+    }
+  }
+
+  for (const cust of serverCustomers) {
+    if (!cust.isRegistered) continue;
+    const cid = (cust.uid || cust.id || '').trim();
+    if (!cid) continue;
+    const key = `reg:${cid}`;
+    if (!byId.has(key)) {
+      byId.set(key, buildRegistrationEventFromRecord(cust));
     }
   }
 

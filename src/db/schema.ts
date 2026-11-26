@@ -10,6 +10,7 @@ import {
   timestamp,
 } from 'drizzle-orm/pg-core';
 import type {
+  CustomerSavedAddress,
   OrderItem,
   ProductSpecification,
   ProductVariant,
@@ -28,6 +29,18 @@ export const users = pgTable('users', {
   uid: text('uid').notNull().unique(),
   email: text('email').notNull(),
   role: text('role').notNull().default('customer'),
+  displayName: text('display_name').default('').notNull(),
+  phone: text('phone').default('').notNull(),
+  district: text('district').default('').notNull(),
+  address: text('address').default('').notNull(),
+  deliveryArea: text('delivery_area').default('inside_dhaka').notNull(),
+  photoUrl: text('photo_url').default('').notNull(),
+  addresses: jsonb('addresses').$type<CustomerSavedAddress[]>().default([]).notNull(),
+  status: text('status').default('active').notNull(),
+  deactivatedAt: text('deactivated_at').default('').notNull(),
+  adminNote: text('admin_note').default('').notNull(),
+  lastLoginAt: timestamp('last_login_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

@@ -70,8 +70,13 @@ export function AdminLivePreviewPane({
     ? '#111115'
     : isWhiteFooter
       ? '#FFFFFF'
-      : '#FFFFFF';
-  const footerText = isDarkFooter ? '#F1F5F9' : '#1E293B';
+      : fc.footerBgColor || '#650108';
+  const footerText = isDarkFooter
+    ? '#F1F5F9'
+    : isWhiteFooter
+      ? '#1E293B'
+      : fc.footerTextColor || '#F2E8D2';
+  const activeSocialCount = Object.values(fc.socialLinks || {}).filter((u) => u && u.trim()).length;
 
   const renderMobileNavIcon = (id: MobileBottomBarItemId) => {
     const cls = 'w-3.5 h-3.5';
@@ -169,8 +174,16 @@ export function AdminLivePreviewPane({
                 className={`px-3 py-2 border-b ${
                   hc.headerStyle === 'overlay'
                     ? 'bg-slate-900/85 text-white border-white/15'
-                    : 'bg-white text-slate-900 border-slate-200'
+                    : 'border-black/10'
                 }`}
+                style={
+                  hc.headerStyle === 'overlay'
+                    ? undefined
+                    : {
+                        backgroundColor: hc.headerBgColor || '#FAF4E6',
+                        color: hc.headerTextColor || '#650108',
+                      }
+                }
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -188,9 +201,9 @@ export function AdminLivePreviewPane({
                   </div>
 
                   {(hc.headerStyle === 'two-row' || hc.headerStyle === 'one-row') && hc.showSearchIcon && (
-                    <div className="flex-1 max-w-[170px] bg-slate-100 border border-slate-200 rounded-md px-2 py-0.5 flex items-center gap-1 text-[8px] text-slate-400">
+                    <div className="flex-1 max-w-[170px] bg-white/80 border border-black/10 rounded-md px-2 py-0.5 flex items-center gap-1 text-[8px] text-slate-500">
                       <Search className="w-2.5 h-2.5 shrink-0" />
-                      <span className="truncate">Search products...</span>
+                      <span className="truncate">{hc.searchPlaceholder || 'Search products...'}</span>
                     </div>
                   )}
 
@@ -201,18 +214,25 @@ export function AdminLivePreviewPane({
                     {hc.showOffersIcon && <Gift className="w-3 h-3" />}
                     {hc.showTrackOrderIcon && <Package className="w-3 h-3" />}
                     {hc.showWishlistIcon && <Heart className="w-3 h-3" />}
+                    {hc.showAccountIcon !== false && <User className="w-3 h-3" />}
                     {hc.showCartIcon && <ShoppingBag className="w-3 h-3" />}
                   </div>
                 </div>
 
                 {hc.headerStyle === 'two-row' && (
-                  <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 text-[8.5px] text-slate-600">
+                  <div className="mt-1.5 pt-1.5 border-t border-current/15 flex items-center justify-between gap-2 text-[8.5px]">
                     <div className="flex items-center gap-2 overflow-hidden">
-                      <span className="font-semibold text-slate-900">All</span>
+                      <span className="font-semibold">All</span>
                       {previewCategories.slice(0, 4).map((c) => (
-                        <span key={c.id} className="inline-flex items-center gap-1 whitespace-nowrap">
+                        <span key={c.id} className="inline-flex items-center gap-1 whitespace-nowrap opacity-90">
                           {hc.categoryPicturesInBar && (
-                            <span className="w-2.5 h-2.5 rounded-full bg-slate-300 inline-block" />
+                            c.image ? (
+                              <img src={c.image} alt="" className="w-2.5 h-2.5 rounded-full object-cover" />
+                            ) : (
+                              <span className="w-2.5 h-2.5 rounded-full bg-current/15 inline-flex items-center justify-center text-[6px] font-bold">
+                                {c.name.slice(0, 1).toUpperCase()}
+                              </span>
+                            )
                           )}
                           <span>{c.name}</span>
                         </span>
@@ -325,6 +345,28 @@ export function AdminLivePreviewPane({
                         {hasBlock('about') && fc.showShopNowCta && (
                           <div className="font-semibold">{fc.shopNowLabel} →</div>
                         )}
+                        {hasBlock('social') && activeSocialCount > 0 && (
+                          <div className="pt-1 space-y-0.5">
+                            {fc.socialHeading && (
+                              <div className="font-brand font-semibold text-[8.5px]">
+                                {fc.socialHeading}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1">
+                              {Object.entries(fc.socialLinks || {})
+                                .filter(([, url]) => url && url.trim())
+                                .slice(0, 5)
+                                .map(([key]) => (
+                                  <span
+                                    key={key}
+                                    className="w-3.5 h-3.5 rounded-full border border-current/30 bg-white/10 inline-flex items-center justify-center text-[6px] uppercase font-bold"
+                                  >
+                                    {key.slice(0, 1)}
+                                  </span>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -428,7 +470,13 @@ export function AdminLivePreviewPane({
               </div>
             )}
 
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between text-slate-900">
+            <div
+              className="px-3 py-2 border-b border-black/10 flex items-center justify-between"
+              style={{
+                backgroundColor: hc.headerBgColor || '#FAF4E6',
+                color: hc.headerTextColor || '#650108',
+              }}
+            >
               <div className="flex items-center gap-1.5">
                 <Menu className="w-3.5 h-3.5" />
                 <span className="font-brand text-xs font-bold">
@@ -438,6 +486,7 @@ export function AdminLivePreviewPane({
               <div className="flex items-center gap-1.5">
                 {hc.showTrackOrderIcon && <Package className="w-3 h-3" />}
                 {hc.showWishlistIcon && <Heart className="w-3 h-3" />}
+                {hc.showAccountIcon !== false && <User className="w-3 h-3" />}
                 {hc.showCartIcon && <ShoppingBag className="w-3 h-3" />}
               </div>
             </div>

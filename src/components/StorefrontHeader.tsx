@@ -88,6 +88,12 @@ interface StorefrontHeaderProps {
   onOpenOffers: () => void;
   onOpenWhatsApp: () => void;
   whatsappHref?: string;
+  customerUser?: {
+    displayName?: string | null;
+    email?: string | null;
+    photoURL?: string | null;
+  } | null;
+  onOpenAccount?: () => void;
 }
 
 export function StorefrontHeader({
@@ -117,6 +123,8 @@ export function StorefrontHeader({
   onOpenOffers,
   onOpenWhatsApp,
   whatsappHref,
+  customerUser,
+  onOpenAccount,
 }: StorefrontHeaderProps) {
   const [scrolled, setScrolled] = useState(false);
   const [classicSearchOpen, setClassicSearchOpen] = useState(false);
@@ -354,6 +362,37 @@ export function StorefrontHeader({
               </button>
             )}
 
+            {headerConfig.showAccountIcon !== false && onOpenAccount && (
+              <button
+                type="button"
+                onClick={onOpenAccount}
+                title={customerUser ? 'My Account & Profile' : 'Sign in'}
+                className="w-8 h-8 sm:w-9 sm:h-9 lg:w-auto lg:px-2.5 rounded-lg hover:bg-black/5 transition-colors relative inline-flex items-center justify-center gap-1.5 text-[13px] font-medium whitespace-nowrap shrink-0 cursor-pointer"
+                style={{ color: headerTextColor }}
+                aria-label={customerUser ? 'Open Account Profile' : 'Sign in or Register'}
+              >
+                {customerUser?.photoURL ? (
+                  <img
+                    src={customerUser.photoURL}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="w-5 h-5 rounded-full object-cover border border-current/25 shrink-0"
+                  />
+                ) : customerUser ? (
+                  <span className="w-5 h-5 rounded-full bg-[#650108] text-[#F2E8D2] text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {(customerUser.displayName || customerUser.email || 'U').slice(0, 1).toUpperCase()}
+                  </span>
+                ) : (
+                  <User className="w-[20px] h-[20px] sm:w-[21px] sm:h-[21px] stroke-[1.8] shrink-0" />
+                )}
+                <span className="hidden lg:inline whitespace-nowrap">
+                  {customerUser
+                    ? (customerUser.displayName?.trim().split(/\s+/)[0] || 'Account')
+                    : 'Sign in'}
+                </span>
+              </button>
+            )}
+
             {headerConfig.showCartIcon && (
               <button
                 type="button"
@@ -442,12 +481,18 @@ export function StorefrontHeader({
                     }`}
                     style={active ? undefined : { color: headerConfig.headerTextColor }}
                   >
-                    {headerConfig.categoryPicturesInBar && cat.image && (
-                      <img
-                        src={cat.image}
-                        alt=""
-                        className="w-4 h-4 rounded-full object-cover shrink-0 border border-black/10"
-                      />
+                    {headerConfig.categoryPicturesInBar && (
+                      cat.image ? (
+                        <img
+                          src={cat.image}
+                          alt=""
+                          className="w-4 h-4 rounded-full object-cover shrink-0 border border-black/10"
+                        />
+                      ) : (
+                        <span className="w-4 h-4 rounded-full bg-current/15 text-[9px] font-bold inline-flex items-center justify-center shrink-0">
+                          {cat.name.slice(0, 1).toUpperCase()}
+                        </span>
+                      )
                     )}
                     <span>{cat.name}</span>
                   </button>

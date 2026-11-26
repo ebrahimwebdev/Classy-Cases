@@ -9,10 +9,12 @@ import {
   Search,
   ShoppingBag,
   Trash2,
+  User,
   X,
   CheckCircle2,
 } from 'lucide-react';
 import { useCart, type AddCartItemMeta } from '../context/CartContext';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import {
   extractSearchSuggestions,
   formatTaka,
@@ -22,6 +24,7 @@ import {
 } from '../models/phoneCase';
 import type {
   Category,
+  CustomerProfile,
   FooterConfigSettings,
   FooterLinkItem,
   HeaderConfigSettings,
@@ -33,6 +36,8 @@ import type {
 } from '../types';
 import { CartDrawer } from './CartDrawer';
 import { CheckoutModal } from './CheckoutModal';
+import { CustomerAccountModal } from './CustomerAccountModal';
+import { CustomerDashboard, type CustomerDashboardTab } from './CustomerDashboard';
 import {
   getSavedCustomerOrderTokens,
   MyOrdersSection,
@@ -81,6 +86,7 @@ import {
   StorefrontMobileBottomBar,
 } from './StorefrontHeader';
 import { fetchPublicCategoriesFromFirestore } from '../services/categoryFirestore';
+import { loadCustomerProfile } from '../services/userAccountService';
 
 export interface PublicStoreSettings {
   storeName: string;
@@ -157,8 +163,19 @@ type StorefrontRoute =
   | { view: 'home' }
   | { view: 'shop'; categoryKey: string }
   | { view: 'checkout' }
-  | { view: 'orders' }
+  | { view: 'orders'; tab?: 'history' | 'tracking' }
+  | { view: 'account'; tab?: CustomerDashboardTab }
   | { view: 'product'; productKey: string };
+
+const VALID_ACCOUNT_TABS: CustomerDashboardTab[] = [
+  'profile',
+  'orders',
+  'history',
+  'tracking',
+  'wishlist',
+  'addresses',
+  'settings',
+];
 
 function parseStorefrontRoute(): StorefrontRoute {
   if (typeof window === 'undefined') return { view: 'home' };
@@ -171,8 +188,17 @@ function parseStorefrontRoute(): StorefrontRoute {
   if (lower === '/checkout') {
     return { view: 'checkout' };
   }
+  if (lower === '/account' || lower.startsWith('/account/')) {
+    const rawSub = lower.slice('/account'.length).replace(/^\/+/, '');
+    const searchTab = new URLSearchParams(window.location.search).get('tab') || rawSub;
+    const matchedTab = VALID_ACCOUNT_TABS.find((t) => t === searchTab?.toLowerCase());
+    return { view: 'account', tab: matchedTab || 'profile' };
+  }
+  if (lower === '/track-order' || lower === '/order-tracking') {
+    return { view: 'orders', tab: 'tracking' };
+  }
   if (lower === '/orders') {
-    return { view: 'orders' };
+    return { view: 'orders', tab: 'history' };
   }
   if (lower === '/shop') {
     return { view: 'shop', categoryKey: 'All' };
@@ -344,6 +370,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   });
   const [quickViewProduct, setQuickViewProduct] = useState<PhoneCaseProduct | null>(null);
   const [myOrdersOpen, setMyOrdersOpen] = useState(() => initialRoute.view === 'orders');
+  const [myOrdersInitialTab, setMyOrdersInitialTab] = useState<'history' | 'tracking'>(() =>
+    initialRoute.view === 'orders' && initialRoute.tab === 'tracking' ? 'tracking' : 'history'
+  );
   const [hasSavedOrders, setHasSavedOrders] = useState(() => getSavedCustomerOrderTokens().length > 0);
 
   // Newsletter state
@@ -353,6 +382,32 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
   const [logoImgFailed, setLogoImgFailed] = useState(false);
   const [failedCatImages, setFailedCatImages] = useState<Record<string, boolean>>({});
+
+  const { user: customerUser, idToken: customerIdToken } = useFirebaseAuth();
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(() => initialRoute.view === 'account');
+  const [customerDashboardTab, setCustomerDashboardTab] = useState<CustomerDashboardTab>(() =>
+    initialRoute.view === 'account' && initialRoute.tab ? initialRoute.tab : 'profile'
+  );
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!customerUser) {
+      setCustomerProfile(null);
+      return;
+    }
+    loadCustomerProfile(customerUser, customerIdToken)
+      .then((prof) => {
+        if (active) setCustomerProfile(prof);
+      })
+      .catch(() => {
+        // Keep current profile fallback
+      });
+    return () => {
+      active = false;
+    };
+  }, [customerUser, customerIdToken]);
 
   async function fetchStorefront() {
     try {
@@ -417,25 +472,38 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       const route = parseStorefrontRoute();
       if (route.view === 'checkout') {
         setShopOpen(false);
+        setAccountOpen(false);
         setMyOrdersOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
         setCheckoutOpen(true);
+      } else if (route.view === 'account') {
+        setShopOpen(false);
+        setCheckoutOpen(false);
+        setMyOrdersOpen(false);
+        setActiveProduct(null);
+        setPendingProductKey(null);
+        setCustomerDashboardTab(route.tab || 'profile');
+        setAccountOpen(true);
       } else if (route.view === 'orders') {
         setShopOpen(false);
         setCheckoutOpen(false);
+        setAccountOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
+        setMyOrdersInitialTab(route.tab === 'tracking' ? 'tracking' : 'history');
         setMyOrdersOpen(true);
       } else if (route.view === 'product') {
         setShopOpen(false);
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
+        setAccountOpen(false);
         setPendingProductKey(route.productKey);
         setActiveProduct(findProductByKey(products, route.productKey));
       } else if (route.view === 'shop') {
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
+        setAccountOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
         setShopOpen(true);
@@ -453,6 +521,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         setSelectedModel('All');
         setCheckoutOpen(false);
         setMyOrdersOpen(false);
+        setAccountOpen(false);
         setActiveProduct(null);
         setPendingProductKey(null);
       }
@@ -500,6 +569,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     setPendingShopCategoryKey(null);
     setReturnToShop(false);
     setCheckoutOpen(false);
+    setAccountOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
     setMyOrdersOpen(false);
@@ -513,6 +583,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     setReturnToShop(shopOpen);
     setShopOpen(false);
     setCheckoutOpen(false);
+    setAccountOpen(false);
     setMyOrdersOpen(false);
     setPendingProductKey(product.slug || product.id);
     setActiveProduct(product);
@@ -523,6 +594,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   function navigateCheckout() {
     setShopOpen(false);
     setMyOrdersOpen(false);
+    setAccountOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
     setCheckoutOpen(true);
@@ -530,14 +602,36 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function openMyOrders() {
+  function openMyOrders(tab: 'history' | 'tracking' = 'history') {
     setShopOpen(false);
     setCheckoutOpen(false);
+    setAccountOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
+    setMyOrdersInitialTab(tab);
     setMyOrdersOpen(true);
-    pushStorefrontPath('/orders');
+    pushStorefrontPath(tab === 'tracking' ? '/track-order' : '/orders');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function navigateAccount(tab: CustomerDashboardTab = 'profile') {
+    setShopOpen(false);
+    setCheckoutOpen(false);
+    setMyOrdersOpen(false);
+    setActiveProduct(null);
+    setPendingProductKey(null);
+    setCustomerDashboardTab(tab);
+    setAccountOpen(true);
+    pushStorefrontPath(tab === 'profile' ? '/account' : `/account/${tab}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function handleAccountEntry(preferredTab: CustomerDashboardTab = 'profile') {
+    if (customerUser) {
+      navigateAccount(preferredTab);
+    } else {
+      setAccountModalOpen(true);
+    }
   }
 
   const effectiveCategories = useMemo<Category[]>(() => {
@@ -580,6 +674,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   ) {
     setCheckoutOpen(false);
     setMyOrdersOpen(false);
+    setAccountOpen(false);
     setActiveProduct(null);
     setPendingProductKey(null);
     setPendingShopCategoryKey(null);
@@ -697,7 +792,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   function handleSearchChange(nextQuery: string) {
     setSearchQuery(nextQuery);
     setCarouselPage(0);
-    if (nextQuery.trim() !== '' && (checkoutOpen || myOrdersOpen || activeProduct)) {
+    if (nextQuery.trim() !== '' && (checkoutOpen || myOrdersOpen || accountOpen || activeProduct)) {
       navigateHome();
     }
   }
@@ -908,7 +1003,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         setMobileMenuOpen(true);
         break;
       case 'account':
-        openMyOrders();
+        handleAccountEntry('profile');
         break;
       case 'whatsapp':
         handleOpenWhatsAppModal();
@@ -917,7 +1012,12 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   const isHomeBannerVisible =
-    !checkoutOpen && !myOrdersOpen && !activeProduct && !shopOpen && searchQuery.trim() === '';
+    !checkoutOpen &&
+    !myOrdersOpen &&
+    !accountOpen &&
+    !activeProduct &&
+    !shopOpen &&
+    searchQuery.trim() === '';
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F2E8D2] text-[#2B1416] overflow-x-clip">
@@ -958,13 +1058,15 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           resetAllFilters();
           navigateHome(true);
         }}
-        onOpenMyOrders={openMyOrders}
+        onOpenMyOrders={() => openMyOrders('tracking')}
         onOpenWishlist={() => setWishlistOpen(true)}
         onOpenCart={openDrawer}
         onOpenMobileMenu={() => setMobileMenuOpen(true)}
         onOpenOffers={handleOpenOffers}
         onOpenWhatsApp={handleOpenWhatsAppModal}
         whatsappHref={whatsappHref}
+        customerUser={customerUser}
+        onOpenAccount={() => handleAccountEntry('profile')}
       />
 
       {/* Main Content */}
@@ -979,6 +1081,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               settings={settings}
               deliveryArea={deliveryArea}
               onDeliveryAreaChange={setDeliveryArea}
+              customerProfile={customerProfile}
+              onOpenAccount={() => handleAccountEntry('profile')}
               onOrderCompleted={(_order, customerOrderToken) => {
                 if (customerOrderToken) {
                   saveCustomerOrderToken(customerOrderToken);
@@ -987,7 +1091,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                 clearCart();
                 fetchStorefront();
               }}
-              onViewMyOrders={openMyOrders}
+              onViewMyOrders={() => openMyOrders('tracking')}
               onEditCart={openDrawer}
               onEditItem={(productId) => {
                 const found = products.find((p) => p.id === productId);
@@ -1002,11 +1106,38 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
               <p className="text-sm font-medium text-[#6B4C4E]">Loading checkout...</p>
             </div>
           )
+        ) : accountOpen ? (
+          <CustomerDashboard
+            products={products}
+            wishlistProducts={wishlistProducts}
+            profile={customerProfile}
+            initialTab={customerDashboardTab}
+            onTabChange={(tab) => {
+              setCustomerDashboardTab(tab);
+              pushStorefrontPath(tab === 'profile' ? '/account' : `/account/${tab}`);
+            }}
+            onBackToShop={() => navigateHome(true)}
+            onProfileUpdated={(next) => {
+              setCustomerProfile(next);
+              showToast('Profile saved');
+            }}
+            onOpenAuthModal={() => setAccountModalOpen(true)}
+            onAddToCart={(product) => {
+              addToCart(product);
+              openDrawer();
+            }}
+            onSelectProduct={navigateProduct}
+            onToggleWishlist={toggleWishlist}
+            onClearWishlist={clearAllFavorites}
+            onBuyAgain={handleBuyAgain}
+          />
         ) : myOrdersOpen ? (
           <MyOrdersSection
             products={products}
+            initialTab={myOrdersInitialTab}
             onBackToShop={() => navigateHome(true)}
             onBuyAgain={handleBuyAgain}
+            onOpenAccount={() => handleAccountEntry('profile')}
           />
         ) : activeProduct ? (
           <ProductDetailView
@@ -1745,6 +1876,24 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                   </button>
                 </div>
 
+                {headerConfig.showAccountIcon !== false && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleAccountEntry('profile');
+                    }}
+                    className="w-full bg-[#FFFDF8] border border-[#DFCFB0] hover:border-[#650108] rounded-xl py-3 px-4 text-[13px] font-semibold text-[#650108] inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <User className="w-4 h-4 stroke-[1.75]" />
+                    <span>
+                      {customerUser
+                        ? `My Account (${customerProfile?.displayName || customerUser.displayName || customerUser.email})`
+                        : 'Sign In / Create Account'}
+                    </span>
+                  </button>
+                )}
+
                 {headerConfig.showTrackOrderIcon && (
                   <button
                     type="button"
@@ -1944,6 +2093,18 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           </div>
         </div>
       )}
+
+      <CustomerAccountModal
+        isOpen={accountModalOpen}
+        onClose={() => setAccountModalOpen(false)}
+        profile={customerProfile}
+        onProfileUpdated={(next) => {
+          setCustomerProfile(next);
+          showToast('Profile saved');
+        }}
+        onOpenMyOrders={() => openMyOrders('history')}
+        onOpenDashboard={() => navigateAccount('profile')}
+      />
 
     </div>
   );

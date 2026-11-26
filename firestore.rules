@@ -23,6 +23,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     function isVerifiedAdminToken() {
       return isSignedIn()
         && request.auth.token.email_verified == true
@@ -36,6 +40,11 @@ service cloud.firestore {
         || (isSignedIn()
           && request.auth.token.email_verified == true
           && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    function isCustomerAccountActive(uid) {
+      return !exists(/databases/$(database)/documents/users/$(uid))
+        || get(/databases/$(database)/documents/users/$(uid)).data.get('status', 'active') == 'active';
     }
 
     function isSafeVideoUrl(url) {
@@ -66,6 +75,12 @@ service cloud.firestore {
           || url.matches('^/assets/.*')
           || url.matches('^/media/.*')
           || url.matches('^data:image/(png|jpeg|jpg|webp|gif|avif|x-icon|vnd\\.microsoft\\.icon);base64,[A-Za-z0-9+/=]+$'));
+    }
+
+    function isSafeAvatarUrl(url) {
+      return url is string
+        && url.size() <= 500
+        && (url == '' || url.matches('^https://.*'));
     }
 
     function isValidHeroVideoSlide(data, slideId) {
@@ -203,6 +218,177 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    function isValidSavedAddress(addr) {
+      return addr is map
+        && addr.keys().hasAll(['id', 'label', 'recipientName', 'phone', 'district', 'address', 'deliveryArea', 'isDefault'])
+        && addr.keys().hasOnly(['id', 'label', 'recipientName', 'phone', 'district', 'address', 'deliveryArea', 'isDefault'])
+        && addr.id is string && addr.id.size() >= 1 && addr.id.size() <= 64 && addr.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && addr.label is string && addr.label.size() >= 1 && addr.label.size() <= 40
+        && addr.recipientName is string && addr.recipientName.size() <= 80
+        && addr.phone is string && addr.phone.size() <= 32
+        && addr.district is string && addr.district.size() <= 60
+        && addr.address is string && addr.address.size() >= 1 && addr.address.size() <= 300
+        && addr.deliveryArea in ['inside_dhaka', 'outside_dhaka']
+        && addr.isDefault is bool;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'email',
+          'displayName',
+          'phone',
+          'district',
+          'address',
+          'deliveryArea',
+          'photoUrl',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'email',
+          'displayName',
+          'phone',
+          'district',
+          'address',
+          'deliveryArea',
+          'photoUrl',
+          'status',
+          'deactivatedAt',
+          'addresses',
+          'lastLoginAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string && data.uid == userId && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() <= 80
+        && data.phone is string && data.phone.size() <= 32
+        && data.district is string && data.district.size() <= 60
+        && data.address is string && data.address.size() <= 300
+        && data.deliveryArea in ['inside_dhaka', 'outside_dhaka']
+        && isSafeAvatarUrl(data.photoUrl)
+        && (!('status' in data) || data.status in ['active', 'deactivated'])
+        && (!('deactivatedAt' in data) || (data.deactivatedAt is string && data.deactivatedAt.size() <= 64))
+        && (!('lastLoginAt' in data) || (data.lastLoginAt is string && data.lastLoginAt.size() <= 64))
+        && (!('addresses' in data) || (data.addresses is list && data.addresses.size() <= 10 && (data.addresses.size() == 0 || isValidSavedAddress(data.addresses[0]))))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOrderItem(item) {
+      return item is map
+        && item.keys().hasAll(['productId', 'title', 'model', 'image', 'price', 'quantity'])
+        && item.keys().hasOnly(['productId', 'title', 'model', 'image', 'price', 'quantity'])
+        && item.productId is string && item.productId.size() >= 1 && item.productId.size() <= 64
+        && item.title is string && item.title.size() >= 1 && item.title.size() <= 200
+        && item.model is string && item.model.size() <= 120
+        && isSafeCategoryImage(item.image)
+        && item.price is number && item.price >= 0 && item.price <= 1000000
+        && item.quantity is number && item.quantity >= 1 && item.quantity <= 100;
+    }
+
+    function isValidOrder(data, orderId) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'orderNumber',
+          'customerName',
+          'customerPhone',
+          'customerEmail',
+          'deliveryAddress',
+          'deliveryArea',
+          'items',
+          'subtotal',
+          'shippingFee',
+          'discountAmount',
+          'couponCode',
+          'total',
+          'paymentMethod',
+          'paymentStatus',
+          'fulfillmentStatus',
+          'transactionId',
+          'source',
+          'channel',
+          'courierProvider',
+          'courierTrackingCode',
+          'courierConsignmentId',
+          'courierStatus',
+          'confirmedAt',
+          'shippedAt',
+          'deliveredAt',
+          'createdAtIso',
+          'updatedAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'userId',
+          'orderNumber',
+          'customerName',
+          'customerPhone',
+          'customerEmail',
+          'deliveryAddress',
+          'deliveryArea',
+          'items',
+          'subtotal',
+          'shippingFee',
+          'discountAmount',
+          'couponCode',
+          'total',
+          'paymentMethod',
+          'paymentStatus',
+          'fulfillmentStatus',
+          'transactionId',
+          'source',
+          'channel',
+          'courierProvider',
+          'courierTrackingCode',
+          'courierConsignmentId',
+          'courierStatus',
+          'confirmedAt',
+          'shippedAt',
+          'deliveredAt',
+          'createdAtIso',
+          'updatedAtIso',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string && data.id == orderId && data.id.size() >= 1 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128
+        && data.orderNumber is string && data.orderNumber.size() >= 1 && data.orderNumber.size() <= 32
+        && data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 120
+        && data.customerPhone is string && data.customerPhone.size() >= 1 && data.customerPhone.size() <= 32
+        && data.customerEmail is string && data.customerEmail.size() <= 254
+        && data.deliveryAddress is string && data.deliveryAddress.size() >= 1 && data.deliveryAddress.size() <= 300
+        && data.deliveryArea in ['inside_dhaka', 'outside_dhaka']
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 50 && isValidOrderItem(data.items[0])
+        && data.subtotal is number && data.subtotal >= 0 && data.subtotal <= 10000000
+        && data.shippingFee is number && data.shippingFee >= 0 && data.shippingFee <= 100000
+        && data.discountAmount is number && data.discountAmount >= 0 && data.discountAmount <= 10000000
+        && data.couponCode is string && data.couponCode.size() <= 40
+        && data.total is number && data.total >= 0 && data.total <= 10000000
+        && data.paymentMethod in ['cod', 'bkash', 'nagad', 'card']
+        && data.paymentStatus in ['paid', 'pending', 'failed']
+        && data.fulfillmentStatus in ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+        && data.transactionId is string && data.transactionId.size() >= 1 && data.transactionId.size() <= 80
+        && data.source in ['Web', 'POS']
+        && data.channel is string && data.channel.size() <= 80
+        && data.courierProvider is string && data.courierProvider.size() <= 40
+        && data.courierTrackingCode is string && data.courierTrackingCode.size() <= 80
+        && data.courierConsignmentId is string && data.courierConsignmentId.size() <= 80
+        && data.courierStatus is string && data.courierStatus.size() <= 32
+        && data.confirmedAt is string && data.confirmedAt.size() <= 64
+        && data.shippedAt is string && data.shippedAt.size() <= 64
+        && data.deliveredAt is string && data.deliveredAt.size() <= 64
+        && data.createdAtIso is string && data.createdAtIso.size() <= 64
+        && data.updatedAtIso is string && data.updatedAtIso.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     // Connection test document (read-only ping)
     match /test/connection {
       allow get: if true;
@@ -309,6 +495,103 @@ service cloud.firestore {
         ]);
 
       allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    // Private customer profiles (strictly isolated to owner and verified admins)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedAdminToken();
+
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && (!('status' in incoming()) || incoming().status == 'active')
+        && (!('deactivatedAt' in incoming()) || incoming().deactivatedAt == '')
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner(userId)
+            && existing().get('status', 'active') == 'active'
+            && (!('status' in incoming()) || incoming().status == existing().get('status', 'active'))
+            && (!('deactivatedAt' in incoming()) || incoming().deactivatedAt == existing().get('deactivatedAt', ''))
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'email',
+              'displayName',
+              'phone',
+              'district',
+              'address',
+              'deliveryArea',
+              'photoUrl',
+              'addresses',
+              'lastLoginAt',
+              'updatedAt'
+            ])
+          )
+          || (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'status',
+              'deactivatedAt',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Customer orders synced to Firestore for authenticated real-time tracking
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && (isAdmin() || isOwner(existing().userId));
+      allow list: if isVerifiedAdminToken() || (isSignedIn() && existing().userId == request.auth.uid);
+
+      allow create: if isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(incoming().userId)
+            && isCustomerAccountActive(request.auth.uid)
+            && incoming().fulfillmentStatus in ['pending', 'confirmed']
+            && (incoming().paymentMethod != 'cod' || incoming().paymentStatus == 'pending')
+          )
+        );
+
+      allow update: if isAdmin()
+        && isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().id == existing().id
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'customerName',
+          'customerPhone',
+          'deliveryAddress',
+          'deliveryArea',
+          'paymentStatus',
+          'fulfillmentStatus',
+          'courierProvider',
+          'courierTrackingCode',
+          'courierConsignmentId',
+          'courierStatus',
+          'confirmedAt',
+          'shippedAt',
+          'deliveredAt',
+          'updatedAtIso',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
     }
 
     // Admin registry (only verified bootstrapped owner can register/remove admins)

@@ -14,9 +14,16 @@ import {
   ShoppingBag,
   Trash2,
   Truck,
+  User,
   XCircle,
 } from 'lucide-react';
+import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { formatTaka } from '../models/phoneCase';
+import {
+  saveCustomerOrderToFirestore,
+  subscribeCustomerOrdersFromFirestore,
+} from '../services/orderFirestore';
+import { fetchAccountOrders } from '../services/userAccountService';
 import type { FulfillmentStatus, Order, OrderItem, Product } from '../types';
 
 export const CUSTOMER_ORDER_TOKENS_KEY = 'classycases_customer_order_tokens';
@@ -58,6 +65,8 @@ interface MyOrdersSectionProps {
   products: Product[];
   onBackToShop: () => void;
   onBuyAgain: (items: OrderItem[]) => void;
+  onOpenAccount?: () => void;
+  initialTab?: 'history' | 'tracking';
 }
 
 const PROGRESS_STEPS: { key: Exclude<FulfillmentStatus, 'cancelled'>; label: string }[] = [
@@ -251,16 +260,22 @@ export function MyOrdersSection({
   products,
   onBackToShop,
   onBuyAgain,
+  onOpenAccount,
+  initialTab = 'history',
 }: MyOrdersSectionProps) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { user, idToken, signInWithGoogle } = useFirebaseAuth();
+  const [apiOrders, setApiOrders] = useState<Order[]>([]);
+  const [firestoreOrders, setFirestoreOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [googleSigningIn, setGoogleSigningIn] = useState(false);
+  const [authBannerError, setAuthBannerError] = useState('');
 
-  const [sectionTab, setSectionTab] = useState<'history' | 'tracking'>('history');
+  const [sectionTab, setSectionTab] = useState<'history' | 'tracking'>(initialTab);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'delivered' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [trackedOrder, setTrackedOrder] = useState<Order | null>(null);
+  const [trackedOrderId, setTrackedOrderId] = useState<string | null>(null);
 
   // Order lookup / live tracking form inside My Orders
   const [lookupOrderNumber, setLookupOrderNumber] = useState('');
@@ -269,12 +284,82 @@ export function MyOrdersSection({
   const [lookupError, setLookupError] = useState('');
   const [lookupSuccess, setLookupSuccess] = useState('');
 
+  useEffect(() => {
+    setSectionTab(initialTab);
+  }, [initialTab]);
+
+  const mergeAndSortOrders = useCallback((...lists: Order[][]): Order[] => {
+    const map = new Map<string, Order>();
+    for (const list of lists) {
+      for (const ord of list) {
+        if (!ord?.id) continue;
+        const prev = map.get(ord.id);
+        if (!prev) {
+          map.set(ord.id, ord);
+        } else {
+          map.set(ord.id, {
+            ...prev,
+            ...ord,
+            courier: ord.courier
+              ? { ...(prev.courier || {}), ...ord.courier }
+              : prev.courier,
+          });
+        }
+      }
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, []);
+
+  const orders = useMemo(
+    () => mergeAndSortOrders(apiOrders, firestoreOrders),
+    [apiOrders, firestoreOrders, mergeAndSortOrders]
+  );
+
+  const trackedOrder = useMemo(() => {
+    if (orders.length === 0) return null;
+    if (trackedOrderId) {
+      return orders.find((o) => o.id === trackedOrderId) || orders[0];
+    }
+    return orders[0];
+  }, [orders, trackedOrderId]);
+
+  // Real-time Firestore listener for authenticated customer's purchases
+  useEffect(() => {
+    if (!user?.uid) {
+      setFirestoreOrders([]);
+      return;
+    }
+
+    const unsubscribe = subscribeCustomerOrdersFromFirestore(
+      user.uid,
+      (liveOrders) => {
+        setFirestoreOrders(liveOrders);
+        setLoading(false);
+        if (liveOrders.length > 0) {
+          setExpandedOrderId((prev) => prev || liveOrders[0].id);
+          setTrackedOrderId((prev) => prev || liveOrders[0].id);
+        }
+      },
+      () => {
+        // Gracefully keep server-backed account orders if Firestore rules are not yet deployed
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [user?.uid]);
+
   const fetchOrders = useCallback(
     async (showSpinner = true) => {
       const tokens = getSavedCustomerOrderTokens();
-      if (tokens.length === 0) {
-        setOrders([]);
-        setLoading(false);
+      if (tokens.length === 0 && !idToken) {
+        setApiOrders([]);
+        if (!user?.uid) {
+          setLoading(false);
+        }
         setRefreshing(false);
         return;
       }
@@ -283,22 +368,42 @@ export function MyOrdersSection({
       else setRefreshing(true);
 
       try {
-        const res = await fetch('/api/orders/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tokens }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const nextOrders = Array.isArray(data.orders) ? (data.orders as Order[]) : [];
-          setOrders(nextOrders);
-          if (nextOrders.length > 0) {
-            setExpandedOrderId((prev) => prev || nextOrders[0].id);
-            setTrackedOrder((prev) => {
-              if (!prev) return nextOrders[0];
-              return nextOrders.find((o) => o.id === prev.id) || nextOrders[0];
-            });
+        const [guestOrders, accountOrders] = await Promise.all([
+          tokens.length > 0
+            ? fetch('/api/orders/history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tokens }),
+              })
+                .then(async (res) => {
+                  if (!res.ok) return [] as Order[];
+                  const data = await res.json();
+                  return Array.isArray(data.orders) ? (data.orders as Order[]) : [];
+                })
+                .catch(() => [] as Order[])
+            : Promise.resolve([] as Order[]),
+          idToken
+            ? fetchAccountOrders(idToken).catch(() => [] as Order[])
+            : Promise.resolve([] as Order[]),
+        ]);
+
+        const combinedApi = mergeAndSortOrders(guestOrders, accountOrders);
+        setApiOrders(combinedApi);
+
+        if (user?.uid && accountOrders.length > 0) {
+          for (const ord of accountOrders) {
+            if (
+              (ord.fulfillmentStatus === 'pending' || ord.fulfillmentStatus === 'confirmed') &&
+              (ord.paymentMethod !== 'cod' || ord.paymentStatus === 'pending')
+            ) {
+              void saveCustomerOrderToFirestore(ord).catch(() => {});
+            }
           }
+        }
+
+        if (combinedApi.length > 0) {
+          setExpandedOrderId((prev) => prev || combinedApi[0].id);
+          setTrackedOrderId((prev) => prev || combinedApi[0].id);
         }
       } catch {
         // ignore transient network error
@@ -307,12 +412,24 @@ export function MyOrdersSection({
         setRefreshing(false);
       }
     },
-    []
+    [idToken, mergeAndSortOrders, user?.uid]
   );
 
   useEffect(() => {
     fetchOrders(true);
   }, [fetchOrders]);
+
+  async function handleQuickGoogleSignIn() {
+    setAuthBannerError('');
+    setGoogleSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setAuthBannerError(err instanceof Error ? err.message : 'Unable to sign in with Google.');
+    } finally {
+      setGoogleSigningIn(false);
+    }
+  }
 
   async function handleTrackAndSyncOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -340,7 +457,9 @@ export function MyOrdersSection({
       }
 
       if (trackData.order) {
-        setTrackedOrder(trackData.order as Order);
+        const tracked = trackData.order as Order;
+        setApiOrders((prev) => mergeAndSortOrders(prev, [tracked]));
+        setTrackedOrderId(tracked.id);
         setSectionTab('tracking');
       }
 
@@ -354,7 +473,7 @@ export function MyOrdersSection({
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         const nextOrders = Array.isArray(historyData.orders) ? (historyData.orders as Order[]) : [];
-        setOrders(nextOrders);
+        setApiOrders((prev) => mergeAndSortOrders(prev, nextOrders));
       }
 
       setLookupSuccess(`Live status loaded for Order #${trackData.order.orderNumber}.`);
@@ -367,8 +486,8 @@ export function MyOrdersSection({
 
   function handleClearHistory() {
     clearSavedCustomerOrderTokens();
-    setOrders([]);
-    setTrackedOrder(null);
+    setApiOrders((prev) => prev.filter((ord) => Boolean(user?.uid && ord.firebaseUid === user.uid)));
+    setTrackedOrderId(null);
     setExpandedOrderId(null);
     setLookupSuccess('');
   }
@@ -496,6 +615,66 @@ export function MyOrdersSection({
         </div>
       </div>
 
+      {/* Account Sync Banner */}
+      <div className="bg-[#FFFDF8] border border-[#DFCFB0] rounded-2xl px-4 py-3.5 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[#EADEC2] text-[#650108] flex items-center justify-center shrink-0">
+              <User className="w-4 h-4" />
+            </div>
+            <div className="text-xs min-w-0">
+              {user ? (
+                <>
+                  <div className="font-semibold text-[#2B1416] truncate">
+                    Signed in as {user.displayName || user.email}
+                  </div>
+                  <div className="text-[#6B4C4E]">
+                    Your previous purchases and live courier status sync automatically across devices.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-semibold text-[#2B1416]">
+                    Sign in to view &amp; track your previous purchases
+                  </div>
+                  <div className="text-[#6B4C4E]">
+                    Access real-time order updates across all your devices, or use guest lookup below.
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {!user && (
+              <button
+                type="button"
+                onClick={handleQuickGoogleSignIn}
+                disabled={googleSigningIn}
+                className="px-3.5 py-2 rounded-xl border border-[#DFCFB0] bg-[#FAF4E6] text-[#2B1416] text-xs font-semibold hover:border-[#650108] transition-colors inline-flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+              >
+                {googleSigningIn ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#650108]" />
+                ) : null}
+                <span>Continue with Google</span>
+              </button>
+            )}
+            {onOpenAccount && (
+              <button
+                type="button"
+                onClick={onOpenAccount}
+                className="px-3.5 py-2 rounded-xl bg-[#650108] text-[#F2E8D2] text-xs font-semibold hover:bg-[#4D0106] transition-colors whitespace-nowrap cursor-pointer"
+              >
+                {user ? 'Manage Profile' : 'Sign In / Sign Up'}
+              </button>
+            )}
+          </div>
+        </div>
+        {authBannerError && (
+          <p className="text-xs text-red-600 font-medium">{authBannerError}</p>
+        )}
+      </div>
+
       {/* Track Any Order Form Bar */}
       {(sectionTab === 'tracking' || (!loading && orders.length === 0)) && (
         <div className="bg-[#FAF4E6] border border-[#DFCFB0] rounded-2xl p-5 sm:p-6">
@@ -569,7 +748,7 @@ export function MyOrdersSection({
                 <button
                   key={ord.id}
                   type="button"
-                  onClick={() => setTrackedOrder(ord)}
+                  onClick={() => setTrackedOrderId(ord.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border transition-colors ${
                     trackedOrder?.id === ord.id
                       ? 'bg-[#650108] text-[#F2E8D2] border-[#650108]'
@@ -883,7 +1062,7 @@ export function MyOrdersSection({
                           <button
                             type="button"
                             onClick={() => {
-                              setTrackedOrder(order);
+                              setTrackedOrderId(order.id);
                               setSectionTab('tracking');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}

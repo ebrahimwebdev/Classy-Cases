@@ -75,7 +75,7 @@ export function StorefrontFooter({
       label: 'Facebook',
       url: footerConfig.socialLinks.facebook,
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]" aria-hidden="true">
           <path d="M13.5 21v-7.5h2.5l.4-3h-2.9V8.6c0-.9.3-1.5 1.5-1.5h1.6V4.4c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4.1v2.1H8v3h2.2V21h3.3Z" />
         </svg>
       ),
@@ -85,7 +85,7 @@ export function StorefrontFooter({
       label: 'Instagram',
       url: footerConfig.socialLinks.instagram,
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px]" aria-hidden="true">
           <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
           <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
           <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
@@ -97,7 +97,7 @@ export function StorefrontFooter({
       label: 'TikTok',
       url: footerConfig.socialLinks.tiktok,
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]" aria-hidden="true">
           <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1v-3.5a6.37 6.37 0 0 0-.79-.05A6.34 6.34 0 0 0 3.15 15a6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.87a8.16 8.16 0 0 0 4.76 1.52v-3.4a4.85 4.85 0 0 1-1-.3Z" />
         </svg>
       ),
@@ -107,7 +107,7 @@ export function StorefrontFooter({
       label: 'YouTube',
       url: footerConfig.socialLinks.youtube,
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-[18px] h-[18px]" aria-hidden="true">
           <path d="M21.58 7.19a2.75 2.75 0 0 0-1.94-1.95C17.93 4.75 12 4.75 12 4.75s-5.93 0-7.64.49A2.75 2.75 0 0 0 2.42 7.2 28.8 28.8 0 0 0 2 12a28.8 28.8 0 0 0 .42 4.81 2.75 2.75 0 0 0 1.94 1.95c1.71.49 7.64.49 7.64.49s5.93 0 7.64-.49a2.75 2.75 0 0 0 1.94-1.95A28.8 28.8 0 0 0 22 12a28.8 28.8 0 0 0-.42-4.81ZM10 15.1V8.9L15.4 12 10 15.1Z" />
         </svg>
       ),
@@ -116,14 +116,14 @@ export function StorefrontFooter({
       key: 'whatsapp',
       label: 'WhatsApp',
       url: footerConfig.socialLinks.whatsapp,
-      icon: <MessageCircle className="w-4 h-4" aria-hidden="true" />,
+      icon: <MessageCircle className="w-[18px] h-[18px]" aria-hidden="true" />,
     },
     {
       key: 'x',
       label: 'X',
       url: footerConfig.socialLinks.x,
       icon: (
-        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117Z" />
         </svg>
       ),
@@ -233,11 +233,11 @@ export function StorefrontFooter({
       case 'social':
         if (activeSocialItems.length === 0) return null;
         return (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {footerConfig.socialHeading && (
-              <h3 className="font-brand text-base font-semibold">{footerConfig.socialHeading}</h3>
+              <h3 className="font-brand text-lg font-semibold">{footerConfig.socialHeading}</h3>
             )}
-            <div className={`flex flex-wrap items-center gap-2 ${isCompact ? 'justify-center' : ''}`}>
+            <div className={`flex flex-wrap items-center gap-2.5 ${isCompact ? 'justify-center' : ''}`}>
               {activeSocialItems.map((soc) => (
                 <a
                   key={soc.key}
@@ -246,7 +246,7 @@ export function StorefrontFooter({
                   rel="noopener noreferrer"
                   aria-label={soc.label}
                   title={soc.label}
-                  className="w-8 h-8 rounded-full border border-current/25 bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                  className="w-9 h-9 rounded-full border border-current/25 bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
                 >
                   {soc.icon}
                 </a>
@@ -280,7 +280,7 @@ export function StorefrontFooter({
             </p>
             <form
               onSubmit={onNewsletterSubmit}
-              className="flex items-center border border-current/30 rounded-lg p-1 bg-[#FFFDF8] focus-within:border-current"
+              className="flex items-center border border-[#DFCFB0] rounded-lg p-1 bg-[#FFFDF8] focus-within:border-[#650108]"
             >
               <input
                 type="email"

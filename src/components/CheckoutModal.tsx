@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Banknote,
@@ -22,7 +23,8 @@ import {
 import { useCart, type CartEntry, type CartOptionTag } from '../context/CartContext';
 import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { formatTaka } from '../models/phoneCase';
-import type { Order, PaymentMethod, Product } from '../types';
+import { saveCustomerOrderToFirestore } from '../services/orderFirestore';
+import type { CustomerProfile, Order, PaymentMethod, Product } from '../types';
 
 export type { CartEntry };
 
@@ -53,6 +55,8 @@ interface CheckoutModalProps {
   onViewMyOrders?: () => void;
   onEditCart?: () => void;
   onEditItem?: (productId: string) => void;
+  customerProfile?: CustomerProfile | null;
+  onOpenAccount?: () => void;
 }
 
 const BANGLADESH_DISTRICTS = [
@@ -173,9 +177,11 @@ export function CheckoutModal({
   onViewMyOrders,
   onEditCart,
   onEditItem,
+  customerProfile,
+  onOpenAccount,
 }: CheckoutModalProps) {
   const { updateQuantity, removeItem } = useCart();
-  const { idToken } = useFirebaseAuth();
+  const { user, idToken } = useFirebaseAuth();
 
   const initialDraft = React.useMemo(() => readCheckoutDraft(), []);
   const [step, setStep] = useState<'details' | 'gateway' | 'receipt'>('details');
@@ -281,6 +287,24 @@ export function CheckoutModal({
     }
   }, [isOpen, cart.length, step]);
 
+  // Prefill blank checkout contact fields from saved customer profile or Firebase user
+  useEffect(() => {
+    if (!isOpen) return;
+    if (customerProfile) {
+      setCustomerName((prev) => prev || customerProfile.displayName || user?.displayName || '');
+      setCustomerPhone((prev) => prev || customerProfile.phone || '');
+      setCustomerEmail((prev) => prev || customerProfile.email || user?.email || '');
+      setDistrict((prev) => prev || customerProfile.district || '');
+      setDeliveryAddress((prev) => prev || customerProfile.address || '');
+      if (customerProfile.deliveryArea && !initialDraft.deliveryArea && !externalDeliveryArea) {
+        setInternalDeliveryArea(customerProfile.deliveryArea);
+      }
+    } else if (user) {
+      setCustomerName((prev) => prev || user.displayName || '');
+      setCustomerEmail((prev) => prev || user.email || '');
+    }
+  }, [isOpen, customerProfile, user, initialDraft.deliveryArea, externalDeliveryArea]);
+
   if (!isOpen) return null;
 
   const unavailableIds = new Set<string>();
@@ -293,6 +317,8 @@ export function CheckoutModal({
     }
   }
   const hasUnavailableItems = unavailableIds.size > 0;
+  const isAccountDeactivated = Boolean(user && customerProfile?.status === 'deactivated');
+  const savedAddresses = customerProfile?.addresses || [];
 
   const totalUnits = cart.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -366,6 +392,10 @@ export function CheckoutModal({
   async function handleProceedCheckout(e: React.FormEvent) {
     e.preventDefault();
     if (cart.length === 0 || hasUnavailableItems) return;
+    if (isAccountDeactivated) {
+      setError('Your customer account has been deactivated by an administrator. Please contact support.');
+      return;
+    }
     setError('');
     if (!validateContactFields()) {
       setError('Please fill in all required fields (Full name, Address, District, and Phone number).');
@@ -400,6 +430,9 @@ export function CheckoutModal({
       }
 
       if (data.status === 'completed' && data.order) {
+        if (user) {
+          void saveCustomerOrderToFirestore(data.order).catch(() => {});
+        }
         setCompletedOrder(data.order);
         onOrderCompleted(data.order, data.customerOrderToken);
         setStep('receipt');
@@ -444,6 +477,9 @@ export function CheckoutModal({
       if (!res.ok) {
         setError(data.error || 'Payment verification failed');
         return;
+      }
+      if (user && data.order) {
+        void saveCustomerOrderToFirestore(data.order).catch(() => {});
       }
       setCompletedOrder(data.order);
       onOrderCompleted(data.order, data.customerOrderToken);
@@ -571,6 +607,110 @@ export function CheckoutModal({
                   <span className="text-red-600 font-semibold">*</span> Required
                 </span>
               </div>
+
+              {isAccountDeactivated && (
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-800">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-semibold">Account Deactivated</div>
+                    <p className="mt-0.5 text-rose-700 leading-relaxed">
+                      Your customer account is currently deactivated and cannot place orders while signed in.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {onOpenAccount && (
+                <div className="p-3 rounded-xl bg-[#FAF4E6] border border-[#DFCFB0] flex flex-wrap items-center justify-between gap-2 text-xs">
+                  {user ? (
+                    <>
+                      <span className="text-[#2B1416] font-medium">
+                        Signed in as{' '}
+                        <strong className="text-[#650108]">
+                          {customerProfile?.displayName || user.displayName || user.email}
+                        </strong>
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {customerProfile && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (customerProfile.displayName) setCustomerName(customerProfile.displayName);
+                              if (customerProfile.phone) setCustomerPhone(customerProfile.phone);
+                              if (customerProfile.email) setCustomerEmail(customerProfile.email);
+                              if (customerProfile.district) setDistrict(customerProfile.district);
+                              if (customerProfile.address) setDeliveryAddress(customerProfile.address);
+                              if (customerProfile.deliveryArea) setDeliveryArea(customerProfile.deliveryArea);
+                            }}
+                            className="font-semibold text-[#650108] hover:underline cursor-pointer"
+                          >
+                            Apply saved details
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={onOpenAccount}
+                          className="font-semibold text-[#6B4C4E] hover:text-[#650108] cursor-pointer"
+                        >
+                          Edit profile
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-[#6B4C4E]">
+                        Have an account? Sign in to autofill details &amp; save order history.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={onOpenAccount}
+                        className="font-semibold text-[#650108] hover:underline cursor-pointer"
+                      >
+                        Sign in
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {user && savedAddresses.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#6B4C4E]">
+                    Saved delivery addresses
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {savedAddresses.map((saved) => {
+                      const isSelected =
+                        deliveryAddress.trim().toLowerCase() === saved.address.trim().toLowerCase() &&
+                        district.trim().toLowerCase() === saved.district.trim().toLowerCase();
+                      return (
+                        <button
+                          key={saved.id}
+                          type="button"
+                          onClick={() => {
+                            if (saved.recipientName) setCustomerName(saved.recipientName);
+                            if (saved.phone) setCustomerPhone(saved.phone);
+                            setDistrict(saved.district);
+                            setDeliveryAddress(saved.address);
+                            setDeliveryArea(saved.deliveryArea);
+                            setFieldErrors({});
+                          }}
+                          className={`px-3 py-1.5 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#650108] text-[#F2E8D2] border-[#650108]'
+                              : 'bg-[#FAF4E6] text-[#2B1416] border-[#DFCFB0] hover:border-[#650108]'
+                          }`}
+                        >
+                          <span className="font-semibold">{saved.label}</span>
+                          <span className={`ml-1.5 ${isSelected ? 'text-[#F2E8D2]/80' : 'text-[#6B4C4E]'}`}>
+                            · {saved.district}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
@@ -1235,7 +1375,7 @@ export function CheckoutModal({
               <div className="space-y-2 pt-1">
                 <button
                   type="submit"
-                  disabled={loading || cart.length === 0 || hasUnavailableItems}
+                  disabled={loading || cart.length === 0 || hasUnavailableItems || isAccountDeactivated}
                   className="w-full py-3.5 px-5 rounded-xl bg-[#650108] text-[#F2E8D2] text-sm font-semibold hover:bg-[#4D0106] transition-colors flex items-center justify-center gap-2 disabled:bg-[#C9B38D] disabled:text-white disabled:cursor-not-allowed"
                 >
                   {loading ? (
@@ -1252,7 +1392,11 @@ export function CheckoutModal({
                   )}
                 </button>
 
-                {hasUnavailableItems ? (
+                {isAccountDeactivated ? (
+                  <p className="text-xs text-rose-700 font-medium text-center">
+                    Account deactivated — checkout is disabled while signed in.
+                  </p>
+                ) : hasUnavailableItems ? (
                   <p className="text-xs text-[#6B4C4E] text-center">
                     Remove the unavailable items to continue.
                   </p>

@@ -286,6 +286,251 @@
         "updatedAt",
         "updatedByUid"
       ]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated storefront customer personal profile keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "district": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "deliveryArea": {
+          "type": "string",
+          "enum": ["inside_dhaka", "outside_dhaka"]
+        },
+        "photoUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "deactivated"]
+        },
+        "deactivatedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "addresses": {
+          "type": "array",
+          "description": "Up to 10 saved customer delivery addresses."
+        },
+        "lastLoginAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "phone",
+        "district",
+        "address",
+        "deliveryArea",
+        "photoUrl",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomerOrder": {
+      "title": "CustomerOrder",
+      "description": "Customer purchase order synced to Firestore for authenticated real-time order tracking.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "orderNumber": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "customerPhone": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "customerEmail": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "deliveryArea": {
+          "type": "string",
+          "enum": ["inside_dhaka", "outside_dhaka"]
+        },
+        "items": {
+          "type": "array",
+          "description": "Bounded list of ordered phone case items (1 to 50 items)."
+        },
+        "subtotal": {
+          "type": "number"
+        },
+        "shippingFee": {
+          "type": "number"
+        },
+        "discountAmount": {
+          "type": "number"
+        },
+        "couponCode": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "total": {
+          "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["cod", "bkash", "nagad", "card"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["paid", "pending", "failed"]
+        },
+        "fulfillmentStatus": {
+          "type": "string",
+          "enum": ["pending", "confirmed", "shipped", "delivered", "cancelled"]
+        },
+        "transactionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "source": {
+          "type": "string",
+          "enum": ["Web", "POS"]
+        },
+        "channel": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "courierProvider": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "courierTrackingCode": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "courierConsignmentId": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "courierStatus": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "confirmedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "shippedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "deliveredAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAtIso": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "updatedAtIso": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "orderNumber",
+        "customerName",
+        "customerPhone",
+        "customerEmail",
+        "deliveryAddress",
+        "deliveryArea",
+        "items",
+        "subtotal",
+        "shippingFee",
+        "discountAmount",
+        "couponCode",
+        "total",
+        "paymentMethod",
+        "paymentStatus",
+        "fulfillmentStatus",
+        "transactionId",
+        "source",
+        "channel",
+        "courierProvider",
+        "courierTrackingCode",
+        "courierConsignmentId",
+        "courierStatus",
+        "confirmedAt",
+        "shippedAt",
+        "deliveredAt",
+        "createdAtIso",
+        "updatedAtIso",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -304,6 +549,14 @@
     "/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/Category" },
       "description": "Hierarchical store categories and brand sub-categories managed by admins and read by the public storefront."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private customer personal profiles readable and writable strictly by the owning Firebase Auth user."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/CustomerOrder" },
+      "description": "Authenticated customer purchase orders synced to Firestore for real-time order status and courier tracking."
     }
   }
 }

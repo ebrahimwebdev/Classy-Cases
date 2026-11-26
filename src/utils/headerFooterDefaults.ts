@@ -37,6 +37,7 @@ export const DEFAULT_HEADER_CONFIG: HeaderConfigSettings = {
   showWishlistIcon: true,
   showCartIcon: true,
   showOffersIcon: true,
+  showAccountIcon: true,
   mobileBottomBarStyle: 'classic',
   mobileBottomBarItems: DEFAULT_MOBILE_BOTTOM_BAR_ITEMS.map((item) => ({ ...item })),
   menuCategoryMode: 'all',
@@ -399,6 +400,10 @@ export function mergeHeaderConfig(
       src.showOffersIcon !== undefined
         ? Boolean(src.showOffersIcon)
         : DEFAULT_HEADER_CONFIG.showOffersIcon,
+    showAccountIcon:
+      src.showAccountIcon !== undefined
+        ? Boolean(src.showAccountIcon)
+        : DEFAULT_HEADER_CONFIG.showAccountIcon,
     mobileBottomBarStyle,
     mobileBottomBarItems,
     menuCategoryMode,

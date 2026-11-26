@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -79,16 +79,32 @@ import {
 import { AdminProductEditor, type ProductEditorPayload } from './AdminProductEditor';
 import { AdminOrderDetailModal } from './AdminOrderDetailModal';
 import { AdminProductsView } from './AdminProductsView';
+import { AdminCustomersView } from './AdminCustomersView';
+import { AdminCustomerOverviewSection } from './AdminCustomerOverviewSection';
+import {
+  AdminLiveActivityToastStack,
+  AdminRecentActivityDrawer,
+  AdminRecentActivityPanel,
+} from './AdminRecentActivityPanel';
 import { AdminSettings, type SettingsTab } from './AdminSettings';
 import { useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { usePersistedProducts } from '../hooks/usePersistedProducts';
 import { auth } from '../lib/firebase';
+import {
+  mergeActivityFeeds,
+  subscribeAdminCustomerActivityFromFirestore,
+  type AdminCustomerActivityEvent,
+} from '../services/adminActivityService';
 import {
   deleteCategoryFromFirestore,
   fetchAdminCategoriesFromFirestore,
   saveCategoryToFirestore,
   syncCategoriesToFirestore,
 } from '../services/categoryFirestore';
+import {
+  syncCustomerOrdersBatchToFirestoreAsAdmin,
+  syncOrderToFirestoreAsAdmin,
+} from '../services/orderFirestore';
 import { hasLocalCatalogChanges, loadStoredProducts } from '../services/productStorage';
 
 type AdminSection =
@@ -143,7 +159,12 @@ export function AdminDashboard({
   onBackToStore,
 }: AdminDashboardProps) {
   const setAdminToken = onAdminTokenChange;
-  const { user: firebaseUser, signInWithGoogle, signOutUser } = useFirebaseAuth();
+  const {
+    user: firebaseUser,
+    loading: firebaseAuthLoading,
+    signInWithGoogle,
+    signOutUser,
+  } = useFirebaseAuth();
   const [needsSetup, setNeedsSetup] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState<boolean>(() => !adminToken);
   const [passwordInput, setPasswordInput] = useState('');
@@ -210,6 +231,20 @@ export function AdminDashboard({
   const [scanQuery, setScanQuery] = useState('');
   const [scannedOrder, setScannedOrder] = useState<Order | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // Recent Customer Activity (live Firestore notifications + slide-over sidebar)
+  const [activityDrawerOpen, setActivityDrawerOpen] = useState(false);
+  const [firestoreActivityEvents, setFirestoreActivityEvents] = useState<
+    AdminCustomerActivityEvent[]
+  >([]);
+  const [firestoreLiveOrders, setFirestoreLiveOrders] = useState<Order[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState('');
+  const [activityLastSyncedAt, setActivityLastSyncedAt] = useState<string | null>(null);
+  const [unreadActivityIds, setUnreadActivityIds] = useState<Set<string>>(() => new Set());
+  const [liveActivityToasts, setLiveActivityToasts] = useState<AdminCustomerActivityEvent[]>([]);
+  const toastTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   // POS state
   const [posItems, setPosItems] = useState<{ productId: string; quantity: number }[]>([]);
@@ -287,7 +322,11 @@ export function AdminDashboard({
       }
       const data = await res.json();
       setAnalytics(data.analytics);
-      setOrders(data.orders || []);
+      const serverOrders: Order[] = Array.isArray(data.orders) ? data.orders : [];
+      setOrders(serverOrders);
+      if (auth.currentUser && serverOrders.length > 0) {
+        void syncCustomerOrdersBatchToFirestoreAsAdmin(serverOrders).catch(() => {});
+      }
       const serverProducts: Product[] = data.products || [];
       if (!data.catalogModified && hasLocalCatalogChanges()) {
         const storedProducts = loadStoredProducts();
@@ -367,6 +406,117 @@ export function AdminDashboard({
       fetchOverview(adminToken);
     }
   }, [adminToken, firebaseUser?.uid]);
+
+  const connectVerifiedGoogleAdmin = useCallback(async () => {
+    const { idToken } = await signInWithGoogle();
+    await fetch('/api/admin/auth/firebase', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ idToken }),
+    }).catch(() => {});
+  }, [signInWithGoogle]);
+
+  const dismissLiveToast = useCallback((id: string) => {
+    const existingTimer = toastTimeoutsRef.current.get(id);
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+      toastTimeoutsRef.current.delete(id);
+    }
+    setLiveActivityToasts((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  useEffect(() => {
+    if (!adminToken || firebaseAuthLoading) return;
+    if (!firebaseUser) {
+      setFirestoreActivityEvents([]);
+      setFirestoreLiveOrders([]);
+      setActivityError('');
+      setActivityLoading(false);
+      return;
+    }
+
+    setActivityLoading(true);
+    setActivityError('');
+    let refreshTimer: number | null = null;
+
+    const unsubscribe = subscribeAdminCustomerActivityFromFirestore({
+      onUpdate: ({ events, firestoreOrders, lastSyncedAt }) => {
+        setFirestoreActivityEvents(events);
+        setFirestoreLiveOrders(firestoreOrders);
+        setActivityLastSyncedAt(lastSyncedAt);
+        setActivityError('');
+        setActivityLoading(false);
+      },
+      onLiveEvent: (ev) => {
+        setUnreadActivityIds((prev) => {
+          const next = new Set(prev);
+          next.add(ev.id);
+          return next;
+        });
+        setLiveActivityToasts((prev) => [ev, ...prev.filter((t) => t.id !== ev.id)].slice(0, 3));
+        const existingTimer = toastTimeoutsRef.current.get(ev.id);
+        if (existingTimer) window.clearTimeout(existingTimer);
+        const timerId = window.setTimeout(() => {
+          toastTimeoutsRef.current.delete(ev.id);
+          setLiveActivityToasts((prev) => prev.filter((t) => t.id !== ev.id));
+        }, 9000);
+        toastTimeoutsRef.current.set(ev.id, timerId);
+
+        if (ev.type === 'order') {
+          if (refreshTimer) window.clearTimeout(refreshTimer);
+          refreshTimer = window.setTimeout(() => {
+            void fetchOverview(adminToken);
+          }, 600);
+        }
+      },
+      onError: (err) => {
+        setActivityError(err.message);
+        setActivityLoading(false);
+      },
+    });
+
+    return () => {
+      unsubscribe();
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+    };
+  }, [adminToken, firebaseUser, firebaseAuthLoading]);
+
+  useEffect(() => {
+    return () => {
+      toastTimeoutsRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      toastTimeoutsRef.current.clear();
+    };
+  }, []);
+
+  const mergedActivityEvents = useMemo(
+    () => mergeActivityFeeds(firestoreActivityEvents, orders, 40),
+    [firestoreActivityEvents, orders]
+  );
+
+  const handleMarkAllActivityRead = useCallback(() => {
+    setUnreadActivityIds(new Set());
+  }, []);
+
+  const handleSelectActivityEvent = useCallback((ev: AdminCustomerActivityEvent) => {
+    setUnreadActivityIds((prev) => {
+      if (!prev.has(ev.id)) return prev;
+      const next = new Set(prev);
+      next.delete(ev.id);
+      return next;
+    });
+    if (ev.type === 'registration' && ev.customerId) {
+      setSelectedCustomerId(ev.customerId);
+      setActiveSection('Customers');
+      setProductEditorOpen(false);
+    } else if (ev.type === 'order' && ev.orderId) {
+      setSelectedOrderId(ev.orderId);
+    }
+  }, []);
 
   async function handleSetupSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -721,13 +871,22 @@ export function AdminDashboard({
       },
       body: JSON.stringify({ fulfillmentStatus }),
     });
-    if (res.ok) fetchOverview(adminToken);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.order && auth.currentUser) {
+        void syncOrderToFirestoreAsAdmin(data.order as Order).catch(() => {});
+      }
+      fetchOverview(adminToken);
+    }
   }
 
   function handleOrderUpdatedFromModal(updatedOrder: Order) {
     setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
     if (scannedOrder && scannedOrder.id === updatedOrder.id) {
       setScannedOrder(updatedOrder);
+    }
+    if (auth.currentUser) {
+      void syncOrderToFirestoreAsAdmin(updatedOrder).catch(() => {});
     }
     if (adminToken) {
       fetchOverview(adminToken);
@@ -1293,32 +1452,13 @@ export function AdminDashboard({
   });
 
   const selectedOrder = selectedOrderId
-    ? orders.find((o) => o.id === selectedOrderId) || null
+    ? orders.find((o) => o.id === selectedOrderId) ||
+      firestoreLiveOrders.find((o) => o.id === selectedOrderId) ||
+      null
     : null;
   const activeScannedOrder = scannedOrder
     ? orders.find((o) => o.id === scannedOrder.id) || scannedOrder
     : null;
-
-  // Derive customer directory from orders
-  const customerMap = new Map<
-    string,
-    { name: string; phone: string; email: string; address: string; orderCount: number; totalSpent: number }
-  >();
-  for (const o of orders) {
-    const key = o.customerPhone;
-    const existing = customerMap.get(key) || {
-      name: o.customerName,
-      phone: o.customerPhone,
-      email: o.customerEmail,
-      address: o.deliveryAddress,
-      orderCount: 0,
-      totalSpent: 0,
-    };
-    existing.orderCount += 1;
-    existing.totalSpent += o.total;
-    customerMap.set(key, existing);
-  }
-  const customerList = Array.from(customerMap.values());
 
   const lowStockAlertProducts = products.filter(
     (p) => p.trackStock !== false && p.stock < 5
@@ -1377,6 +1517,7 @@ export function AdminDashboard({
                         key={item.label}
                         type="button"
                         onClick={() => {
+                          if (item.label === 'Customers') setSelectedCustomerId(null);
                           setActiveSection(item.label);
                           setMobileSidebarOpen(false);
                         }}
@@ -1658,6 +1799,7 @@ export function AdminDashboard({
                     key={item.label}
                     type="button"
                     onClick={() => {
+                      if (item.label === 'Customers') setSelectedCustomerId(null);
                       setActiveSection(item.label);
                       setProductEditorOpen(false);
                     }}
@@ -1988,15 +2130,26 @@ export function AdminDashboard({
 
             <button
               type="button"
-              onClick={() => setActiveSection('Orders')}
-              title="Pending Orders"
-              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/70 relative"
+              onClick={() => setActivityDrawerOpen((prev) => !prev)}
+              title="Recent Customer Activity & Live Notifications"
+              aria-label="Open Recent Customer Activity sidebar"
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center relative cursor-pointer transition-colors ${
+                activityDrawerOpen
+                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/70'
+              }`}
             >
               <Bell className="w-4 h-4" />
-              {(analytics?.needsAttentionOrders.length || 0) > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
-                  {analytics?.needsAttentionOrders.length}
+              {unreadActivityIds.size > 0 ? (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                  {unreadActivityIds.size > 9 ? '9+' : unreadActivityIds.size}
                 </span>
+              ) : (
+                (analytics?.needsAttentionOrders.length || 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                    {analytics?.needsAttentionOrders.length}
+                  </span>
+                )
               )}
             </button>
 
@@ -2128,6 +2281,30 @@ export function AdminDashboard({
                     </div>
                   </div>
                 </div>
+
+                {/* Customer Overview (Live Firestore Users) */}
+                <AdminCustomerOverviewSection
+                  onOpenCustomers={() => {
+                    setSelectedCustomerId(null);
+                    setActiveSection('Customers');
+                  }}
+                  onConnectGoogleAdmin={connectVerifiedGoogleAdmin}
+                />
+
+                {/* Recent Customer Activity (Live Firestore Registrations & Orders) */}
+                <AdminRecentActivityPanel
+                  events={mergedActivityEvents}
+                  unreadIds={unreadActivityIds}
+                  firebaseConnected={Boolean(firebaseUser)}
+                  authLoading={firebaseAuthLoading}
+                  loading={activityLoading}
+                  errorMessage={activityError}
+                  lastSyncedAt={activityLastSyncedAt}
+                  onSelectEvent={handleSelectActivityEvent}
+                  onMarkAllRead={handleMarkAllActivityRead}
+                  onOpenSidebar={() => setActivityDrawerOpen(true)}
+                  onConnectGoogleAdmin={connectVerifiedGoogleAdmin}
+                />
 
                 {/* Middle Row: Needs attention + Order Volume */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -2749,8 +2926,29 @@ export function AdminDashboard({
                                 </div>
                               </td>
                               <td className="py-3 px-4 max-w-[220px]">
-                                <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
-                                  {ord.customerName}
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const phoneDigits =
+                                        ord.customerPhone.replace(/\D/g, '') ||
+                                        ord.customerPhone.trim();
+                                      const custId =
+                                        ord.firebaseUid ||
+                                        (phoneDigits ? `guest-${phoneDigits}` : `guest-${ord.id}`);
+                                      setSelectedCustomerId(custId);
+                                      setActiveSection('Customers');
+                                    }}
+                                    className="font-semibold text-slate-900 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-400 truncate text-left cursor-pointer"
+                                    title="Open customer profile"
+                                  >
+                                    {ord.customerName}
+                                  </button>
+                                  {ord.firebaseUid && (
+                                    <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-[9px] font-bold uppercase shrink-0">
+                                      Registered
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
                                   {ord.customerPhone}
@@ -3146,55 +3344,12 @@ export function AdminDashboard({
 
             {/* CUSTOMERS */}
             {activeSection === 'Customers' && (
-              <div className="space-y-4">
-                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">Customers</h1>
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-                  {customerList.length === 0 ? (
-                    <div className="py-14 text-center text-xs text-slate-500 dark:text-slate-400">
-                      Customer profiles appear automatically once orders are placed.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[620px] text-left text-xs">
-                        <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                          <tr>
-                            <th className="py-3 px-4 font-semibold">Name</th>
-                            <th className="py-3 px-4 font-semibold">Phone</th>
-                            <th className="py-3 px-4 font-semibold">Address</th>
-                            <th className="py-3 px-4 font-semibold text-right">Orders</th>
-                            <th className="py-3 px-4 font-semibold text-right">Total Spent</th>
-                            <th className="py-3 px-4 font-semibold text-right">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                          {customerList.map((c) => (
-                            <tr key={c.phone} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
-                              <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">{c.name}</td>
-                              <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">{c.phone}</td>
-                              <td className="py-3 px-4 text-slate-600 dark:text-slate-400 truncate max-w-xs">{c.address}</td>
-                              <td className="py-3 px-4 text-right tabular-nums">{c.orderCount}</td>
-                              <td className="py-3 px-4 text-right tabular-nums font-bold">৳{c.totalSpent}</td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setGlobalSearch(c.phone);
-                                    setOrderStatusFilter('all');
-                                    setActiveSection('Orders');
-                                  }}
-                                  className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/15"
-                                >
-                                  View Orders
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <AdminCustomersView
+                adminToken={adminToken || ''}
+                selectedCustomerId={selectedCustomerId}
+                onSelectCustomerId={setSelectedCustomerId}
+                onSelectOrder={(orderId) => setSelectedOrderId(orderId)}
+              />
             )}
 
             {/* REVIEWS */}
@@ -3484,8 +3639,34 @@ export function AdminDashboard({
           adminToken={adminToken}
           onClose={() => setSelectedOrderId(null)}
           onOrderUpdated={handleOrderUpdatedFromModal}
+          onViewCustomer={(customerId) => {
+            setSelectedOrderId(null);
+            setSelectedCustomerId(customerId);
+            setActiveSection('Customers');
+          }}
         />
       )}
+
+      <AdminRecentActivityDrawer
+        open={activityDrawerOpen}
+        events={mergedActivityEvents}
+        unreadIds={unreadActivityIds}
+        firebaseConnected={Boolean(firebaseUser)}
+        authLoading={firebaseAuthLoading}
+        loading={activityLoading}
+        errorMessage={activityError}
+        lastSyncedAt={activityLastSyncedAt}
+        onClose={() => setActivityDrawerOpen(false)}
+        onSelectEvent={handleSelectActivityEvent}
+        onMarkAllRead={handleMarkAllActivityRead}
+        onConnectGoogleAdmin={connectVerifiedGoogleAdmin}
+      />
+
+      <AdminLiveActivityToastStack
+        toasts={liveActivityToasts}
+        onDismiss={dismissLiveToast}
+        onInspect={handleSelectActivityEvent}
+      />
     </div>
   );
 }

@@ -5,8 +5,13 @@ import type { NextFunction, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import type {
+  AdminCustomerRecord,
   Category,
   Coupon,
+  CustomerAccountStatus,
+  CustomerActivityItem,
+  CustomerProfile,
+  CustomerSavedAddress,
   DashboardAnalytics,
   Expense,
   FulfillmentStatus,
@@ -48,9 +53,15 @@ import {
   upsertProductToSql,
   type StoreSnapshot,
 } from './src/db/storeRepo.ts';
-import { getOrCreateUser, getUserByUid } from './src/db/users.ts';
+import {
+  getOrCreateUser,
+  getUserByUid,
+  listAllCustomerUsersFromSql,
+  updateCustomerStatusInSql,
+  upsertCustomerProfileToSql,
+} from './src/db/users.ts';
 import { adminAuth } from './src/lib/firebase-admin.ts';
-import { optionalAuth, type AuthRequest } from './src/middleware/auth.ts';
+import { optionalAuth, requireAuth, type AuthRequest } from './src/middleware/auth.ts';
 import {
   createDefaultFooterConfig,
   DEFAULT_HEADER_CONFIG,
@@ -83,6 +94,8 @@ interface PendingPaymentSession {
   paymentMethod: Exclude<PaymentMethod, 'cod'>;
   source: 'Web' | 'POS';
   channel: string;
+  firebaseUid?: string;
+  dbUserId?: number;
   createdAt: number;
 }
 
@@ -108,6 +121,494 @@ const FALLBACK_DB_FILE = path.resolve(FALLBACK_DATA_DIR, 'store.json');
 let activeDataDir = PRIMARY_DATA_DIR;
 let activeDbFile = PRIMARY_DB_FILE;
 const pendingPayments = new Map<string, PendingPaymentSession>();
+
+function getCustomerProfilesFile(): string {
+  return path.resolve(activeDataDir, 'customer-profiles.json');
+}
+
+function loadCustomerProfiles(): Record<string, CustomerProfile> {
+  const primaryFile = getCustomerProfilesFile();
+  const fallbackFile = path.resolve(FALLBACK_DATA_DIR, 'customer-profiles.json');
+  for (const filePath of [primaryFile, fallbackFile]) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, CustomerProfile>;
+        }
+      }
+    } catch {
+      // Ignore unreadable profile cache file and continue fallback
+    }
+  }
+  return {};
+}
+
+function saveCustomerProfiles(profiles: Record<string, CustomerProfile>): void {
+  const payload = JSON.stringify(profiles, null, 2);
+  try {
+    fs.mkdirSync(activeDataDir, { recursive: true });
+    fs.writeFileSync(getCustomerProfilesFile(), payload, 'utf-8');
+    return;
+  } catch {
+    // Fall back to /tmp writable data directory
+  }
+  try {
+    fs.mkdirSync(FALLBACK_DATA_DIR, { recursive: true });
+    fs.writeFileSync(path.resolve(FALLBACK_DATA_DIR, 'customer-profiles.json'), payload, 'utf-8');
+  } catch (err) {
+    console.error('Failed to persist customer profiles:', err);
+  }
+}
+
+function sanitizeSavedAddresses(rawAddresses: unknown): CustomerSavedAddress[] {
+  if (!Array.isArray(rawAddresses)) return [];
+  const cleaned: CustomerSavedAddress[] = [];
+  const seenIds = new Set<string>();
+  for (const item of rawAddresses) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const addrLine = typeof raw.address === 'string' ? raw.address.trim().slice(0, 300) : '';
+    if (!addrLine) continue;
+    const rawId =
+      typeof raw.id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(raw.id.trim())
+        ? raw.id.trim()
+        : `addr-${crypto.randomUUID().slice(0, 8)}`;
+    if (seenIds.has(rawId)) continue;
+    seenIds.add(rawId);
+    cleaned.push({
+      id: rawId,
+      label: (typeof raw.label === 'string' && raw.label.trim() ? raw.label.trim() : 'Home').slice(0, 40),
+      recipientName: typeof raw.recipientName === 'string' ? raw.recipientName.trim().slice(0, 80) : '',
+      phone: typeof raw.phone === 'string' ? raw.phone.trim().slice(0, 32) : '',
+      district: typeof raw.district === 'string' ? raw.district.trim().slice(0, 60) : '',
+      address: addrLine,
+      deliveryArea: raw.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka',
+      isDefault: Boolean(raw.isDefault),
+    });
+    if (cleaned.length >= 10) break;
+  }
+  if (cleaned.length > 0 && !cleaned.some((a) => a.isDefault)) {
+    cleaned[0].isDefault = true;
+  }
+  let foundDefault = false;
+  for (const a of cleaned) {
+    if (a.isDefault) {
+      if (foundDefault) a.isDefault = false;
+      foundDefault = true;
+    }
+  }
+  return cleaned;
+}
+
+function normalizeCustomerProfileRecord(raw: CustomerProfile): CustomerProfile {
+  const status: CustomerAccountStatus = raw.status === 'deactivated' ? 'deactivated' : 'active';
+  const addresses = sanitizeSavedAddresses(raw.addresses || []);
+  return {
+    uid: raw.uid,
+    email: (raw.email || '').trim(),
+    displayName: (raw.displayName || '').trim(),
+    phone: (raw.phone || '').trim(),
+    district: (raw.district || '').trim(),
+    address: (raw.address || '').trim(),
+    deliveryArea: raw.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka',
+    photoUrl: (raw.photoUrl || '').trim(),
+    status,
+    addresses,
+    lastLoginAt: raw.lastLoginAt || raw.updatedAt || raw.createdAt,
+    deactivatedAt: status === 'deactivated' ? raw.deactivatedAt || raw.updatedAt : undefined,
+    adminNote: raw.adminNote || undefined,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    updatedAt: raw.updatedAt || raw.createdAt || new Date().toISOString(),
+  };
+}
+
+async function getMergedCustomerProfilesMap(): Promise<Record<string, CustomerProfile>> {
+  const profiles = loadCustomerProfiles();
+  const normalized: Record<string, CustomerProfile> = {};
+  for (const [uid, prof] of Object.entries(profiles)) {
+    if (prof && typeof prof === 'object') {
+      normalized[uid] = normalizeCustomerProfileRecord({ ...prof, uid });
+    }
+  }
+
+  if (isSqlConfigured()) {
+    try {
+      const sqlUsers = await listAllCustomerUsersFromSql();
+      for (const sqlProf of sqlUsers) {
+        const existing = normalized[sqlProf.uid];
+        if (!existing) {
+          normalized[sqlProf.uid] = normalizeCustomerProfileRecord(sqlProf);
+        } else {
+          normalized[sqlProf.uid] = normalizeCustomerProfileRecord({
+            ...sqlProf,
+            ...existing,
+            status: existing.status || sqlProf.status,
+            addresses:
+              existing.addresses && existing.addresses.length > 0
+                ? existing.addresses
+                : sqlProf.addresses || [],
+            createdAt: existing.createdAt || sqlProf.createdAt,
+          });
+        }
+      }
+    } catch {
+      // Fallback safely to JSON profile cache
+    }
+  }
+  return normalized;
+}
+
+async function ensureCustomerProfileRecord(
+  uid: string,
+  tokenUser?: { email?: unknown; name?: unknown; picture?: unknown },
+  seedDefaults?: Partial<Pick<CustomerProfile, 'displayName' | 'phone' | 'district' | 'address' | 'deliveryArea' | 'email'>>,
+  touchLogin = false
+): Promise<CustomerProfile> {
+  const profiles = await getMergedCustomerProfilesMap();
+  const existing = profiles[uid];
+  const now = new Date().toISOString();
+  const emailFromToken = typeof tokenUser?.email === 'string' ? tokenUser.email.trim() : '';
+  const nameFromToken = typeof tokenUser?.name === 'string' ? tokenUser.name.trim() : '';
+  const pictureFromToken = typeof tokenUser?.picture === 'string' ? tokenUser.picture.trim() : '';
+
+  if (existing) {
+    let changed = false;
+    const next: CustomerProfile = { ...existing };
+    if (!next.email && (emailFromToken || seedDefaults?.email)) {
+      next.email = emailFromToken || seedDefaults?.email || '';
+      changed = true;
+    }
+    if (!next.displayName && (nameFromToken || seedDefaults?.displayName)) {
+      next.displayName = nameFromToken || seedDefaults?.displayName || '';
+      changed = true;
+    }
+    if (!next.photoUrl && pictureFromToken) {
+      next.photoUrl = pictureFromToken;
+      changed = true;
+    }
+    if (!next.phone && seedDefaults?.phone) {
+      next.phone = seedDefaults.phone;
+      changed = true;
+    }
+    if (!next.address && seedDefaults?.address) {
+      next.address = seedDefaults.address;
+      changed = true;
+    }
+    if (!next.district && seedDefaults?.district) {
+      next.district = seedDefaults.district;
+      changed = true;
+    }
+    if (touchLogin) {
+      next.lastLoginAt = now;
+      changed = true;
+    }
+    if (changed) {
+      const normalized = normalizeCustomerProfileRecord(next);
+      profiles[uid] = normalized;
+      saveCustomerProfiles(profiles);
+      if (isSqlConfigured()) {
+        void upsertCustomerProfileToSql(normalized).catch(() => {});
+      }
+      return normalized;
+    }
+    return existing;
+  }
+
+  const created = normalizeCustomerProfileRecord({
+    uid,
+    email: emailFromToken || seedDefaults?.email || '',
+    displayName: nameFromToken || seedDefaults?.displayName || '',
+    phone: seedDefaults?.phone || '',
+    district: seedDefaults?.district || '',
+    address: seedDefaults?.address || '',
+    deliveryArea: seedDefaults?.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka',
+    photoUrl: pictureFromToken,
+    status: 'active',
+    addresses: seedDefaults?.address
+      ? [
+          {
+            id: `addr-${crypto.randomUUID().slice(0, 8)}`,
+            label: 'Home',
+            recipientName: nameFromToken || seedDefaults?.displayName || '',
+            phone: seedDefaults?.phone || '',
+            district: seedDefaults?.district || '',
+            address: seedDefaults.address,
+            deliveryArea: seedDefaults.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka',
+            isDefault: true,
+          },
+        ]
+      : [],
+    lastLoginAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  profiles[uid] = created;
+  saveCustomerProfiles(profiles);
+  if (isSqlConfigured()) {
+    void upsertCustomerProfileToSql(created).catch(() => {});
+  }
+  return created;
+}
+
+async function isCustomerDeactivated(uid?: string): Promise<boolean> {
+  if (!uid) return false;
+  const profiles = await getMergedCustomerProfilesMap();
+  return profiles[uid]?.status === 'deactivated';
+}
+
+function buildAdminCustomerDirectory(
+  profilesMap: Record<string, CustomerProfile>,
+  allOrders: Order[]
+): {
+  records: AdminCustomerRecord[];
+  ordersByCustomerId: Map<string, Order[]>;
+} {
+  const emailToUid = new Map<string, string>();
+  for (const prof of Object.values(profilesMap)) {
+    const email = prof.email.trim().toLowerCase();
+    if (email && !emailToUid.has(email)) {
+      emailToUid.set(email, prof.uid);
+    }
+  }
+
+  const ordersByCustomerId = new Map<string, Order[]>();
+  const guestInfoMap = new Map<string, { displayName: string; phone: string; email: string; address: string; deliveryArea: 'inside_dhaka' | 'outside_dhaka'; firstOrderAt: string; lastOrderAt: string }>();
+
+  for (const ord of allOrders) {
+    let targetCustomerId: string | null = null;
+    if (ord.firebaseUid && profilesMap[ord.firebaseUid]) {
+      targetCustomerId = ord.firebaseUid;
+    } else if (ord.firebaseUid) {
+      // Order has firebaseUid even if profile not yet cached
+      targetCustomerId = ord.firebaseUid;
+    } else {
+      const ordEmail = (ord.customerEmail || '').trim().toLowerCase();
+      if (ordEmail && emailToUid.has(ordEmail)) {
+        targetCustomerId = emailToUid.get(ordEmail)!;
+      }
+    }
+
+    if (!targetCustomerId) {
+      const phoneDigits = ord.customerPhone.replace(/\D/g, '') || ord.customerPhone.trim();
+      const guestKey = `guest-${phoneDigits || ord.id}`;
+      targetCustomerId = guestKey;
+      const existingGuest = guestInfoMap.get(guestKey);
+      if (!existingGuest) {
+        guestInfoMap.set(guestKey, {
+          displayName: ord.customerName || 'Guest Customer',
+          phone: ord.customerPhone || '',
+          email: ord.customerEmail || '',
+          address: ord.deliveryAddress || '',
+          deliveryArea: ord.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka',
+          firstOrderAt: ord.createdAt,
+          lastOrderAt: ord.createdAt,
+        });
+      } else {
+        if (new Date(ord.createdAt).getTime() < new Date(existingGuest.firstOrderAt).getTime()) {
+          existingGuest.firstOrderAt = ord.createdAt;
+        }
+        if (new Date(ord.createdAt).getTime() >= new Date(existingGuest.lastOrderAt).getTime()) {
+          existingGuest.lastOrderAt = ord.createdAt;
+          if (ord.customerName) existingGuest.displayName = ord.customerName;
+          if (ord.deliveryAddress) existingGuest.address = ord.deliveryAddress;
+          if (!existingGuest.email && ord.customerEmail) existingGuest.email = ord.customerEmail;
+        }
+      }
+    }
+
+    const list = ordersByCustomerId.get(targetCustomerId) || [];
+    list.push(ord);
+    ordersByCustomerId.set(targetCustomerId, list);
+  }
+
+  const records: AdminCustomerRecord[] = [];
+  const handledIds = new Set<string>();
+
+  for (const prof of Object.values(profilesMap)) {
+    handledIds.add(prof.uid);
+    const custOrders = (ordersByCustomerId.get(prof.uid) || []).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    ordersByCustomerId.set(prof.uid, custOrders);
+
+    const validOrders = custOrders.filter((o) => o.fulfillmentStatus !== 'cancelled');
+    const totalSpent = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const completedOrdersCount = custOrders.filter((o) => o.fulfillmentStatus === 'delivered').length;
+    const cancelledOrdersCount = custOrders.filter((o) => o.fulfillmentStatus === 'cancelled').length;
+    const lastOrderAt = custOrders[0]?.createdAt;
+    const lastActiveCandidates = [prof.lastLoginAt, prof.updatedAt, prof.createdAt, lastOrderAt].filter(
+      (d): d is string => Boolean(d)
+    );
+    const lastActiveAt =
+      lastActiveCandidates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ||
+      prof.createdAt;
+
+    const fallbackOrder = custOrders[0];
+    records.push({
+      id: prof.uid,
+      uid: prof.uid,
+      isRegistered: true,
+      displayName: prof.displayName || fallbackOrder?.customerName || prof.email.split('@')[0] || 'Customer',
+      email: prof.email || fallbackOrder?.customerEmail || '',
+      phone: prof.phone || fallbackOrder?.customerPhone || '',
+      district: prof.district || '',
+      address: prof.address || fallbackOrder?.deliveryAddress || '',
+      deliveryArea: prof.deliveryArea || fallbackOrder?.deliveryArea || 'inside_dhaka',
+      addresses: prof.addresses || [],
+      photoUrl: prof.photoUrl || '',
+      status: prof.status === 'deactivated' ? 'deactivated' : 'active',
+      adminNote: prof.adminNote,
+      deactivatedAt: prof.deactivatedAt,
+      createdAt: prof.createdAt,
+      updatedAt: prof.updatedAt,
+      lastActiveAt,
+      lastOrderAt,
+      orderCount: custOrders.length,
+      completedOrdersCount,
+      cancelledOrdersCount,
+      totalSpent,
+    });
+  }
+
+  // Handle orders with a firebaseUid not in profilesMap yet, or guest orders
+  for (const [custId, custOrders] of ordersByCustomerId.entries()) {
+    if (handledIds.has(custId)) continue;
+    const sortedOrders = [...custOrders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    ordersByCustomerId.set(custId, sortedOrders);
+    const latest = sortedOrders[0];
+    const earliest = sortedOrders[sortedOrders.length - 1];
+    const isGuest = custId.startsWith('guest-');
+    const guestMeta = guestInfoMap.get(custId);
+    const validOrders = sortedOrders.filter((o) => o.fulfillmentStatus !== 'cancelled');
+    const totalSpent = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+
+    const uniqueAddresses: CustomerSavedAddress[] = [];
+    const seenAddr = new Set<string>();
+    for (const o of sortedOrders) {
+      const addrKey = o.deliveryAddress.trim().toLowerCase();
+      if (!addrKey || seenAddr.has(addrKey)) continue;
+      seenAddr.add(addrKey);
+      uniqueAddresses.push({
+        id: `ord-addr-${o.id}`,
+        label: uniqueAddresses.length === 0 ? 'Latest Order Address' : `Order #${o.orderNumber}`,
+        recipientName: o.customerName,
+        phone: o.customerPhone,
+        district: '',
+        address: o.deliveryAddress,
+        deliveryArea: o.deliveryArea,
+        isDefault: uniqueAddresses.length === 0,
+      });
+    }
+
+    records.push({
+      id: custId,
+      uid: isGuest ? undefined : custId,
+      isRegistered: !isGuest,
+      displayName: guestMeta?.displayName || latest?.customerName || 'Guest Customer',
+      email: guestMeta?.email || latest?.customerEmail || '',
+      phone: guestMeta?.phone || latest?.customerPhone || '',
+      district: '',
+      address: guestMeta?.address || latest?.deliveryAddress || '',
+      deliveryArea: guestMeta?.deliveryArea || latest?.deliveryArea || 'inside_dhaka',
+      addresses: uniqueAddresses,
+      photoUrl: '',
+      status: 'active',
+      createdAt: guestMeta?.firstOrderAt || earliest?.createdAt || new Date().toISOString(),
+      updatedAt: latest?.updatedAt || new Date().toISOString(),
+      lastActiveAt: latest?.createdAt || new Date().toISOString(),
+      lastOrderAt: latest?.createdAt,
+      orderCount: sortedOrders.length,
+      completedOrdersCount: sortedOrders.filter((o) => o.fulfillmentStatus === 'delivered').length,
+      cancelledOrdersCount: sortedOrders.filter((o) => o.fulfillmentStatus === 'cancelled').length,
+      totalSpent,
+    });
+  }
+
+  return { records, ordersByCustomerId };
+}
+
+function buildCustomerActivityTimeline(
+  customer: AdminCustomerRecord,
+  orders: Order[]
+): CustomerActivityItem[] {
+  const items: CustomerActivityItem[] = [];
+
+  if (customer.isRegistered) {
+    items.push({
+      id: `act-created-${customer.id}`,
+      type: 'account_created',
+      title: 'Customer account registered',
+      detail: customer.email ? `Registered with ${customer.email}` : 'Created Classy Cases customer account',
+      timestamp: customer.createdAt,
+    });
+    if (customer.updatedAt && customer.updatedAt !== customer.createdAt) {
+      items.push({
+        id: `act-updated-${customer.id}`,
+        type: 'profile_updated',
+        title: 'Profile & delivery details updated',
+        detail: customer.address
+          ? `Default address: ${customer.address}`
+          : 'Updated customer account information',
+        timestamp: customer.updatedAt,
+      });
+    }
+    if (customer.status === 'deactivated' && customer.deactivatedAt) {
+      items.push({
+        id: `act-deactivated-${customer.id}`,
+        type: 'status_changed',
+        title: 'Account deactivated by admin',
+        detail: customer.adminNote || 'Customer sign-in & checkout actions restricted.',
+        timestamp: customer.deactivatedAt,
+      });
+    }
+  }
+
+  for (const ord of orders.slice(0, 30)) {
+    items.push({
+      id: `act-ord-${ord.id}`,
+      type: 'order_placed',
+      title: `Placed Order #${ord.orderNumber}`,
+      detail: `${ord.items.reduce((s, i) => s + i.quantity, 0)} item(s) · ৳${ord.total} · ${ord.paymentMethod.toUpperCase()} (${ord.paymentStatus})`,
+      timestamp: ord.createdAt,
+    });
+    if (ord.deliveredAt) {
+      items.push({
+        id: `act-deliv-${ord.id}`,
+        type: 'order_status',
+        title: `Order #${ord.orderNumber} delivered`,
+        detail: `Completed delivery to ${ord.deliveryAddress}`,
+        timestamp: ord.deliveredAt,
+      });
+    } else if (ord.shippedAt) {
+      items.push({
+        id: `act-ship-${ord.id}`,
+        type: 'order_status',
+        title: `Order #${ord.orderNumber} shipped`,
+        detail: ord.courier
+          ? `Dispatched via ${ord.courier.provider} (${ord.courier.trackingCode})`
+          : 'Handed over to delivery courier',
+        timestamp: ord.shippedAt,
+      });
+    } else if (ord.fulfillmentStatus === 'cancelled') {
+      items.push({
+        id: `act-cancel-${ord.id}`,
+        type: 'order_status',
+        title: `Order #${ord.orderNumber} cancelled`,
+        detail: ord.adminNote || 'Order marked cancelled',
+        timestamp: ord.updatedAt,
+      });
+    }
+  }
+
+  return items
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 40);
+}
 
 function createInitialData(): StoreDatabase {
   const now = new Date().toISOString();
@@ -823,6 +1324,7 @@ async function finalizeOrder(params: {
   source: 'Web' | 'POS';
   channel: string;
   userId?: number;
+  firebaseUid?: string;
 }): Promise<Order> {
   const num = db.settings.nextOrderNumber;
   db.settings.nextOrderNumber += 1;
@@ -858,6 +1360,7 @@ async function finalizeOrder(params: {
     transactionId: params.transactionId,
     source: params.source,
     channel: params.channel,
+    firebaseUid: params.firebaseUid,
     createdAt: now,
     updatedAt: now,
   };
@@ -1483,6 +1986,290 @@ async function startServer() {
     res.json({ orders, newToken });
   });
 
+  // Authenticated Customer Account Profile, Addresses & Order History Routes
+  app.get('/api/account/profile', requireAuth, async (req: AuthRequest, res) => {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    try {
+      const profile = await ensureCustomerProfileRecord(uid, req.user, undefined, true);
+      res.json({ profile });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load profile' });
+    }
+  });
+
+  app.put('/api/account/profile', requireAuth, async (req: AuthRequest, res) => {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (await isCustomerDeactivated(uid)) {
+      res.status(403).json({
+        error: 'Your account has been deactivated by an administrator. Please contact support.',
+        accountDeactivated: true,
+      });
+      return;
+    }
+
+    const body = req.body || {};
+    const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+    const district = typeof body.district === 'string' ? body.district.trim() : '';
+    const address = typeof body.address === 'string' ? body.address.trim() : '';
+    const rawDeliveryArea = body.deliveryArea;
+    const deliveryArea: 'inside_dhaka' | 'outside_dhaka' =
+      rawDeliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka';
+
+    if (displayName.length > 80) {
+      res.status(400).json({ error: 'Display name must be 80 characters or fewer.' });
+      return;
+    }
+    if (phone.length > 32) {
+      res.status(400).json({ error: 'Phone number must be 32 characters or fewer.' });
+      return;
+    }
+    if (district.length > 60) {
+      res.status(400).json({ error: 'District must be 60 characters or fewer.' });
+      return;
+    }
+    if (address.length > 300) {
+      res.status(400).json({ error: 'Delivery address must be 300 characters or fewer.' });
+      return;
+    }
+
+    const profiles = await getMergedCustomerProfilesMap();
+    const existing = profiles[uid];
+    const now = new Date().toISOString();
+    const emailFromToken = typeof req.user?.email === 'string' ? req.user.email : '';
+    const pictureFromToken = typeof req.user?.picture === 'string' ? req.user.picture : '';
+
+    let nextAddresses =
+      body.addresses !== undefined
+        ? sanitizeSavedAddresses(body.addresses)
+        : existing?.addresses
+          ? [...existing.addresses]
+          : [];
+
+    if (body.addresses === undefined && address) {
+      const defaultIdx = nextAddresses.findIndex((a) => a.isDefault);
+      if (defaultIdx >= 0) {
+        nextAddresses[defaultIdx] = {
+          ...nextAddresses[defaultIdx],
+          recipientName: displayName || nextAddresses[defaultIdx].recipientName,
+          phone: phone || nextAddresses[defaultIdx].phone,
+          district: district || nextAddresses[defaultIdx].district,
+          address,
+          deliveryArea,
+        };
+      } else {
+        nextAddresses.unshift({
+          id: `addr-${crypto.randomUUID().slice(0, 8)}`,
+          label: 'Home',
+          recipientName: displayName || existing?.displayName || '',
+          phone,
+          district,
+          address,
+          deliveryArea,
+          isDefault: true,
+        });
+      }
+      nextAddresses = sanitizeSavedAddresses(nextAddresses);
+    }
+
+    const defaultAddr = nextAddresses.find((a) => a.isDefault) || nextAddresses[0];
+    const updated = normalizeCustomerProfileRecord({
+      uid,
+      email: emailFromToken || existing?.email || '',
+      displayName: displayName || existing?.displayName || (typeof req.user?.name === 'string' ? req.user.name : ''),
+      phone: phone || defaultAddr?.phone || '',
+      district: district || defaultAddr?.district || '',
+      address: address || defaultAddr?.address || '',
+      deliveryArea: address ? deliveryArea : defaultAddr?.deliveryArea || deliveryArea,
+      photoUrl: existing?.photoUrl || pictureFromToken,
+      status: existing?.status === 'deactivated' ? 'deactivated' : 'active',
+      addresses: nextAddresses,
+      lastLoginAt: existing?.lastLoginAt || now,
+      adminNote: existing?.adminNote,
+      deactivatedAt: existing?.deactivatedAt,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    });
+
+    profiles[uid] = updated;
+    saveCustomerProfiles(profiles);
+    if (isSqlConfigured()) {
+      void upsertCustomerProfileToSql(updated).catch(() => {});
+    }
+    res.json({ profile: updated });
+  });
+
+  app.post('/api/account/addresses', requireAuth, async (req: AuthRequest, res) => {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (await isCustomerDeactivated(uid)) {
+      res.status(403).json({
+        error: 'Your account has been deactivated by an administrator. Please contact support.',
+        accountDeactivated: true,
+      });
+      return;
+    }
+
+    const body = req.body || {};
+    const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 40) : 'Home';
+    const recipientName = typeof body.recipientName === 'string' ? body.recipientName.trim().slice(0, 80) : '';
+    const phone = typeof body.phone === 'string' ? body.phone.trim().slice(0, 32) : '';
+    const district = typeof body.district === 'string' ? body.district.trim().slice(0, 60) : '';
+    const addressLine = typeof body.address === 'string' ? body.address.trim().slice(0, 300) : '';
+    const deliveryArea: 'inside_dhaka' | 'outside_dhaka' =
+      body.deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka';
+    const isDefault = Boolean(body.isDefault);
+
+    if (addressLine.length < 3) {
+      res.status(400).json({ error: 'Please enter a complete delivery address.' });
+      return;
+    }
+    if (phone && phone.replace(/\D/g, '').length < 8) {
+      res.status(400).json({ error: 'Please enter a valid phone number.' });
+      return;
+    }
+
+    const current = await ensureCustomerProfileRecord(uid, req.user);
+    const profiles = await getMergedCustomerProfilesMap();
+    const list = [...(current.addresses || [])];
+
+    const requestedId =
+      typeof body.id === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(body.id.trim())
+        ? body.id.trim()
+        : '';
+    const existingIdx = requestedId ? list.findIndex((a) => a.id === requestedId) : -1;
+
+    if (existingIdx === -1 && list.length >= 10) {
+      res.status(400).json({ error: 'You can save up to 10 delivery addresses.' });
+      return;
+    }
+
+    const nextEntry: CustomerSavedAddress = {
+      id: existingIdx >= 0 ? list[existingIdx].id : `addr-${crypto.randomUUID().slice(0, 8)}`,
+      label,
+      recipientName: recipientName || current.displayName || '',
+      phone: phone || current.phone || '',
+      district: district || current.district || '',
+      address: addressLine,
+      deliveryArea,
+      isDefault: isDefault || list.length === 0,
+    };
+
+    if (nextEntry.isDefault) {
+      for (let i = 0; i < list.length; i += 1) {
+        list[i] = { ...list[i], isDefault: false };
+      }
+    }
+
+    if (existingIdx >= 0) {
+      list[existingIdx] = nextEntry;
+    } else {
+      list.unshift(nextEntry);
+    }
+
+    const sanitizedList = sanitizeSavedAddresses(list);
+    const primary = sanitizedList.find((a) => a.isDefault) || sanitizedList[0];
+    const now = new Date().toISOString();
+
+    const updated = normalizeCustomerProfileRecord({
+      ...current,
+      addresses: sanitizedList,
+      phone: primary?.phone || current.phone,
+      district: primary?.district || current.district,
+      address: primary?.address || current.address,
+      deliveryArea: primary?.deliveryArea || current.deliveryArea,
+      updatedAt: now,
+    });
+
+    profiles[uid] = updated;
+    saveCustomerProfiles(profiles);
+    if (isSqlConfigured()) {
+      void upsertCustomerProfileToSql(updated).catch(() => {});
+    }
+
+    res.json({ profile: updated, address: nextEntry });
+  });
+
+  app.delete('/api/account/addresses/:addressId', requireAuth, async (req: AuthRequest, res) => {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (await isCustomerDeactivated(uid)) {
+      res.status(403).json({
+        error: 'Your account has been deactivated by an administrator. Please contact support.',
+        accountDeactivated: true,
+      });
+      return;
+    }
+
+    const current = await ensureCustomerProfileRecord(uid, req.user);
+    const profiles = await getMergedCustomerProfilesMap();
+    const targetId = String(req.params.addressId || '').trim();
+    const filtered = (current.addresses || []).filter((a) => a.id !== targetId);
+    const sanitizedList = sanitizeSavedAddresses(filtered);
+    const primary = sanitizedList.find((a) => a.isDefault) || sanitizedList[0];
+    const now = new Date().toISOString();
+
+    const updated = normalizeCustomerProfileRecord({
+      ...current,
+      addresses: sanitizedList,
+      district: primary ? primary.district : '',
+      address: primary ? primary.address : '',
+      deliveryArea: primary ? primary.deliveryArea : current.deliveryArea,
+      updatedAt: now,
+    });
+
+    profiles[uid] = updated;
+    saveCustomerProfiles(profiles);
+    if (isSqlConfigured()) {
+      void upsertCustomerProfileToSql(updated).catch(() => {});
+    }
+
+    res.json({ profile: updated });
+  });
+
+  app.get('/api/account/orders', requireAuth, (req: AuthRequest, res) => {
+    const uid = req.user?.uid;
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const verifiedEmail =
+      req.user?.email_verified === true && typeof req.user?.email === 'string'
+        ? req.user.email.trim().toLowerCase()
+        : '';
+
+    const orders = db.orders
+      .filter((order) => {
+        if (order.firebaseUid && order.firebaseUid === uid) return true;
+        if (verifiedEmail && order.customerEmail && order.customerEmail.trim().toLowerCase() === verifiedEmail) {
+          return true;
+        }
+        return false;
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.json({ orders });
+  });
+
   // Checkout & Online Payment Gateway Routes
   app.post('/api/checkout/initiate', optionalAuth, async (req: AuthRequest, res) => {
     try {
@@ -1526,8 +2313,27 @@ async function startServer() {
         return;
       }
 
+      if (req.user?.uid && (await isCustomerDeactivated(req.user.uid))) {
+        res.status(403).json({
+          error: 'Your account has been deactivated by an administrator. Please contact support.',
+          accountDeactivated: true,
+        });
+        return;
+      }
+
       const area = deliveryArea === 'outside_dhaka' ? 'outside_dhaka' : 'inside_dhaka';
       const calc = buildOrderCalculation(items, area, couponCode);
+
+      if (req.user?.uid) {
+        await ensureCustomerProfileRecord(req.user.uid, req.user, {
+          displayName: customerName.trim(),
+          phone: customerPhone.trim(),
+          email: typeof customerEmail === 'string' ? customerEmail.trim() : '',
+          district: typeof district === 'string' ? district.trim() : '',
+          address: deliveryAddress.trim(),
+          deliveryArea: area,
+        });
+      }
 
       if (paymentMethod === 'cod') {
         const order = await finalizeOrder({
@@ -1548,6 +2354,7 @@ async function startServer() {
           source: source === 'POS' ? 'POS' : 'Web',
           channel: 'Direct Storefront',
           userId: req.dbUserId,
+          firebaseUid: req.user?.uid,
         });
         res.json({
           status: 'completed',
@@ -1579,6 +2386,8 @@ async function startServer() {
             : paymentMethod === 'nagad'
               ? 'Nagad Checkout'
               : 'SSLCommerz Card',
+        firebaseUid: req.user?.uid,
+        dbUserId: req.dbUserId,
         createdAt: Date.now(),
       });
 
@@ -1628,6 +2437,15 @@ async function startServer() {
       }
     }
 
+    const activeUid = session.firebaseUid ?? req.user?.uid;
+    if (activeUid && (await isCustomerDeactivated(activeUid))) {
+      res.status(403).json({
+        error: 'Your account has been deactivated by an administrator. Please contact support.',
+        accountDeactivated: true,
+      });
+      return;
+    }
+
     pendingPayments.delete(paymentSessionId);
     const prefix =
       session.paymentMethod === 'bkash' ? 'BKS' : session.paymentMethod === 'nagad' ? 'NGD' : 'SSL';
@@ -1651,7 +2469,8 @@ async function startServer() {
         transactionId,
         source: session.source,
         channel: session.channel,
-        userId: req.dbUserId,
+        userId: session.dbUserId ?? req.dbUserId,
+        firebaseUid: session.firebaseUid ?? req.user?.uid,
       });
 
       res.json({
@@ -3425,6 +4244,204 @@ async function startServer() {
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete review' });
+    }
+  });
+
+  // Admin Customer Management Routes (never exposes password hashes or auth secrets)
+  app.get('/api/admin/customers', requireAdmin, async (req, res) => {
+    try {
+      const profilesMap = await getMergedCustomerProfilesMap();
+      const { records } = buildAdminCustomerDirectory(profilesMap, db.orders);
+
+      const registeredRecords = records.filter((r) => r.isRegistered);
+      const guestRecords = records.filter((r) => !r.isRegistered);
+      const stats = {
+        totalRegistered: registeredRecords.length,
+        activeCount: registeredRecords.filter((r) => r.status === 'active').length,
+        deactivatedCount: registeredRecords.filter((r) => r.status === 'deactivated').length,
+        guestCount: guestRecords.length,
+        totalCustomers: records.length,
+        totalRevenue: records.reduce((sum, r) => sum + r.totalSpent, 0),
+        repeatBuyers: records.filter((r) => r.orderCount >= 2).length,
+      };
+
+      const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+      const statusFilter = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+      const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom.trim() : '';
+      const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo.trim() : '';
+      const sortBy = typeof req.query.sortBy === 'string' ? req.query.sortBy.trim() : 'newest';
+
+      const fromMs = dateFrom ? new Date(`${dateFrom}T00:00:00.000Z`).getTime() : NaN;
+      const toMs = dateTo ? new Date(`${dateTo}T23:59:59.999Z`).getTime() : NaN;
+
+      const filtered = records.filter((rec) => {
+        if (statusFilter === 'active' && rec.status !== 'active') return false;
+        if (statusFilter === 'deactivated' && rec.status !== 'deactivated') return false;
+        if (statusFilter === 'registered' && !rec.isRegistered) return false;
+        if (statusFilter === 'guest' && rec.isRegistered) return false;
+
+        if (!Number.isNaN(fromMs)) {
+          const createdMs = new Date(rec.createdAt).getTime();
+          if (Number.isNaN(createdMs) || createdMs < fromMs) return false;
+        }
+        if (!Number.isNaN(toMs)) {
+          const createdMs = new Date(rec.createdAt).getTime();
+          if (Number.isNaN(createdMs) || createdMs > toMs) return false;
+        }
+
+        if (search) {
+          const haystack = [
+            rec.displayName,
+            rec.email,
+            rec.phone,
+            rec.address,
+            rec.district,
+            rec.uid || '',
+          ]
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (sortBy === 'orders') return b.orderCount - a.orderCount || b.totalSpent - a.totalSpent;
+        if (sortBy === 'spent') return b.totalSpent - a.totalSpent || b.orderCount - a.orderCount;
+        if (sortBy === 'name') return a.displayName.localeCompare(b.displayName);
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '10'), 10) || 10));
+      const totalItems = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+      const rawPage = Number.parseInt(String(req.query.page || '1'), 10) || 1;
+      const page = Math.min(totalPages, Math.max(1, rawPage));
+      const start = (page - 1) * limit;
+
+      res.json({
+        customers: filtered.slice(start, start + limit),
+        stats,
+        pagination: {
+          page,
+          limit,
+          totalItems,
+          totalPages,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load customers' });
+    }
+  });
+
+  app.get('/api/admin/customers/:id', requireAdmin, async (req, res) => {
+    try {
+      const targetId = String(req.params.id || '').trim();
+      const profilesMap = await getMergedCustomerProfilesMap();
+      const { records, ordersByCustomerId } = buildAdminCustomerDirectory(profilesMap, db.orders);
+      const customer = records.find((r) => r.id === targetId || r.uid === targetId);
+      if (!customer) {
+        res.status(404).json({ error: 'Customer not found' });
+        return;
+      }
+
+      const orders = ordersByCustomerId.get(customer.id) || [];
+      const orderDeliveryAddresses: CustomerSavedAddress[] = [];
+      const seenAddr = new Set(
+        customer.addresses.map((a) => `${a.address.trim().toLowerCase()}|${a.phone.trim()}`)
+      );
+      for (const ord of orders) {
+        const key = `${ord.deliveryAddress.trim().toLowerCase()}|${ord.customerPhone.trim()}`;
+        if (!ord.deliveryAddress.trim() || seenAddr.has(key)) continue;
+        seenAddr.add(key);
+        orderDeliveryAddresses.push({
+          id: `hist-${ord.id}`,
+          label: `Order #${ord.orderNumber}`,
+          recipientName: ord.customerName,
+          phone: ord.customerPhone,
+          district: '',
+          address: ord.deliveryAddress,
+          deliveryArea: ord.deliveryArea,
+          isDefault: false,
+        });
+      }
+
+      const combinedAddresses =
+        customer.isRegistered
+          ? [...customer.addresses, ...orderDeliveryAddresses]
+          : customer.addresses;
+
+      const enrichedCustomer: AdminCustomerRecord = {
+        ...customer,
+        addresses: combinedAddresses,
+        recentActivity: buildCustomerActivityTimeline(customer, orders),
+      };
+
+      res.json({ customer: enrichedCustomer, orders });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to load customer details' });
+    }
+  });
+
+  app.patch('/api/admin/customers/:id/status', requireAdmin, async (req, res) => {
+    try {
+      const targetId = String(req.params.id || '').trim();
+      const nextStatus: CustomerAccountStatus | null =
+        req.body?.status === 'active' || req.body?.status === 'deactivated' ? req.body.status : null;
+
+      if (!nextStatus) {
+        res.status(400).json({ error: 'Status must be "active" or "deactivated".' });
+        return;
+      }
+
+      if (targetId.startsWith('guest-')) {
+        res.status(400).json({ error: 'Only registered customer accounts can be activated or deactivated.' });
+        return;
+      }
+
+      const profiles = await getMergedCustomerProfilesMap();
+      let existing = profiles[targetId];
+      if (!existing) {
+        const linkedOrders = db.orders.filter((o) => o.firebaseUid === targetId);
+        if (linkedOrders.length === 0) {
+          res.status(404).json({ error: 'Registered customer account not found.' });
+          return;
+        }
+        const latest = linkedOrders[0];
+        existing = await ensureCustomerProfileRecord(targetId, undefined, {
+          displayName: latest.customerName,
+          phone: latest.customerPhone,
+          email: latest.customerEmail,
+          address: latest.deliveryAddress,
+          deliveryArea: latest.deliveryArea,
+        });
+      }
+
+      const now = new Date().toISOString();
+      const adminNote =
+        typeof req.body?.adminNote === 'string'
+          ? req.body.adminNote.trim().slice(0, 300)
+          : existing.adminNote;
+
+      const updatedProfile = normalizeCustomerProfileRecord({
+        ...existing,
+        status: nextStatus,
+        deactivatedAt: nextStatus === 'deactivated' ? now : undefined,
+        adminNote,
+        updatedAt: now,
+      });
+
+      profiles[targetId] = updatedProfile;
+      saveCustomerProfiles(profiles);
+      if (isSqlConfigured()) {
+        await updateCustomerStatusInSql(targetId, nextStatus, adminNote).catch(() => {});
+      }
+
+      const { records } = buildAdminCustomerDirectory(profiles, db.orders);
+      const updatedRecord = records.find((r) => r.id === targetId);
+      res.json({ customer: updatedRecord || updatedProfile });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update customer status' });
     }
   });
 

@@ -428,6 +428,17 @@ export function AdminHeaderSettingsPanel({
                 ariaLabel="Toggle Offers icon"
               />
             </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                Account <Info className="w-3 h-3 text-slate-400" />
+              </span>
+              <SwitchToggle
+                checked={hc.showAccountIcon !== false}
+                onChange={(v) => updateHeader({ showAccountIcon: v })}
+                ariaLabel="Toggle Account icon"
+              />
+            </div>
           </div>
         </div>
 
@@ -832,6 +843,116 @@ export function AdminHeaderSettingsPanel({
             <span className="font-medium text-slate-700 dark:text-slate-300">
               Show on mobile
             </span>
+          </div>
+        </div>
+
+        {/* 6. Header Colors, Behavior & Labels */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+              Header colors &amp; labels
+            </h2>
+            <button
+              type="button"
+              onClick={() =>
+                updateHeader({
+                  headerBgColor: DEFAULT_HEADER_CONFIG.headerBgColor,
+                  headerTextColor: DEFAULT_HEADER_CONFIG.headerTextColor,
+                  stickyHeader: DEFAULT_HEADER_CONFIG.stickyHeader,
+                  searchPlaceholder: DEFAULT_HEADER_CONFIG.searchPlaceholder,
+                  myOrdersLabel: DEFAULT_HEADER_CONFIG.myOrdersLabel,
+                })
+              }
+              className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              Reset defaults
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Header background
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={hc.headerBgColor || '#FAF4E6'}
+                  onChange={(e) => updateHeader({ headerBgColor: e.target.value })}
+                  className="w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+                  aria-label="Header background color"
+                />
+                <input
+                  type="text"
+                  value={hc.headerBgColor || '#FAF4E6'}
+                  onChange={(e) => updateHeader({ headerBgColor: e.target.value })}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-mono text-[11px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Header text &amp; icons
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={hc.headerTextColor || '#650108'}
+                  onChange={(e) => updateHeader({ headerTextColor: e.target.value })}
+                  className="w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+                  aria-label="Header text color"
+                />
+                <input
+                  type="text"
+                  value={hc.headerTextColor || '#650108'}
+                  onChange={(e) => updateHeader({ headerTextColor: e.target.value })}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-mono text-[11px]"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Search bar placeholder
+              </label>
+              <input
+                type="text"
+                value={hc.searchPlaceholder}
+                onChange={(e) => updateHeader({ searchPlaceholder: e.target.value })}
+                placeholder="Search phone cases or models..."
+                className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Track order button label
+              </label>
+              <input
+                type="text"
+                value={hc.myOrdersLabel}
+                onChange={(e) => updateHeader({ myOrdersLabel: e.target.value })}
+                placeholder="Track order"
+                className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <div>
+              <div className="font-medium text-slate-700 dark:text-slate-300">Sticky header</div>
+              <div className="text-[10.5px] text-slate-400">
+                Keep the header pinned at the top while scrolling.
+              </div>
+            </div>
+            <SwitchToggle
+              checked={hc.stickyHeader}
+              onChange={(v) => updateHeader({ stickyHeader: v })}
+              ariaLabel="Toggle sticky header"
+            />
           </div>
         </div>
       </div>

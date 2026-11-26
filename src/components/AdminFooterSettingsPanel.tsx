@@ -792,7 +792,75 @@ export function AdminFooterSettingsPanel({
           </div>
         </div>
 
-        {/* 2. Blocks */}
+        {/* 2. Footer Colors */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Footer colors</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Applied to Classic, Contact strip, and Compact designs.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                updateFooter({
+                  footerBgColor: '#650108',
+                  footerTextColor: '#F2E8D2',
+                })
+              }
+              className="text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              Reset brand colors
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Background color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={fc.footerBgColor || '#650108'}
+                  onChange={(e) => updateFooter({ footerBgColor: e.target.value })}
+                  className="w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+                  aria-label="Footer background color"
+                />
+                <input
+                  type="text"
+                  value={fc.footerBgColor || '#650108'}
+                  onChange={(e) => updateFooter({ footerBgColor: e.target.value })}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-mono text-[11px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Text color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={fc.footerTextColor || '#F2E8D2'}
+                  onChange={(e) => updateFooter({ footerTextColor: e.target.value })}
+                  className="w-8 h-8 rounded-md border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+                  aria-label="Footer text color"
+                />
+                <input
+                  type="text"
+                  value={fc.footerTextColor || '#F2E8D2'}
+                  onChange={(e) => updateFooter({ footerTextColor: e.target.value })}
+                  className="flex-1 px-2.5 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-mono text-[11px]"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Blocks */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3.5">
           <div className="flex items-center gap-1.5">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Blocks</h2>

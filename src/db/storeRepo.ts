@@ -20,6 +20,7 @@ import {
   reviews,
   storeConfig,
   subscribers,
+  users,
   type AdminAuthRecord,
 } from './schema.ts';
 
@@ -228,7 +229,7 @@ export async function loadOrSeedStoreFromSql(
     }
 
     const cfg = configRows[0];
-    const [catRows, prodRows, ordRows, subRows, coupRows, expRows, revRows] = await Promise.all([
+    const [catRows, prodRows, ordRows, subRows, coupRows, expRows, revRows, userRows] = await Promise.all([
       db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name)),
       db.select().from(products).orderBy(asc(products.sortOrder), desc(products.createdAt)),
       db.select().from(orders).orderBy(desc(orders.createdAt)),
@@ -236,7 +237,9 @@ export async function loadOrSeedStoreFromSql(
       db.select().from(coupons),
       db.select().from(expenses).orderBy(desc(expenses.createdAt)),
       db.select().from(reviews).orderBy(desc(reviews.createdAt)),
+      db.select({ id: users.id, uid: users.uid }).from(users),
     ]);
+    const userUidMap = new Map<number, string>(userRows.map((u) => [u.id, u.uid]));
 
     return {
       settings: cfg.settings,
@@ -313,6 +316,7 @@ export async function loadOrSeedStoreFromSql(
         transactionId: o.transactionId,
         source: o.source as Order['source'],
         channel: o.channel,
+        firebaseUid: o.userId ? userUidMap.get(o.userId) : undefined,
         createdAt: o.createdAt,
         updatedAt: o.updatedAt,
       })),

@@ -119,8 +119,74 @@ export interface Order {
   shippedAt?: string;
   deliveredAt?: string;
   courier?: OrderCourierInfo;
+  firebaseUid?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type CustomerAccountStatus = 'active' | 'deactivated';
+
+export interface CustomerSavedAddress {
+  id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  district: string;
+  address: string;
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka';
+  isDefault?: boolean;
+}
+
+export interface CustomerProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  district: string;
+  address: string;
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka';
+  photoUrl: string;
+  status?: CustomerAccountStatus;
+  addresses?: CustomerSavedAddress[];
+  lastLoginAt?: string;
+  deactivatedAt?: string;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerActivityItem {
+  id: string;
+  type: 'account_created' | 'profile_updated' | 'order_placed' | 'order_status' | 'status_changed';
+  title: string;
+  detail: string;
+  timestamp: string;
+}
+
+export interface AdminCustomerRecord {
+  id: string;
+  uid?: string;
+  isRegistered: boolean;
+  displayName: string;
+  email: string;
+  phone: string;
+  district: string;
+  address: string;
+  deliveryArea: 'inside_dhaka' | 'outside_dhaka';
+  addresses: CustomerSavedAddress[];
+  photoUrl: string;
+  status: CustomerAccountStatus;
+  adminNote?: string;
+  deactivatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastActiveAt: string;
+  lastOrderAt?: string;
+  orderCount: number;
+  completedOrdersCount: number;
+  cancelledOrdersCount: number;
+  totalSpent: number;
+  recentActivity?: CustomerActivityItem[];
 }
 
 export interface PaymentGatewaySettings {
@@ -329,6 +395,7 @@ export interface HeaderConfigSettings {
   showWishlistIcon: boolean;
   showCartIcon: boolean;
   showOffersIcon: boolean;
+  showAccountIcon?: boolean;
   mobileBottomBarStyle: MobileBottomBarStyleType;
   mobileBottomBarItems: MobileBottomBarItem[];
   menuCategoryMode: MenuCategoryMode;

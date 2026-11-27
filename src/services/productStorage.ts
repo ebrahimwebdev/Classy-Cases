@@ -10,6 +10,7 @@ const IMAGE_REF_PREFIX = 'ls-img://';
 export interface CatalogStorageMeta {
   hasLocalChanges: boolean;
   updatedAt: string;
+  incompleteImages?: boolean;
 }
 
 function isBrowser(): boolean {
@@ -83,17 +84,18 @@ export function saveImageToStorage(urlOrDataUrl: string): string {
 }
 
 export function loadCatalogMeta(): CatalogStorageMeta {
-  if (!isBrowser()) return { hasLocalChanges: false, updatedAt: '' };
+  if (!isBrowser()) return { hasLocalChanges: false, updatedAt: '', incompleteImages: false };
   try {
     const raw = window.localStorage.getItem(CATALOG_META_STORAGE_KEY);
-    if (!raw) return { hasLocalChanges: false, updatedAt: '' };
+    if (!raw) return { hasLocalChanges: false, updatedAt: '', incompleteImages: false };
     const parsed = JSON.parse(raw) as Partial<CatalogStorageMeta>;
     return {
       hasLocalChanges: Boolean(parsed?.hasLocalChanges),
       updatedAt: typeof parsed?.updatedAt === 'string' ? parsed.updatedAt : '',
+      incompleteImages: Boolean(parsed?.incompleteImages),
     };
   } catch {
-    return { hasLocalChanges: false, updatedAt: '' };
+    return { hasLocalChanges: false, updatedAt: '', incompleteImages: false };
   }
 }
 
@@ -190,6 +192,7 @@ export function saveStoredCatalog(
   const meta: CatalogStorageMeta = {
     hasLocalChanges: nextHasLocalChanges,
     updatedAt: new Date().toISOString(),
+    incompleteImages: false,
   };
 
   try {
@@ -199,30 +202,63 @@ export function saveStoredCatalog(
     emitCatalogUpdated();
     return true;
   } catch {
-    // Fallback if gallery data URLs exceed localStorage quota: keep main images and drop heavy gallery data URLs
+    // Fallback 1: keep main images and drop heavy gallery data URLs
+    const compactImageMap: Record<string, string> = {};
+    const compactProducts: Product[] = products.map((product) => {
+      const mainRef = dehydrateUrl(product.image);
+      if (mainRef.startsWith(IMAGE_REF_PREFIX)) {
+        const k = mainRef.slice(IMAGE_REF_PREFIX.length);
+        if (nextImageMap[k]) compactImageMap[k] = nextImageMap[k];
+      }
+      return {
+        ...product,
+        image: mainRef,
+        galleryImages: Array.isArray(product.galleryImages)
+          ? product.galleryImages.filter((g) => !g.startsWith('data:image/'))
+          : undefined,
+      };
+    });
+
     try {
-      const compactImageMap: Record<string, string> = {};
-      const compactProducts: Product[] = products.map((product) => {
-        const mainRef = dehydrateUrl(product.image);
-        if (mainRef.startsWith(IMAGE_REF_PREFIX)) {
-          const k = mainRef.slice(IMAGE_REF_PREFIX.length);
-          if (nextImageMap[k]) compactImageMap[k] = nextImageMap[k];
-        }
-        return {
-          ...product,
-          image: mainRef,
-          galleryImages: Array.isArray(product.galleryImages)
-            ? product.galleryImages.filter((g) => !g.startsWith('data:image/'))
-            : undefined,
-        };
-      });
+      window.localStorage.removeItem(IMAGES_STORAGE_KEY);
       window.localStorage.setItem(IMAGES_STORAGE_KEY, JSON.stringify(compactImageMap));
       window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(compactProducts));
       window.localStorage.setItem(CATALOG_META_STORAGE_KEY, JSON.stringify(meta));
       emitCatalogUpdated();
       return true;
     } catch {
-      return false;
+      // Fallback 2: strip data:image/ blobs so PRODUCTS_STORAGE_KEY never stays frozen on stale/deleted products
+      try {
+        window.localStorage.removeItem(IMAGES_STORAGE_KEY);
+        const lightweightProducts: Product[] = compactProducts.map((product) => ({
+          ...product,
+          image: product.image.startsWith(IMAGE_REF_PREFIX) || product.image.startsWith('data:image/')
+            ? ''
+            : product.image,
+        }));
+        const hadDataImages = Object.keys(compactImageMap).length > 0;
+        const lightweightMeta: CatalogStorageMeta = {
+          ...meta,
+          incompleteImages: hadDataImages,
+        };
+        window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(lightweightProducts));
+        window.localStorage.setItem(CATALOG_META_STORAGE_KEY, JSON.stringify(lightweightMeta));
+        emitCatalogUpdated();
+        return true;
+      } catch {
+        // Last resort: clear stale product cache so deleted products never flash back on reload
+        try {
+          window.localStorage.removeItem(IMAGES_STORAGE_KEY);
+          window.localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+          window.localStorage.setItem(
+            CATALOG_META_STORAGE_KEY,
+            JSON.stringify({ ...meta, incompleteImages: true })
+          );
+        } catch {
+          // ignore storage quota errors
+        }
+        return false;
+      }
     }
   }
 }

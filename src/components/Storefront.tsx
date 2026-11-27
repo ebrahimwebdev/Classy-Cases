@@ -308,6 +308,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     [persistedProducts]
   );
   const [loading, setLoading] = useState(() => !hasCachedCatalog);
+  const [storefrontLoaded, setStorefrontLoaded] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<string>(() => {
     if (initialRoute.view === 'shop') {
@@ -426,30 +427,24 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       );
       setLoading(false);
 
-      // Merge any additional active sub-categories stored in Firestore without blocking initial reload
-      void fetchPublicCategoriesFromFirestore()
-        .then((firestoreCategories) => {
-          if (!Array.isArray(firestoreCategories) || firestoreCategories.length === 0) {
-            return;
-          }
-          const mergedMap = new Map<string, Category>();
-          for (const cat of serverCategories) {
-            mergedMap.set(cat.id, cat);
-          }
-          for (const fsCat of firestoreCategories) {
-            if (!mergedMap.has(fsCat.id)) {
-              mergedMap.set(fsCat.id, fsCat);
+      // Only fall back to Firestore categories if the server returned no categories
+      if (serverCategories.length === 0) {
+        void fetchPublicCategoriesFromFirestore()
+          .then((firestoreCategories) => {
+            if (!Array.isArray(firestoreCategories) || firestoreCategories.length === 0) {
+              return;
             }
-          }
-          const merged = Array.from(mergedMap.values());
-          setCategories(merged);
-          saveCachedStorefrontMeta(nextSettings, merged);
-        })
-        .catch(() => {
-          // ignore transient Firestore read errors on storefront
-        });
+            setCategories(firestoreCategories);
+            saveCachedStorefrontMeta(nextSettings, firestoreCategories);
+          })
+          .catch(() => {
+            // ignore transient Firestore read errors on storefront
+          });
+      }
     } catch {
       setLoading(false);
+    } finally {
+      setStorefrontLoaded(true);
     }
   }
 
@@ -664,11 +659,11 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     if (matched) {
       setSelectedCategory(matched);
       setPendingShopCategoryKey(null);
-    } else if (!loading && effectiveCategories.length > 0) {
+    } else if (storefrontLoaded && effectiveCategories.length > 0) {
       setSelectedCategory('All');
       setPendingShopCategoryKey(null);
     }
-  }, [effectiveCategories, pendingShopCategoryKey, loading]);
+  }, [effectiveCategories, pendingShopCategoryKey, storefrontLoaded]);
 
   function navigateShop(
     categoryName = 'All',
@@ -1191,7 +1186,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           <ShopCategoryPage
             categories={effectiveCategories}
             products={filteredProducts}
-            loading={loading}
+            loading={loading || pendingShopCategoryKey !== null}
             selectedCategory={selectedCategory}
             selectedModel={selectedModel}
             availableModels={availableModels}

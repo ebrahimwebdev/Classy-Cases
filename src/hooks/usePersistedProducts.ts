@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Product } from '../types';
 import {
   hasLocalCatalogChanges,
+  loadCatalogMeta,
   loadStoredProducts,
   saveStoredCatalog,
   subscribeToCatalogStorage,
@@ -21,17 +22,21 @@ export function usePersistedProducts(options: UsePersistedProductsOptions = {}) 
 
   const [products, setProductsState] = useState<Product[]>(() => {
     const stored = loadStoredProducts();
-    return stored ? filterActive(stored, activeOnly) : [];
+    if (!stored) return [];
+    if (activeOnly && loadCatalogMeta().incompleteImages) return [];
+    return filterActive(stored, activeOnly);
   });
 
   const [hasCachedCatalog, setHasCachedCatalog] = useState<boolean>(() => {
-    return loadStoredProducts() !== null;
+    const stored = loadStoredProducts();
+    if (stored === null) return false;
+    return activeOnly ? !loadCatalogMeta().incompleteImages : true;
   });
 
   useEffect(() => {
     return subscribeToCatalogStorage(() => {
       const stored = loadStoredProducts();
-      if (stored) {
+      if (stored && !(activeOnly && loadCatalogMeta().incompleteImages)) {
         setProductsState(filterActive(stored, activeOnly));
         setHasCachedCatalog(true);
       }

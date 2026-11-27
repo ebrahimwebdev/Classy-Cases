@@ -1,7 +1,54 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, ilike } from 'drizzle-orm';
 import type { CustomerAccountStatus, CustomerProfile, CustomerSavedAddress } from '../types.ts';
 import { db } from './index.ts';
 import { users } from './schema.ts';
+
+export async function findUserByEmailSql(email: string) {
+  try {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return null;
+    const rows = await db
+      .select()
+      .from(users)
+      .where(ilike(users.email, normalized))
+      .limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error('Database query failed in findUserByEmailSql:', error);
+    throw new Error('Failed to look up customer account.', { cause: error });
+  }
+}
+
+export async function createPasswordUserInSql(params: {
+  uid: string;
+  email: string;
+  displayName: string;
+  passwordSalt: string;
+  passwordHash: string;
+}) {
+  try {
+    const now = new Date();
+    const inserted = await db
+      .insert(users)
+      .values({
+        uid: params.uid,
+        email: params.email.trim().toLowerCase(),
+        role: 'customer',
+        displayName: params.displayName.trim(),
+        passwordSalt: params.passwordSalt,
+        passwordHash: params.passwordHash,
+        status: 'active',
+        lastLoginAt: now,
+        updatedAt: now,
+        createdAt: now,
+      })
+      .returning();
+    return inserted[0];
+  } catch (error) {
+    console.error('Database query failed in createPasswordUserInSql:', error);
+    throw new Error('Failed to create customer account.', { cause: error });
+  }
+}
 
 export async function getOrCreateUser(uid: string, email: string, role?: 'admin' | 'customer') {
   try {

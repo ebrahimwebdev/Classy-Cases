@@ -54,6 +54,8 @@ import {
   type StoreSnapshot,
 } from './src/db/storeRepo.ts';
 import {
+  createPasswordUserInSql,
+  findUserByEmailSql,
   getOrCreateUser,
   getUserByUid,
   listAllCustomerUsersFromSql,
@@ -61,7 +63,17 @@ import {
   upsertCustomerProfileToSql,
 } from './src/db/users.ts';
 import { adminAuth } from './src/lib/firebase-admin.ts';
-import { optionalAuth, requireAuth, type AuthRequest } from './src/middleware/auth.ts';
+import {
+  CUSTOMER_COOKIE_MAX_AGE_SECONDS,
+  CUSTOMER_COOKIE_NAME,
+  createCustomerAccountSessionToken,
+  extractCustomerCookieToken,
+  optionalAuth,
+  registerCustomerSessionSecretResolver,
+  requireAuth,
+  verifyCustomerAccountSessionToken,
+  type AuthRequest,
+} from './src/middleware/auth.ts';
 import {
   createDefaultFooterConfig,
   DEFAULT_HEADER_CONFIG,
@@ -904,6 +916,8 @@ function getSessionSecret(): string {
   return db.sessionSecret;
 }
 
+registerCustomerSessionSecretResolver(getSessionSecret);
+
 async function ensureStoreLoaded(): Promise<void> {
   if (storeLoaded) return;
   if (storeInitPromise) {
@@ -1117,6 +1131,34 @@ function clearAdminSessionCookie(req: Request, res: Response): void {
   const https = isHttpsRequest(req);
   const parts = [
     `${ADMIN_COOKIE_NAME}=`,
+    'Path=/',
+    'Max-Age=0',
+    'HttpOnly',
+    https ? 'Secure' : '',
+    https ? 'SameSite=None' : 'SameSite=Lax',
+    https ? 'Partitioned' : '',
+  ].filter(Boolean);
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function setCustomerSessionCookie(req: Request, res: Response, token: string): void {
+  const https = isHttpsRequest(req);
+  const parts = [
+    `${CUSTOMER_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'Path=/',
+    `Max-Age=${CUSTOMER_COOKIE_MAX_AGE_SECONDS}`,
+    'HttpOnly',
+    https ? 'Secure' : '',
+    https ? 'SameSite=None' : 'SameSite=Lax',
+    https ? 'Partitioned' : '',
+  ].filter(Boolean);
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+function clearCustomerSessionCookie(req: Request, res: Response): void {
+  const https = isHttpsRequest(req);
+  const parts = [
+    `${CUSTOMER_COOKIE_NAME}=`,
     'Path=/',
     'Max-Age=0',
     'HttpOnly',
@@ -1984,6 +2026,230 @@ async function startServer() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     res.json({ orders, newToken });
+  });
+
+  // Customer Email & Password Authentication Routes (Cloud SQL + HMAC Session)
+  app.get('/api/account/auth/me', async (req, res) => {
+    try {
+      const bearer = extractBearerToken(req);
+      const rawToken =
+        bearer && bearer.split('.').length === 2 ? bearer : extractCustomerCookieToken(req);
+      if (!rawToken) {
+        res.json({ authenticated: false });
+        return;
+      }
+
+      const decoded = verifyCustomerAccountSessionToken(rawToken);
+      if (!decoded?.uid) {
+        res.json({ authenticated: false });
+        return;
+      }
+
+      const sqlUser = isSqlConfigured() ? await getUserByUid(decoded.uid) : null;
+      if (sqlUser?.status === 'deactivated' || (await isCustomerDeactivated(decoded.uid))) {
+        clearCustomerSessionCookie(req, res);
+        res.json({ authenticated: false });
+        return;
+      }
+
+      const email = sqlUser?.email || (typeof decoded.email === 'string' ? decoded.email : '');
+      const displayName =
+        sqlUser?.displayName || (typeof decoded.name === 'string' ? decoded.name : '');
+      const profile = await ensureCustomerProfileRecord(decoded.uid, {
+        email,
+        name: displayName,
+        picture: sqlUser?.photoUrl || '',
+      });
+
+      const resolvedName = profile.displayName || displayName;
+      const resolvedEmail = profile.email || email;
+      const resolvedPhoto = profile.photoUrl || sqlUser?.photoUrl || '';
+      const refreshedToken = createCustomerAccountSessionToken({
+        uid: decoded.uid,
+        email: resolvedEmail,
+        name: resolvedName,
+      });
+      setCustomerSessionCookie(req, res, refreshedToken);
+
+      res.json({
+        authenticated: true,
+        token: refreshedToken,
+        user: {
+          uid: decoded.uid,
+          email: resolvedEmail,
+          displayName: resolvedName,
+          photoURL: resolvedPhoto,
+          emailVerified: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to check customer session:', err);
+      res.json({ authenticated: false });
+    }
+  });
+
+  app.post('/api/account/auth/register', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const displayName =
+        typeof body.displayName === 'string' ? body.displayName.trim() : '';
+      const email =
+        typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+
+      if (displayName.length < 2 || displayName.length > 80) {
+        res.status(400).json({ error: 'Please enter your full name (2 to 80 characters).' });
+        return;
+      }
+      if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        res.status(400).json({ error: 'Please enter a valid email address.' });
+        return;
+      }
+      if (password.length < 6 || password.length > 128) {
+        res.status(400).json({ error: 'Password must be between 6 and 128 characters.' });
+        return;
+      }
+      if (!isSqlConfigured()) {
+        res.status(503).json({ error: 'Account database is temporarily unavailable.' });
+        return;
+      }
+
+      const existing = await findUserByEmailSql(email);
+      if (existing) {
+        res.status(409).json({
+          error: 'An account with this email already exists. Try signing in instead.',
+        });
+        return;
+      }
+
+      const { salt, passwordHash } = hashPassword(password);
+      const uid = `cust-${crypto.randomUUID().slice(0, 12)}`;
+      await createPasswordUserInSql({
+        uid,
+        email,
+        displayName,
+        passwordSalt: salt,
+        passwordHash,
+      });
+
+      await ensureCustomerProfileRecord(
+        uid,
+        { email, name: displayName },
+        { email, displayName },
+        true
+      );
+
+      const token = createCustomerAccountSessionToken({
+        uid,
+        email,
+        name: displayName,
+      });
+      setCustomerSessionCookie(req, res, token);
+
+      res.status(201).json({
+        token,
+        user: {
+          uid,
+          email,
+          displayName,
+          photoURL: '',
+          emailVerified: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to register customer account:', err);
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Unable to create account right now.',
+      });
+    }
+  });
+
+  app.post('/api/account/auth/login', async (req, res) => {
+    try {
+      const body = req.body || {};
+      const email =
+        typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+      const password = typeof body.password === 'string' ? body.password : '';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password) {
+        res.status(400).json({ error: 'Please enter a valid email address and password.' });
+        return;
+      }
+      if (!isSqlConfigured()) {
+        res.status(503).json({ error: 'Account database is temporarily unavailable.' });
+        return;
+      }
+
+      const userRow = await findUserByEmailSql(email);
+      if (!userRow || !userRow.passwordSalt || !userRow.passwordHash) {
+        res.status(401).json({
+          error: 'Incorrect email or password. Please check your credentials and try again.',
+        });
+        return;
+      }
+
+      const validPassword = verifyScryptPassword(password, {
+        salt: userRow.passwordSalt,
+        passwordHash: userRow.passwordHash,
+        claimedAt: '',
+      });
+      if (!validPassword) {
+        res.status(401).json({
+          error: 'Incorrect email or password. Please check your credentials and try again.',
+        });
+        return;
+      }
+
+      if (userRow.status === 'deactivated' || (await isCustomerDeactivated(userRow.uid))) {
+        res.status(403).json({
+          error: 'Your account has been deactivated by an administrator. Please contact support.',
+          accountDeactivated: true,
+        });
+        return;
+      }
+
+      await getOrCreateUser(userRow.uid, userRow.email);
+      const profile = await ensureCustomerProfileRecord(
+        userRow.uid,
+        {
+          email: userRow.email,
+          name: userRow.displayName || '',
+          picture: userRow.photoUrl || '',
+        },
+        undefined,
+        true
+      );
+
+      const resolvedName = profile.displayName || userRow.displayName || '';
+      const resolvedPhoto = profile.photoUrl || userRow.photoUrl || '';
+      const token = createCustomerAccountSessionToken({
+        uid: userRow.uid,
+        email: userRow.email,
+        name: resolvedName,
+      });
+      setCustomerSessionCookie(req, res, token);
+
+      res.json({
+        token,
+        user: {
+          uid: userRow.uid,
+          email: userRow.email,
+          displayName: resolvedName,
+          photoURL: resolvedPhoto,
+          emailVerified: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to sign in customer:', err);
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Unable to sign in right now.',
+      });
+    }
+  });
+
+  app.post('/api/account/auth/logout', (req, res) => {
+    clearCustomerSessionCookie(req, res);
+    res.json({ ok: true });
   });
 
   // Authenticated Customer Account Profile, Addresses & Order History Routes

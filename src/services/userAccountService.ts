@@ -99,6 +99,9 @@ function mergeProfiles(base: CustomerProfile, secondary?: Partial<CustomerProfil
 }
 
 async function syncProfileDocToFirestore(user: User, savedProfile: CustomerProfile): Promise<boolean> {
+  if (!auth.currentUser || auth.currentUser.uid !== user.uid) {
+    return false;
+  }
   const docPath = `users/${user.uid}`;
   const docRef = doc(db, 'users', user.uid);
   const sanitizedAddresses = sanitizeAddressesForClient(savedProfile.addresses || []);
@@ -145,10 +148,11 @@ export async function loadCustomerProfile(user: User, idToken: string | null): P
   let firestoreProfile: Partial<CustomerProfile> | null = null;
   let backendProfile: CustomerProfile | null = null;
 
-  // 1. Read Firestore /users/{uid}
+  // 1. Read Firestore /users/{uid} when signed in via Firebase Auth
   const docPath = `users/${user.uid}`;
-  try {
-    const snap = await getDoc(doc(db, 'users', user.uid));
+  if (auth.currentUser && auth.currentUser.uid === user.uid) {
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
     if (snap.exists()) {
       const data = snap.data() as Record<string, unknown>;
       firestoreProfile = {
@@ -165,11 +169,12 @@ export async function loadCustomerProfile(user: User, idToken: string | null): P
         addresses: sanitizeAddressesForClient(data.addresses),
       };
     }
-  } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, docPath);
-    } catch {
-      // Swallow Firestore permission/network failure after diagnostic logging so backend profile still works
+    } catch (err) {
+      try {
+        handleFirestoreError(err, OperationType.GET, docPath);
+      } catch {
+        // Swallow Firestore permission/network failure after diagnostic logging so backend profile still works
+      }
     }
   }
 

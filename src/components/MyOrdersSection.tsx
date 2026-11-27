@@ -17,7 +17,7 @@ import {
   User,
   XCircle,
 } from 'lucide-react';
-import { useFirebaseAuth } from '../context/FirebaseAuthContext';
+import { formatFirebaseAuthError, useFirebaseAuth } from '../context/FirebaseAuthContext';
 import { formatTaka } from '../models/phoneCase';
 import {
   saveCustomerOrderToFirestore,
@@ -425,7 +425,7 @@ export function MyOrdersSection({
     try {
       await signInWithGoogle();
     } catch (err) {
-      setAuthBannerError(err instanceof Error ? err.message : 'Unable to sign in with Google.');
+      setAuthBannerError(formatFirebaseAuthError(err));
     } finally {
       setGoogleSigningIn(false);
     }

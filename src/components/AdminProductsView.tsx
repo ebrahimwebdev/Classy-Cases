@@ -414,7 +414,7 @@ export function AdminProductsView({
                       p.brandModels[0].toLowerCase() !== 'universal fit');
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3.5 pl-4 pr-2">
                         <input
                           type="checkbox"

@@ -39,6 +39,8 @@ export const users = pgTable('users', {
   status: text('status').default('active').notNull(),
   deactivatedAt: text('deactivated_at').default('').notNull(),
   adminNote: text('admin_note').default('').notNull(),
+  passwordSalt: text('password_salt').default('').notNull(),
+  passwordHash: text('password_hash').default('').notNull(),
   lastLoginAt: timestamp('last_login_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

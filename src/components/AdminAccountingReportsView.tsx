@@ -211,7 +211,7 @@ export function AdminAccountingReportsView({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {orders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-slate-50/70">
+                    <tr key={ord.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4 font-mono font-semibold text-slate-900 dark:text-slate-100">
                         {ord.transactionId}
                       </td>
@@ -356,7 +356,7 @@ export function AdminAccountingReportsView({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {expenses.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-slate-50/70">
+                    <tr key={exp.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4 text-slate-500 dark:text-slate-400 tabular-nums">{exp.date}</td>
                       <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">{exp.title}</td>
                       <td className="py-3 px-4">

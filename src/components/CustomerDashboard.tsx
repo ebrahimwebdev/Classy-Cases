@@ -38,6 +38,7 @@ import type {
   Order,
   OrderItem,
 } from '../types';
+import { CustomerAuthPanel } from './CustomerAuthPanel';
 import { MyOrdersSection } from './MyOrdersSection';
 
 export type CustomerDashboardTab =
@@ -459,7 +460,7 @@ export function CustomerDashboard({
 
   if (!user) {
     return (
-      <section className="max-w-[1180px] mx-auto px-4 sm:px-8 py-12 sm:py-16">
+      <section className="max-w-[1180px] mx-auto px-4 sm:px-8 py-10 sm:py-14">
         <button
           type="button"
           onClick={onBackToShop}
@@ -469,32 +470,27 @@ export function CustomerDashboard({
           <span>Back to Storefront</span>
         </button>
 
-        <div className="max-w-lg mx-auto rounded-2xl border border-[#DFCFB0] bg-[#FFFDF8] p-8 text-center space-y-4 shadow-sm">
-          <div className="w-14 h-14 rounded-2xl bg-[#650108] text-[#F2E8D2] flex items-center justify-center mx-auto">
-            <UserIcon className="w-7 h-7" />
+        <div className="max-w-lg mx-auto rounded-2xl border border-[#DFCFB0] bg-[#FAF4E6] p-6 sm:p-8 space-y-5 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-[#650108] text-[#F2E8D2] flex items-center justify-center shrink-0">
+              <UserIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="font-brand text-2xl font-semibold text-[#650108] leading-tight">
+                Sign in to Your Account
+              </h1>
+              <p className="text-xs text-[#6B4C4E] mt-0.5">
+                View your synced order history, live courier tracking, and saved addresses.
+              </p>
+            </div>
           </div>
-          <h1 className="font-brand text-2xl font-semibold text-[#650108]">
-            Sign in to Your Account
-          </h1>
-          <p className="text-sm text-[#6B4C4E] leading-relaxed">
-            Access your saved delivery addresses, wishlist, synced order history, and real-time order tracking.
-          </p>
-          <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={onOpenAuthModal}
-              className="px-6 py-3 rounded-xl bg-[#650108] text-[#F2E8D2] text-sm font-semibold hover:bg-[#4D0106] transition-colors cursor-pointer"
-            >
-              Sign In / Create Account
-            </button>
-            <button
-              type="button"
-              onClick={onBackToShop}
-              className="px-5 py-3 rounded-xl border border-[#DFCFB0] bg-[#FAF4E6] text-[#650108] text-sm font-semibold hover:bg-[#EADEC2] transition-colors cursor-pointer"
-            >
-              Continue Shopping
-            </button>
-          </div>
+
+          <CustomerAuthPanel
+            onBuyAgain={onBuyAgain}
+            onAuthenticated={() => {
+              onOpenAuthModal?.();
+            }}
+          />
         </div>
       </section>
     );

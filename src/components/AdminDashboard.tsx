@@ -3485,7 +3485,7 @@ export function AdminDashboard({
                         return (
                           <div
                             key={rev.id}
-                            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:bg-slate-50/70 transition-colors"
+                            className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors"
                           >
                             <div className="flex items-start gap-3 min-w-0 flex-1">
                               {product?.image ? (

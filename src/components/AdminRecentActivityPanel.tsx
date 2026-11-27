@@ -359,7 +359,7 @@ export function AdminRecentActivityPanel({
                     <button
                       type="button"
                       onClick={handleCopyDomain}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
                     >
                       {copiedDomain ? (
                         <>
@@ -601,7 +601,7 @@ export function AdminRecentActivityDrawer({
                       <button
                         type="button"
                         onClick={handleCopyDomain}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 cursor-pointer shrink-0"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer shrink-0"
                       >
                         {copiedDomain ? (
                           <>

@@ -801,7 +801,7 @@ export function AdminProductEditor({
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {variants.map((v, idx) => (
-                      <tr key={v.id} className="hover:bg-slate-50/60">
+                      <tr key={v.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/60 transition-colors">
                         <td className="py-2.5 px-4 font-semibold text-slate-900 dark:text-slate-100">{v.label}</td>
                         <td className="py-2.5 px-4">
                           <input

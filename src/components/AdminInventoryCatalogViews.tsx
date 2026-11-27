@@ -2192,7 +2192,7 @@ export function AdminInventoryCatalogViews({
                   const isOut = isTracked && p.stock <= 0;
                   const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/70">
+                    <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">{p.sku}</td>
                       <td className="py-3 px-4">
                         <button

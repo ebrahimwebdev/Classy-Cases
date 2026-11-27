@@ -110,6 +110,43 @@
       "invoiceHeaderNote": "Classy Cases — Premium Everyday Protection",
       "invoiceFooterNote": "7-day fit guarantee. Contact 01799576210 for support.",
       "supportAccessEnabled": false
+    },
+    "heroVideos": {
+      "slides": [
+        {
+          "id": "carbon-video",
+          "label": "Carbon Armor",
+          "active": true,
+          "kicker": "Executive Edition · Kickstand · Lens Guard",
+          "headline": "Precision fit. Everyday armor.",
+          "videoSrc": "/media/hero-videos/1795702382329-classy_cases_hero_v4.mp4",
+          "posterAlt": "Woven carbon-fiber smartphone case with crimson trim and aluminum camera lens ring on slate",
+          "posterSrc": "",
+          "sortOrder": 0,
+          "description": "Woven aramid-textured protection paired with machined aluminum lens framing built for slim daily resilience.",
+          "startingPrice": 600,
+          "categoryTarget": "Motorola",
+          "featuredProductId": "prod-5"
+        }
+      ],
+      "config": {
+        "mobileLayout": {
+          "position": "bottom-left",
+          "textSize": "xs",
+          "showArrows": false,
+          "showKicker": false,
+          "showDescription": false,
+          "showExploreButton": true,
+          "showProductButton": false
+        },
+        "activeSlideId": "carbon-video",
+        "autoAdvanceSeconds": 9,
+        "updatedAtMs": 1795789826072
+      },
+      "hiddenBuiltInVideos": [
+        "/assets/videos/hero-carbon-reel.mp4",
+        "/assets/videos/hero-magsafe-reel.mp4"
+      ]
     }
   },
   "categories": [

@@ -1591,7 +1591,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         headerConfig={headerConfig}
         wishlistCount={wishlistProducts.length}
         cartCount={cartCount}
-        activeTab={myOrdersOpen ? 'account' : shopOpen ? 'shop' : 'home'}
+        activeTab={accountOpen || myOrdersOpen ? 'account' : shopOpen ? 'shop' : 'home'}
         whatsappHref={whatsappHref}
         onAction={handleMobileBottomAction}
       />
@@ -2104,6 +2104,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
         }}
         onOpenMyOrders={() => openMyOrders('history')}
         onOpenDashboard={() => navigateAccount('profile')}
+        onBuyAgain={handleBuyAgain}
       />
 
     </div>

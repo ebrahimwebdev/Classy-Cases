@@ -72,6 +72,19 @@ function productInSet(product: PhoneCaseProduct, nameSet: Set<string>): boolean 
   return (product.alsoShowIn || []).some((c) => nameSet.has(c.trim().toLowerCase()));
 }
 
+export const PHONE_CASE_TITLE_RE =
+  /\b(phone\s*case|mobile\s*case|back\s*cover|phone\s*cover|bumper\s*case|silicone\s*case|leather\s*case|magsafe\s*case|armor\s*case|clear\s*case|magnetic\s*(?:phone\s*)?case|anti[\s\-]*yellow(?:ing)?\s*case|heat\s*dissipation.*case|case\s+for\b|case\s+with\b|cover\s+for\b|cover\s+with\b)\b/i;
+
+function isNonCombinedCameraCategoryName(name: string): boolean {
+  const trimmed = name.trim();
+  return Boolean(trimmed) && !COMBINED_PROTECTOR_CATEGORY_RE.test(trimmed) && CAMERA_PROTECTOR_RE.test(trimmed);
+}
+
+function isNonCombinedScreenCategoryName(name: string): boolean {
+  const trimmed = name.trim();
+  return Boolean(trimmed) && !COMBINED_PROTECTOR_CATEGORY_RE.test(trimmed) && SCREEN_PROTECTOR_RE.test(trimmed);
+}
+
 export function isCameraProtectorProduct(
   product: PhoneCaseProduct,
   categories: Category[],
@@ -79,8 +92,24 @@ export function isCameraProtectorProduct(
 ): boolean {
   const sets = precomputedSets || getProtectorCategorySets(categories);
   if (productInSet(product, sets.cameraSet)) return true;
-  if (CAMERA_PROTECTOR_RE.test(product.category)) return true;
-  if ((product.alsoShowIn || []).some((c) => CAMERA_PROTECTOR_RE.test(c))) return true;
+  if (isNonCombinedCameraCategoryName(product.category)) return true;
+  if ((product.alsoShowIn || []).some(isNonCombinedCameraCategoryName)) return true;
+
+  // If explicit screen protector category, do not classify as camera protector
+  if (
+    productInSet(product, sets.screenSet) ||
+    isNonCombinedScreenCategoryName(product.category) ||
+    (product.alsoShowIn || []).some(isNonCombinedScreenCategoryName)
+  ) {
+    return false;
+  }
+
+  // Only allow title-based fallback if no camera category exists OR product is directly in the combined protector category,
+  // and never misclassify phone cases whose titles mention "with camera protector"
+  if (PHONE_CASE_TITLE_RE.test(product.title)) return false;
+  const allowTitleFallback =
+    sets.cameraSet.size === 0 || productInSet(product, sets.generalSet);
+  if (!allowTitleFallback) return false;
   return CAMERA_PROTECTOR_RE.test(product.title);
 }
 
@@ -91,8 +120,22 @@ export function isScreenProtectorProduct(
 ): boolean {
   const sets = precomputedSets || getProtectorCategorySets(categories);
   if (productInSet(product, sets.screenSet)) return true;
-  if (SCREEN_PROTECTOR_RE.test(product.category)) return true;
-  if ((product.alsoShowIn || []).some((c) => SCREEN_PROTECTOR_RE.test(c))) return true;
+  if (isNonCombinedScreenCategoryName(product.category)) return true;
+  if ((product.alsoShowIn || []).some(isNonCombinedScreenCategoryName)) return true;
+
+  // If explicit camera protector category, do not classify as screen protector
+  if (
+    productInSet(product, sets.cameraSet) ||
+    isNonCombinedCameraCategoryName(product.category) ||
+    (product.alsoShowIn || []).some(isNonCombinedCameraCategoryName)
+  ) {
+    return false;
+  }
+
+  if (PHONE_CASE_TITLE_RE.test(product.title)) return false;
+  const allowTitleFallback =
+    sets.screenSet.size === 0 || productInSet(product, sets.generalSet);
+  if (!allowTitleFallback) return false;
   return SCREEN_PROTECTOR_RE.test(product.title);
 }
 
@@ -105,6 +148,11 @@ export function isProtectorProduct(
   if (productInSet(product, sets.allSet)) return true;
   if (PROTECTOR_CATEGORY_RE.test(product.category)) return true;
   if ((product.alsoShowIn || []).some((c) => PROTECTOR_CATEGORY_RE.test(c))) return true;
+
+  // When protector categories exist in the catalog, do not guess from titles of phone cases
+  if (sets.allSet.size > 0) return false;
+  if (PHONE_CASE_TITLE_RE.test(product.title)) return false;
+
   if (CAMERA_PROTECTOR_RE.test(product.title) || SCREEN_PROTECTOR_RE.test(product.title)) {
     return true;
   }
@@ -161,9 +209,19 @@ export function matchesCategorySelection(
   const sets = precomputedSets || getProtectorCategorySets(categories);
   const lower = trimmed.toLowerCase();
 
+  // Combined parent protector view includes all protector products (even standalone Screen/Camera Protector categories)
   if (COMBINED_PROTECTOR_CATEGORY_RE.test(trimmed) || lower === 'protectors') {
     return isProtectorProduct(product, categories, sets);
   }
+
+  // If the selected category explicitly exists in the catalog, respect direct category membership only
+  const existsInCatalog = categories.some(
+    (c) => c.name.trim().toLowerCase() === lower
+  );
+  if (existsInCatalog) {
+    return false;
+  }
+
   if (lower === 'screen protector' || lower === 'screen protectors') {
     return isScreenProtectorProduct(product, categories, sets);
   }

@@ -110,3 +110,163 @@ export function isProtectorProduct(
   }
   return false;
 }
+
+export const VIRTUAL_PROTECTORS_CATEGORY = 'Screen & Camera Protectors';
+export const VIRTUAL_SCREEN_PROTECTOR_CATEGORY = 'Screen Protector';
+export const VIRTUAL_CAMERA_PROTECTOR_CATEGORY = 'Camera Protector';
+
+export interface ProtectorSubcategoryCard {
+  key: string;
+  kind: 'screen' | 'camera' | 'custom';
+  label: string;
+  categoryName: string;
+  image?: string;
+}
+
+export function isProtectorViewCategory(
+  selectedCategory: string,
+  categories: Category[]
+): boolean {
+  const trimmed = selectedCategory.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'all') return false;
+  if (
+    COMBINED_PROTECTOR_CATEGORY_RE.test(trimmed) ||
+    PROTECTOR_CATEGORY_RE.test(trimmed) ||
+    trimmed.toLowerCase() === 'protectors'
+  ) {
+    return true;
+  }
+  const matched = categories.find(
+    (c) => c.name.trim().toLowerCase() === trimmed.toLowerCase()
+  );
+  return isProtectorCategory(matched, categories);
+}
+
+export function matchesCategorySelection(
+  product: PhoneCaseProduct,
+  selectedCategory: string,
+  categories: Category[],
+  precomputedSets?: ReturnType<typeof getProtectorCategorySets>
+): boolean {
+  const trimmed = selectedCategory.trim();
+  if (!trimmed || trimmed.toLowerCase() === 'all') return true;
+
+  const categoryNames = getCategoryAndDescendantNames(categories, trimmed);
+  const directMatch =
+    categoryNames.has(product.category.trim().toLowerCase()) ||
+    (product.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+
+  if (directMatch) return true;
+
+  const sets = precomputedSets || getProtectorCategorySets(categories);
+  const lower = trimmed.toLowerCase();
+
+  if (COMBINED_PROTECTOR_CATEGORY_RE.test(trimmed) || lower === 'protectors') {
+    return isProtectorProduct(product, categories, sets);
+  }
+  if (lower === 'screen protector' || lower === 'screen protectors') {
+    return isScreenProtectorProduct(product, categories, sets);
+  }
+  if (lower === 'camera protector' || lower === 'camera protectors') {
+    return isCameraProtectorProduct(product, categories, sets);
+  }
+
+  return false;
+}
+
+export function buildProtectorSubcategoryCards(
+  categories: Category[],
+  products: PhoneCaseProduct[]
+): {
+  cards: ProtectorSubcategoryCard[];
+  parentCategoryName: string;
+  screenCategoryName: string;
+  cameraCategoryName: string;
+} {
+  const sets = getProtectorCategorySets(categories);
+  const screenProducts: PhoneCaseProduct[] = [];
+  const cameraProducts: PhoneCaseProduct[] = [];
+
+  for (const p of products) {
+    if (!isProtectorProduct(p, categories, sets)) continue;
+    if (isScreenProtectorProduct(p, categories, sets)) screenProducts.push(p);
+    if (isCameraProtectorProduct(p, categories, sets)) cameraProducts.push(p);
+  }
+
+  const activeCats = categories.filter((c) => c.active !== false && c.name.trim());
+  const combinedParent = activeCats.find((c) =>
+    COMBINED_PROTECTOR_CATEGORY_RE.test(c.name.trim())
+  );
+
+  const findBestMatch = (re: RegExp): Category | undefined => {
+    const childMatch = combinedParent
+      ? activeCats.find(
+          (c) =>
+            c.parentId === combinedParent.id &&
+            !COMBINED_PROTECTOR_CATEGORY_RE.test(c.name) &&
+            re.test(c.name)
+        )
+      : undefined;
+    if (childMatch) return childMatch;
+    return activeCats.find(
+      (c) => !COMBINED_PROTECTOR_CATEGORY_RE.test(c.name) && re.test(c.name)
+    );
+  };
+
+  const screenCat = findBestMatch(SCREEN_PROTECTOR_RE);
+  const cameraCat = findBestMatch(CAMERA_PROTECTOR_RE);
+
+  const screenCategoryName =
+    screenCat?.name?.trim() || VIRTUAL_SCREEN_PROTECTOR_CATEGORY;
+  const cameraCategoryName =
+    cameraCat?.name?.trim() || VIRTUAL_CAMERA_PROTECTOR_CATEGORY;
+
+  const cards: ProtectorSubcategoryCard[] = [
+    {
+      key: 'camera',
+      kind: 'camera',
+      label: cameraCategoryName,
+      categoryName: cameraCategoryName,
+      image: cameraCat?.image?.trim() || cameraProducts[0]?.image || undefined,
+    },
+    {
+      key: 'screen',
+      kind: 'screen',
+      label: screenCategoryName,
+      categoryName: screenCategoryName,
+      image: screenCat?.image?.trim() || screenProducts[0]?.image || undefined,
+    },
+  ];
+
+  if (combinedParent) {
+    const knownIds = new Set([screenCat?.id, cameraCat?.id].filter(Boolean));
+    for (const child of activeCats) {
+      if (child.parentId === combinedParent.id && !knownIds.has(child.id)) {
+        const childNames = getCategoryAndDescendantNames(categories, child.name);
+        const childProd = products.find(
+          (p) =>
+            childNames.has(p.category.trim().toLowerCase()) ||
+            (p.alsoShowIn || []).some((c) => childNames.has(c.trim().toLowerCase()))
+        );
+        cards.push({
+          key: `cat-${child.id}`,
+          kind: 'custom',
+          label: child.name.trim(),
+          categoryName: child.name.trim(),
+          image: child.image?.trim() || childProd?.image || undefined,
+        });
+      }
+    }
+  }
+
+  const parentCategoryName =
+    combinedParent?.name?.trim() || VIRTUAL_PROTECTORS_CATEGORY;
+
+  return {
+    cards,
+    parentCategoryName,
+    screenCategoryName,
+    cameraCategoryName,
+  };
+}
+

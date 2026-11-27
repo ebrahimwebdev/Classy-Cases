@@ -79,7 +79,14 @@ import {
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
-import { isProtectorProduct } from '../utils/protectorFilter';
+import {
+  getProtectorCategorySets,
+  isProtectorProduct,
+  matchesCategorySelection,
+  VIRTUAL_CAMERA_PROTECTOR_CATEGORY,
+  VIRTUAL_PROTECTORS_CATEGORY,
+  VIRTUAL_SCREEN_PROTECTOR_CATEGORY,
+} from '../utils/protectorFilter';
 import { ShopCategoryPage } from './ShopCategoryPage';
 import { StorefrontFooter } from './StorefrontFooter';
 import {
@@ -269,7 +276,22 @@ function findCategoryNameByKey(categories: Category[], key: string): string | nu
       c.name.trim().toLowerCase() === trimmed ||
       slugified(c.name) === trimmed
   );
-  return matched ? matched.name : null;
+  if (matched) return matched.name;
+  const slug = slugified(key);
+  if (
+    slug === 'screen-and-camera-protectors' ||
+    slug === 'screen-camera-protectors' ||
+    slug === 'protectors'
+  ) {
+    return VIRTUAL_PROTECTORS_CATEGORY;
+  }
+  if (slug === 'screen-protector' || slug === 'screen-protectors') {
+    return VIRTUAL_SCREEN_PROTECTOR_CATEGORY;
+  }
+  if (slug === 'camera-protector' || slug === 'camera-protectors') {
+    return VIRTUAL_CAMERA_PROTECTOR_CATEGORY;
+  }
+  return null;
 }
 
 function getCategorySlug(categories: Category[], categoryName: string): string {
@@ -700,33 +722,43 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
     [effectiveCategories, selectedCategory]
   );
 
+  const protectorCategorySets = useMemo(
+    () => getProtectorCategorySets(effectiveCategories),
+    [effectiveCategories]
+  );
+
   const availableModels = useMemo(() => {
     const modelSet = new Set<string>();
-    const categoryNames = getCategoryAndDescendantNames(effectiveCategories, selectedCategory);
     for (const p of products) {
-      const matchesBrand =
-        selectedCategory === 'All' ||
-        categoryNames.has(p.category.trim().toLowerCase()) ||
-        (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
-      if (!matchesBrand) continue;
+      if (
+        !matchesCategorySelection(
+          p,
+          selectedCategory,
+          effectiveCategories,
+          protectorCategorySets
+        )
+      ) {
+        continue;
+      }
       for (const m of p.brandModels || []) {
         const trimmed = m.trim();
         if (trimmed) modelSet.add(trimmed);
       }
     }
     return Array.from(modelSet).sort((a, b) => a.localeCompare(b));
-  }, [products, effectiveCategories, selectedCategory]);
+  }, [products, effectiveCategories, selectedCategory, protectorCategorySets]);
 
   function applyCategorySelection(nextCategory: string) {
     setSelectedCategory(nextCategory);
     setCarouselPage(0);
     if (selectedModel !== 'All') {
-      const categoryNames = getCategoryAndDescendantNames(effectiveCategories, nextCategory);
       const nextBrandHasModel = products.some((p) => {
-        const matchesBrand =
-          nextCategory === 'All' ||
-          categoryNames.has(p.category.trim().toLowerCase()) ||
-          (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+        const matchesBrand = matchesCategorySelection(
+          p,
+          nextCategory,
+          effectiveCategories,
+          protectorCategorySets
+        );
         return (
           matchesBrand &&
           (p.brandModels || []).some((m) => m.trim().toLowerCase() === selectedModel.toLowerCase())
@@ -749,12 +781,13 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
   }
 
   const filteredProducts = useMemo(() => {
-    const categoryNames = getCategoryAndDescendantNames(effectiveCategories, selectedCategory);
     const filtered = products.filter((p) => {
-      const matchesCategory =
-        selectedCategory === 'All' ||
-        categoryNames.has(p.category.trim().toLowerCase()) ||
-        (p.alsoShowIn || []).some((c) => categoryNames.has(c.trim().toLowerCase()));
+      const matchesCategory = matchesCategorySelection(
+        p,
+        selectedCategory,
+        effectiveCategories,
+        protectorCategorySets
+      );
       const matchesModel =
         selectedModel === 'All' ||
         (p.brandModels || []).some((m) => m.trim().toLowerCase() === selectedModel.toLowerCase());
@@ -774,7 +807,16 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       if (sortBy === 'name_asc') return a.title.localeCompare(b.title);
       return Number(Boolean(b.featured)) - Number(Boolean(a.featured));
     });
-  }, [products, effectiveCategories, selectedCategory, selectedModel, inStockOnly, sortBy, searchQuery]);
+  }, [
+    products,
+    effectiveCategories,
+    protectorCategorySets,
+    selectedCategory,
+    selectedModel,
+    inStockOnly,
+    sortBy,
+    searchQuery,
+  ]);
 
   const hasActiveFilters =
     selectedCategory !== 'All' ||
@@ -1192,6 +1234,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
           <ShopCategoryPage
             categories={effectiveCategories}
             products={filteredProducts}
+            allProducts={products}
             loading={loading || pendingShopCategoryKey !== null}
             selectedCategory={selectedCategory}
             selectedModel={selectedModel}
@@ -1447,7 +1490,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                           setSearchQuery(fallbackSearch);
                           navigateShop('All');
                         } else {
-                          navigateShop('All', { clearSearch: true });
+                          navigateShop(VIRTUAL_PROTECTORS_CATEGORY, { clearSearch: true });
                         }
                       }}
                     />

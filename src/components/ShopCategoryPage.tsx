@@ -5,6 +5,7 @@ import {
   ChevronRight,
   PackageSearch,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Smartphone,
   X,
@@ -17,12 +18,17 @@ import {
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
+import {
+  buildProtectorSubcategoryCards,
+  isProtectorViewCategory,
+} from '../utils/protectorFilter';
 import type { CatalogSortOption } from './CatalogFilterBar';
 import { PhoneCaseCard } from './PhoneCaseGrid';
 
 interface ShopCategoryPageProps {
   categories: Category[];
   products: PhoneCaseProduct[];
+  allProducts?: PhoneCaseProduct[];
   loading: boolean;
   selectedCategory: string;
   selectedModel: string;
@@ -74,6 +80,7 @@ function getCategoryTrail(categories: Category[], categoryName: string): Categor
 export function ShopCategoryPage({
   categories,
   products,
+  allProducts,
   loading,
   selectedCategory,
   selectedModel,
@@ -96,8 +103,20 @@ export function ShopCategoryPage({
   onAddToCart,
 }: ShopCategoryPageProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [failedCardImages, setFailedCardImages] = useState<Record<string, boolean>>({});
 
   const isAllSelected = selectedCategory.trim().toLowerCase() === 'all';
+  const isProtectorView = useMemo(
+    () => isProtectorViewCategory(selectedCategory, categories),
+    [selectedCategory, categories]
+  );
+  const protectorCardsInfo = useMemo(
+    () =>
+      isProtectorView
+        ? buildProtectorSubcategoryCards(categories, allProducts || products)
+        : null,
+    [isProtectorView, categories, allProducts, products]
+  );
   const topLevelCategories = useMemo(() => getTopLevelCategories(categories), [categories]);
   const activeCategoryObj = useMemo(
     () => (isAllSelected ? undefined : getCategoryByName(categories, selectedCategory)),
@@ -155,7 +174,9 @@ export function ShopCategoryPage({
   const pageSubtitle = isAllSelected
     ? 'Discover our collection of crafted, everyday-protective phone cases.'
     : activeCategoryObj?.description?.trim() ||
-      `Discover our collection of premium ${activeCategoryObj?.name || selectedCategory} cases.`;
+      (isProtectorView
+        ? 'Discover precision-cut tempered glass screen protectors and camera lens guards.'
+        : `Discover our collection of premium ${activeCategoryObj?.name || selectedCategory} cases.`);
 
   const gridColsClass = GRID_COLUMN_CLASSES[desktopColumns] || GRID_COLUMN_CLASSES[4];
 
@@ -227,88 +248,170 @@ export function ShopCategoryPage({
         <p className="text-xs sm:text-sm text-[#6B4C4E] mt-1 leading-relaxed">{pageSubtitle}</p>
       </header>
 
-      {/* Sub-category / Brand Switcher Pills */}
-      <div
-        role="tablist"
-        aria-label={
-          showSelectedBranchOnly
-            ? `${branchRootName} collections`
-            : 'Browse categories'
-        }
-        className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-4 sm:flex-wrap"
-      >
-        {showSelectedBranchOnly ? (
-          <>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={selectedCategory.toLowerCase() === branchRootName.toLowerCase()}
-              onClick={() => onSelectCategory(branchRootName)}
-              className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
-                selectedCategory.toLowerCase() === branchRootName.toLowerCase()
-                  ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
-                  : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
-              }`}
-            >
-              {branchSubcategories.length > 0 ? `All ${branchRootName}` : branchRootName}
-            </button>
-            {branchSubcategories.map((sub) => {
-              const subActive = selectedCategory.toLowerCase() === sub.name.toLowerCase();
+      {/* Visual Subcategory Cards when viewing Screen & Camera Protectors, or Pill Switcher for other categories */}
+      {isProtectorView && protectorCardsInfo ? (
+        <div className="mb-6">
+          <div
+            role="tablist"
+            aria-label="Screen and Camera Protector Categories"
+            className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-start gap-4 sm:gap-5"
+          >
+            {protectorCardsInfo.cards.map((card) => {
+              const isSelected =
+                selectedCategory.trim().toLowerCase() === card.categoryName.toLowerCase() ||
+                selectedCategory.trim().toLowerCase() === card.label.toLowerCase();
+              const hasValidImage = Boolean(card.image && !failedCardImages[card.key]);
               return (
                 <button
-                  key={sub.id}
+                  key={card.key}
                   type="button"
                   role="tab"
-                  aria-selected={subActive}
-                  onClick={() => onSelectCategory(sub.name)}
-                  className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
-                    subActive
-                      ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
-                      : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
-                  }`}
+                  aria-selected={isSelected}
+                  onClick={() =>
+                    onSelectCategory(
+                      isSelected ? protectorCardsInfo.parentCategoryName : card.categoryName
+                    )
+                  }
+                  className="group flex flex-col items-center w-full sm:w-[190px] md:w-[205px] focus:outline-none cursor-pointer"
                 >
-                  {sub.name}
+                  <div
+                    className={`w-full aspect-square rounded-2xl bg-white border flex items-center justify-center p-2.5 overflow-hidden transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md ${
+                      isSelected
+                        ? 'border-[#650108] ring-2 ring-[#650108]/25 shadow-sm'
+                        : 'border-[#DFCFB0]/80 shadow-xs group-hover:border-[#650108]/50'
+                    }`}
+                  >
+                    {hasValidImage ? (
+                      <img
+                        src={card.image}
+                        alt={card.label}
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={() =>
+                          setFailedCardImages((prev) => ({ ...prev, [card.key]: true }))
+                        }
+                        className="w-full h-full object-contain rounded-xl"
+                      />
+                    ) : (
+                      <div className="w-full h-full rounded-xl bg-[#FAF4E6] flex flex-col items-center justify-center gap-2 text-[#650108]/75">
+                        {card.kind === 'camera' ? (
+                          <ShieldCheck className="w-10 h-10 stroke-[1.5]" aria-hidden="true" />
+                        ) : (
+                          <Smartphone className="w-10 h-10 stroke-[1.5]" aria-hidden="true" />
+                        )}
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6B4C4E]">
+                          {card.label}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className={`mt-2.5 text-xs sm:text-[13px] font-bold uppercase tracking-[0.06em] text-center transition-colors ${
+                      isSelected ? 'text-[#650108]' : 'text-[#2B1416] group-hover:text-[#650108]'
+                    }`}
+                  >
+                    {card.label}
+                  </span>
                 </button>
               );
             })}
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isAllSelected}
-              onClick={() => onSelectCategory('All')}
-              className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
-                isAllSelected
-                  ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
-                  : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
-              }`}
-            >
-              All Cases
-            </button>
-            {topLevelCategories.map((cat) => {
-              const active = selectedCategory.toLowerCase() === cat.name.toLowerCase();
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onSelectCategory(cat.name)}
-                  className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
-                    active
-                      ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
-                      : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              );
-            })}
-          </>
-        )}
-      </div>
+          </div>
+          {selectedCategory.trim().toLowerCase() !==
+            protectorCardsInfo.parentCategoryName.toLowerCase() && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-[#6B4C4E]">
+              <button
+                type="button"
+                onClick={() => onSelectCategory(protectorCardsInfo.parentCategoryName)}
+                className="underline font-semibold text-[#650108] hover:opacity-75 cursor-pointer"
+              >
+                Show All {protectorCardsInfo.parentCategoryName}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          role="tablist"
+          aria-label={
+            showSelectedBranchOnly
+              ? `${branchRootName} collections`
+              : 'Browse categories'
+          }
+          className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-4 sm:flex-wrap"
+        >
+          {showSelectedBranchOnly ? (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedCategory.toLowerCase() === branchRootName.toLowerCase()}
+                onClick={() => onSelectCategory(branchRootName)}
+                className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
+                  selectedCategory.toLowerCase() === branchRootName.toLowerCase()
+                    ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
+                    : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+                }`}
+              >
+                {branchSubcategories.length > 0 ? `All ${branchRootName}` : branchRootName}
+              </button>
+              {branchSubcategories.map((sub) => {
+                const subActive = selectedCategory.toLowerCase() === sub.name.toLowerCase();
+                return (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={subActive}
+                    onClick={() => onSelectCategory(sub.name)}
+                    className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
+                      subActive
+                        ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
+                        : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+                    }`}
+                  >
+                    {sub.name}
+                  </button>
+                );
+              })}
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isAllSelected}
+                onClick={() => onSelectCategory('All')}
+                className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
+                  isAllSelected
+                    ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
+                    : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+                }`}
+              >
+                All Cases
+              </button>
+              {topLevelCategories.map((cat) => {
+                const active = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => onSelectCategory(cat.name)}
+                    className={`px-4 py-2 rounded-full text-xs sm:text-[13px] font-medium whitespace-nowrap shrink-0 border transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-[#650108] border-[#650108] text-[#F2E8D2] font-semibold shadow-xs'
+                        : 'bg-[#FFFDF8] border-[#DFCFB0] text-[#5A2D30] hover:border-[#650108]/50 hover:text-[#650108]'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filters Button, Product Count & Sort Control */}
       <div className="space-y-3 mb-4">
@@ -397,6 +500,9 @@ export function ShopCategoryPage({
                 className="w-full h-10 pl-3.5 pr-8 rounded-xl bg-[#FFFDF8] border border-[#DFCFB0] text-xs font-medium text-[#2B1416] appearance-none focus:outline-none focus:border-[#650108] cursor-pointer"
               >
                 <option value="All">All Categories</option>
+                {!isAllSelected && !activeCategoryObj && (
+                  <option value={selectedCategory}>{selectedCategory}</option>
+                )}
                 {topLevelCategories.map((cat) => {
                   const subs = getSubcategories(categories, cat.id);
                   return (

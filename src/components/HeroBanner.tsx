@@ -388,20 +388,16 @@ export function HeroBanner({
           </>
         )}
 
-        {/* Mobile Contrast Scrim (subtle dark base so hero text never sits on blank beige during buffering) */}
+        {/* Mobile Contrast Scrim (light gradient at bottom for text legibility without darkening video) */}
         <div
           aria-hidden="true"
-          className="sm:hidden pointer-events-none absolute inset-0 bg-gradient-to-t from-[#140203]/70 via-[#140203]/20 to-[#140203]/10"
+          className="sm:hidden pointer-events-none absolute inset-0 bg-gradient-to-t from-[#140203]/45 via-[#140203]/10 to-transparent"
         />
 
-        {/* Desktop Editorial Contrast Scrims */}
+        {/* Desktop Editorial Contrast Scrim (subtle left-side gradient fading cleanly to transparent) */}
         <div
           aria-hidden="true"
-          className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-r from-[#1A0203]/80 via-[#1A0203]/45 to-[#1A0203]/20"
-        />
-        <div
-          aria-hidden="true"
-          className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-t from-[#1A0203]/85 via-[#1A0203]/25 to-[#1A0203]/25"
+          className="hidden sm:block pointer-events-none absolute inset-0 bg-gradient-to-r from-[#140203]/45 via-[#140203]/15 to-transparent"
         />
 
         {/* Foreground Content Aligned to Storefront Container */}
@@ -413,7 +409,7 @@ export function HeroBanner({
               <p
                 className={`${
                   mobileLayout.showKicker ? 'block' : 'hidden sm:block'
-                } text-[10px] sm:text-xs font-medium uppercase tracking-[1.75px] text-[#F2E8D2]/90`}
+                } text-[10px] sm:text-xs font-medium uppercase tracking-[1.75px] text-[#F2E8D2]/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]`}
               >
                 {currentSlide.kicker}
               </p>
@@ -421,7 +417,7 @@ export function HeroBanner({
               <h1
                 className={`${
                   mobileLayout.showKicker ? 'mt-1.5 sm:mt-3' : 'mt-0 sm:mt-3'
-                } font-brand ${mobileHeadlineClass} font-semibold tracking-tight text-[#FBF6EA] text-balance max-w-[230px] sm:max-w-none`}
+                } font-brand ${mobileHeadlineClass} font-semibold tracking-tight text-[#FBF6EA] text-balance max-w-[230px] sm:max-w-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]`}
               >
                 {currentSlide.headline}
               </h1>
@@ -429,7 +425,7 @@ export function HeroBanner({
               <p
                 className={`${
                   mobileLayout.showDescription ? 'block' : 'hidden sm:block'
-                } mt-1.5 sm:mt-3.5 text-xs sm:text-[15px] font-normal leading-relaxed text-[#F2E8D2]/90 max-w-md`}
+                } mt-1.5 sm:mt-3.5 text-xs sm:text-[15px] font-normal leading-relaxed text-[#F2E8D2]/95 max-w-md drop-shadow-[0_1px_6px_rgba(0,0,0,0.45)]`}
               >
                 {currentSlide.description}
               </p>

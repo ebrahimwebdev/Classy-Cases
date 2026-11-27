@@ -77,6 +77,35 @@ export function AdminLivePreviewPane({
       ? '#1E293B'
       : fc.footerTextColor || '#F2E8D2';
   const activeSocialCount = Object.values(fc.socialLinks || {}).filter((u) => u && u.trim()).length;
+  const customFooterLogo = fc.footerLogoUrl?.trim() || '';
+  const resolvedFooterLogo = customFooterLogo || form.logoUrl?.trim() || '';
+  const useFooterLogoBackdrop =
+    fc.footerLogoBackdrop !== undefined
+      ? fc.footerLogoBackdrop
+      : !customFooterLogo && !isWhiteFooter;
+
+  const renderFooterLogoMark = (size: 'desktop' | 'mobile') => {
+    if (!fc.showBrandLogo) return null;
+    if (resolvedFooterLogo) {
+      return (
+        <img
+          src={resolvedFooterLogo}
+          alt={form.storeName || 'Classy Cases'}
+          referrerPolicy="no-referrer"
+          className={`${
+            size === 'desktop' ? 'h-5 max-w-[100px]' : 'h-4 max-w-[85px]'
+          } w-auto object-contain ${
+            useFooterLogoBackdrop ? 'bg-[#F2E8D2] px-1.5 py-0.5 rounded' : 'rounded'
+          }`}
+        />
+      );
+    }
+    return (
+      <div className={`font-brand ${size === 'desktop' ? 'text-xs' : 'text-[10px]'} font-bold`}>
+        {form.storeName || 'Classy Cases'}
+      </div>
+    );
+  };
 
   const renderMobileNavIcon = (id: MobileBottomBarItemId) => {
     const cls = 'w-3.5 h-3.5';
@@ -311,7 +340,7 @@ export function AdminLivePreviewPane({
                 {isCompactFooter ? (
                   <div className="text-center space-y-1.5">
                     {hasBlock('about') && (
-                      <div className="font-brand text-xs font-bold">{form.storeName}</div>
+                      <div className="flex justify-center">{renderFooterLogoMark('desktop')}</div>
                     )}
                     <div className="flex items-center justify-center gap-2 opacity-75 text-[8px]">
                       {hasBlock('help') && <span>Help Links</span>}
@@ -330,9 +359,7 @@ export function AdminLivePreviewPane({
                           design === 'boxed' ? 'p-2 rounded border border-white/15 bg-white/5' : ''
                         }`}
                       >
-                        {hasBlock('about') && fc.showBrandLogo && (
-                          <div className="font-brand text-xs font-bold">{form.storeName}</div>
-                        )}
+                        {hasBlock('about') && renderFooterLogoMark('desktop')}
                         {hasBlock('about') && fc.aboutText && (
                           <p className="opacity-70 line-clamp-2 text-[7.5px]">{fc.aboutText}</p>
                         )}
@@ -511,9 +538,7 @@ export function AdminLivePreviewPane({
               className="px-3 py-3 text-[8px] space-y-1.5 border-t border-slate-200"
               style={{ backgroundColor: footerBg, color: footerText }}
             >
-              {hasBlock('about') && (
-                <div className="font-brand text-[10px] font-bold">{form.storeName}</div>
-              )}
+              {hasBlock('about') && renderFooterLogoMark('mobile')}
               {hasBlock('help') && (
                 <div className="opacity-75">
                   {fc.helpColumnTitle}: {fc.helpLinks.map((l) => l.label).slice(0, 3).join(', ')}

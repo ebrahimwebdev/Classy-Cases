@@ -3918,6 +3918,11 @@ async function startServer() {
       s.headerConfig = mergeHeaderConfig(body.headerConfig);
     }
     if (body.footerConfig && typeof body.footerConfig === 'object') {
+      const fcInput = body.footerConfig as Record<string, unknown>;
+      if (fcInput.footerLogoUrl !== undefined && !isSafeBrandAsset(fcInput.footerLogoUrl)) {
+        res.status(400).json({ error: 'Footer logo must be an HTTPS image URL or PNG/JPG/WEBP/GIF upload.' });
+        return;
+      }
       s.footerConfig = mergeFooterConfig(body.footerConfig, {
         storeName: s.storeName,
         tagline: s.tagline,

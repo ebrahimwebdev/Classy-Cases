@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -7,6 +7,7 @@ import {
   Copyright,
   CreditCard,
   GripVertical,
+  Image as ImageIcon,
   Info,
   Link2,
   Mail,
@@ -16,6 +17,7 @@ import {
   Share2,
   Shield,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import type {
   Category,
@@ -35,6 +37,8 @@ interface AdminFooterSettingsPanelProps {
   fc: FooterConfigSettings;
   categories: Category[];
   updateFooter: (patch: Partial<FooterConfigSettings>) => void;
+  onPersistFooter?: (patch: Partial<FooterConfigSettings>, successMsg?: string) => void;
+  onErrorMessage?: (msg: string) => void;
   onOpenStorefront: () => void;
 }
 
@@ -209,15 +213,134 @@ export function AdminFooterSettingsPanel({
   fc,
   categories,
   updateFooter,
+  onPersistFooter,
+  onErrorMessage,
   onOpenStorefront,
 }: AdminFooterSettingsPanelProps) {
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [logoUploadError, setLogoUploadError] = useState('');
+  const footerLogoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const customFooterLogo = fc.footerLogoUrl?.trim() || '';
+  const resolvedPreviewLogo = customFooterLogo || form.logoUrl?.trim() || '';
+  const isColumnsWhite = fc.footerDesign === 'columns';
+  const isDarkTheme = fc.footerDesign === 'dark' || fc.footerDesign === 'boxed';
+  const previewBg = isDarkTheme ? '#111115' : isColumnsWhite ? '#FFFFFF' : fc.footerBgColor || '#650108';
+  const previewText = isDarkTheme ? '#F3F4F6' : isColumnsWhite ? '#1E1B18' : fc.footerTextColor || '#F2E8D2';
+  const useLightPill =
+    fc.footerLogoBackdrop !== undefined
+      ? fc.footerLogoBackdrop
+      : !customFooterLogo && !isColumnsWhite;
+
+  async function handleFooterLogoFileChange(file: File | undefined) {
+    if (!file) return;
+    setLogoUploadError('');
+    if (onErrorMessage) onErrorMessage('');
+    const lowerName = file.name.toLowerCase();
+    const isIco = lowerName.endsWith('.ico') || file.type.includes('icon');
+    if (
+      (!file.type.startsWith('image/') && !isIco) ||
+      file.type === 'image/svg+xml' ||
+      lowerName.endsWith('.svg')
+    ) {
+      const msg = 'Please upload a PNG, JPG, WEBP, GIF, AVIF, BMP, or ICO image.';
+      setLogoUploadError(msg);
+      if (onErrorMessage) onErrorMessage(msg);
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      const msg = 'Image size must be under 10 MB.';
+      setLogoUploadError(msg);
+      if (onErrorMessage) onErrorMessage(msg);
+      return;
+    }
+    try {
+      const rawDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Could not read the selected image file.'));
+        };
+        reader.onerror = () => reject(new Error('Could not read the selected image file.'));
+        reader.readAsDataURL(file);
+      });
+
+      let finalDataUrl = rawDataUrl;
+      const smallDirectTypes = new Set([
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'image/webp',
+        'image/gif',
+        'image/x-icon',
+        'image/vnd.microsoft.icon',
+      ]);
+      if (file.size > 350 * 1024 || (!smallDirectTypes.has(file.type.toLowerCase()) && !isIco)) {
+        finalDataUrl = await new Promise<string>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 640;
+            const scale = Math.min(1, maxDim / Math.max(img.width || maxDim, img.height || maxDim));
+            const width = Math.max(1, Math.round((img.width || maxDim) * scale));
+            const height = Math.max(1, Math.round((img.height || maxDim) * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(rawDataUrl);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressed = canvas.toDataURL('image/png');
+            resolve(
+              compressed.length < rawDataUrl.length || !smallDirectTypes.has(file.type.toLowerCase())
+                ? compressed
+                : rawDataUrl
+            );
+          };
+          img.onerror = () => resolve(rawDataUrl);
+          img.src = rawDataUrl;
+        });
+      }
+
+      const patch: Partial<FooterConfigSettings> = {
+        showBrandLogo: true,
+        footerLogoUrl: finalDataUrl,
+      };
+      if (onPersistFooter) {
+        onPersistFooter(patch, 'Footer logo image updated and synced.');
+      } else {
+        updateFooter(patch);
+      }
+    } catch {
+      const msg = 'Could not read the selected image file.';
+      setLogoUploadError(msg);
+      if (onErrorMessage) onErrorMessage(msg);
+    }
+  }
+
+  function handleResetFooterLogo() {
+    setLogoUploadError('');
+    const patch: Partial<FooterConfigSettings> = {
+      footerLogoUrl: '',
+      footerLogoBackdrop: undefined,
+    };
+    if (onPersistFooter) {
+      onPersistFooter(
+        patch,
+        form.logoUrl ? 'Footer logo reset to site default.' : 'Footer logo reset to store name.'
+      );
+    } else {
+      updateFooter(patch);
+    }
+  }
 
   const getBlockSubtitle = (block: FooterBlockConfig): string => {
     switch (block.type) {
       case 'about': {
         const parts = [
-          fc.showBrandLogo ? 'Logo' : 'No logo',
+          !fc.showBrandLogo ? 'No logo' : customFooterLogo ? 'Custom footer image' : 'Logo',
           fc.aboutText ? 'custom text' : 'no text',
           fc.showShopNowCta ? `"${fc.shopNowLabel}"` : 'no CTA',
         ];
@@ -316,6 +439,46 @@ export function AdminFooterSettingsPanel({
                 ariaLabel="Show brand logo"
               />
             </div>
+            {fc.showBrandLogo && (
+              <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    Footer Logo Image
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => footerLogoInputRef.current?.click()}
+                      className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>{customFooterLogo ? 'Replace' : 'Upload'}</span>
+                    </button>
+                    {customFooterLogo && (
+                      <button
+                        type="button"
+                        onClick={handleResetFooterLogo}
+                        className="px-2 py-1 rounded text-[11px] text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/15 inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Reset</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  type="url"
+                  value={customFooterLogo.startsWith('data:') ? '' : customFooterLogo}
+                  onChange={(e) => updateFooter({ footerLogoUrl: e.target.value })}
+                  placeholder={
+                    customFooterLogo.startsWith('data:')
+                      ? 'Custom uploaded footer image active'
+                      : 'Or paste HTTPS footer image URL...'
+                  }
+                  className="w-full px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px]"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-[11px] text-slate-500 mb-1">About Text (Optional)</label>
               <input
@@ -858,6 +1021,124 @@ export function AdminFooterSettingsPanel({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 2.5 Footer Brand Logo */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 space-y-3.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <ImageIcon className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Footer brand logo
+                </h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Upload a dedicated image for the footer logo badge or paste an HTTPS URL.
+                </p>
+              </div>
+            </div>
+            <SwitchToggle
+              checked={fc.showBrandLogo}
+              onChange={(v) => updateFooter({ showBrandLogo: v })}
+              ariaLabel="Show brand logo in footer"
+            />
+          </div>
+
+          <input
+            ref={footerLogoInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,image/x-icon,.ico"
+            className="hidden"
+            onChange={(e) => {
+              void handleFooterLogoFileChange(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+
+          <div
+            className="rounded-xl border border-black/10 px-4 py-3 flex items-center justify-between gap-3"
+            style={{ backgroundColor: previewBg, color: previewText }}
+          >
+            <div className="min-w-0 flex items-center gap-2">
+              {!fc.showBrandLogo ? (
+                <span className="text-[11px] opacity-70 italic">Brand logo hidden in footer</span>
+              ) : resolvedPreviewLogo ? (
+                <img
+                  src={resolvedPreviewLogo}
+                  alt={form.storeName || 'Classy Cases'}
+                  referrerPolicy="no-referrer"
+                  className={
+                    useLightPill
+                      ? 'h-9 w-auto max-w-[180px] object-contain bg-[#F2E8D2] px-2 py-1 rounded-lg'
+                      : 'h-10 w-auto max-w-[200px] object-contain rounded-lg'
+                  }
+                />
+              ) : (
+                <span className="font-brand text-xl font-semibold truncate">
+                  {form.storeName || 'Classy Cases'}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-black/20 text-white/90 shrink-0">
+              {customFooterLogo ? 'Custom footer image' : form.logoUrl ? 'Using site logo' : 'Text logo'}
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={customFooterLogo.startsWith('data:') ? '' : customFooterLogo}
+              onChange={(e) => updateFooter({ footerLogoUrl: e.target.value })}
+              placeholder={
+                customFooterLogo.startsWith('data:')
+                  ? 'Custom uploaded footer image active'
+                  : 'Paste HTTPS image URL...'
+              }
+              className="flex-1 min-w-0 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-xs"
+            />
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => footerLogoInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>{customFooterLogo ? 'Replace image' : 'Upload image'}</span>
+              </button>
+              {customFooterLogo && (
+                <button
+                  type="button"
+                  onClick={handleResetFooterLogo}
+                  className="px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/15 inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {resolvedPreviewLogo && fc.showBrandLogo && (
+            <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                <div className="font-medium text-slate-700 dark:text-slate-300">
+                  Light cream badge behind logo
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Turn off for transparent light logos; turn on for dark logos on maroon/dark footers.
+                </div>
+              </div>
+              <SwitchToggle
+                checked={useLightPill}
+                onChange={(v) => updateFooter({ footerLogoBackdrop: v })}
+                ariaLabel="Toggle light cream badge behind footer logo"
+              />
+            </div>
+          )}
+
+          {logoUploadError && (
+            <p className="text-[11px] text-rose-600 dark:text-rose-400">{logoUploadError}</p>
+          )}
         </div>
 
         {/* 3. Blocks */}

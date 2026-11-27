@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowUp,
   ArrowUpRight,
@@ -59,6 +59,18 @@ export function StorefrontFooter({
   const isDarkTheme = design === 'dark' || design === 'boxed';
   const isColumnsWhite = design === 'columns';
   const isCompact = design === 'compact';
+
+  const customFooterLogo = footerConfig.footerLogoUrl?.trim() || '';
+  const resolvedLogoUrl = customFooterLogo || logoUrl?.trim() || '';
+  const [failedLogoSrc, setFailedLogoSrc] = useState<string | null>(null);
+  const effectiveLogoFailed =
+    !resolvedLogoUrl ||
+    failedLogoSrc === resolvedLogoUrl ||
+    (!customFooterLogo && logoImgFailed);
+  const useLightBackdrop =
+    footerConfig.footerLogoBackdrop !== undefined
+      ? footerConfig.footerLogoBackdrop
+      : !customFooterLogo && !isColumnsWhite;
 
   const containerStyle: React.CSSProperties = isDarkTheme
     ? { backgroundColor: '#111115', color: '#F3F4F6' }
@@ -164,13 +176,20 @@ export function StorefrontFooter({
           <div className="space-y-2.5">
             {footerConfig.showBrandLogo && (
               <div className="font-brand text-2xl font-semibold">
-                {logoUrl && !logoImgFailed ? (
+                {!effectiveLogoFailed ? (
                   <img
-                    src={logoUrl}
+                    src={resolvedLogoUrl}
                     alt={storeName || 'Classy Cases'}
                     referrerPolicy="no-referrer"
-                    onError={onLogoError}
-                    className="h-9 w-auto max-w-[180px] object-contain bg-[#F2E8D2] px-2 py-1 rounded-lg"
+                    onError={() => {
+                      setFailedLogoSrc(resolvedLogoUrl);
+                      if (!customFooterLogo) onLogoError();
+                    }}
+                    className={
+                      useLightBackdrop
+                        ? 'h-9 sm:h-10 w-auto max-w-[200px] object-contain bg-[#F2E8D2] px-2 py-1 rounded-lg'
+                        : 'h-10 sm:h-11 w-auto max-w-[220px] object-contain rounded-lg'
+                    }
                   />
                 ) : (
                   storeName || 'Classy Cases'

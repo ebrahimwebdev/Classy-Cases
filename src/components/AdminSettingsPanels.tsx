@@ -72,6 +72,8 @@ interface AdminSettingsPanelsProps {
   onOpenStorefront: () => void;
   onNavigateSettingsTab?: (tab: string) => void;
   onStatusMessage: (msg: string) => void;
+  onErrorMessage?: (msg: string) => void;
+  onPersistSettings?: (nextForm: StoreSettings, successMessage?: string) => Promise<void> | void;
 }
 
 const DEFAULT_STOREFRONT: StorefrontPageConfig = {
@@ -176,6 +178,8 @@ export function AdminSettingsPanels({
   onOpenStorefront,
   onNavigateSettingsTab,
   onStatusMessage,
+  onErrorMessage,
+  onPersistSettings,
 }: AdminSettingsPanelsProps) {
   const [newSource, setNewSource] = useState('');
   const [newQuickNote, setNewQuickNote] = useState('');
@@ -252,6 +256,14 @@ export function AdminSettingsPanels({
   }
 
   if (activeTab === 'Footer') {
+    const persistFooter = (patch: Partial<FooterConfigSettings>, successMsg?: string) => {
+      const nextFc = { ...fc, ...patch };
+      const nextForm: StoreSettings = { ...form, footerConfig: nextFc };
+      setForm(nextForm);
+      if (onPersistSettings) {
+        void onPersistSettings(nextForm, successMsg || 'Footer logo updated and synced.');
+      }
+    };
     return (
       <AdminFooterSettingsPanel
         form={form}
@@ -259,6 +271,8 @@ export function AdminSettingsPanels({
         fc={fc}
         categories={categories}
         updateFooter={updateFooter}
+        onPersistFooter={persistFooter}
+        onErrorMessage={onErrorMessage}
         onOpenStorefront={onOpenStorefront}
       />
     );

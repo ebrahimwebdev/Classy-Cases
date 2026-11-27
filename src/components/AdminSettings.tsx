@@ -763,6 +763,13 @@ export function AdminSettings({
                             </button>
                           )}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('Footer')}
+                          className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                        >
+                          Customize separate footer logo →
+                        </button>
                       </div>
 
                       {/* Favicon Upload & URL */}
@@ -1418,6 +1425,8 @@ export function AdminSettings({
                   setSavedBanner(msg);
                   setTimeout(() => setSavedBanner(''), 3500);
                 }}
+                onErrorMessage={(msg) => setErrorBanner(msg)}
+                onPersistSettings={persistSettings}
               />
             )}
 

@@ -473,6 +473,8 @@ export interface FooterConfigSettings {
   footerBgColor: string;
   footerTextColor: string;
   showBrandLogo: boolean;
+  footerLogoUrl?: string;
+  footerLogoBackdrop?: boolean;
   aboutText: string;
   showWhatsappRow: boolean;
   whatsappLabel: string;

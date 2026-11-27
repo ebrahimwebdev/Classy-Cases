@@ -102,6 +102,7 @@ export function createDefaultFooterConfig(opts?: {
     footerBgColor: '#650108',
     footerTextColor: '#F2E8D2',
     showBrandLogo: true,
+    footerLogoUrl: '',
     aboutText: '',
     showWhatsappRow: true,
     whatsappLabel: 'WhatsApp:',
@@ -210,6 +211,31 @@ export function sanitizeNavUrl(val: unknown): string {
     return trimmed.slice(0, 300);
   }
   return `https://${trimmed}`.slice(0, 300);
+}
+
+export function sanitizeBrandImageUrl(val: unknown): string {
+  if (typeof val !== 'string') return '';
+  const trimmed = val.trim();
+  if (!trimmed) return '';
+  if (
+    trimmed.startsWith('/assets/') ||
+    trimmed.startsWith('/src/assets/') ||
+    trimmed.startsWith('/media/')
+  ) {
+    return trimmed.slice(0, 500);
+  }
+  if (trimmed.startsWith('https://') || trimmed.startsWith('http://localhost')) {
+    return trimmed.slice(0, 1500);
+  }
+  if (
+    /^data:image\/(png|jpeg|jpg|webp|gif|avif|bmp|x-icon|vnd\.microsoft\.icon);base64,[A-Za-z0-9+/=]+$/i.test(
+      trimmed
+    ) &&
+    trimmed.length <= 2_500_000
+  ) {
+    return trimmed;
+  }
+  return '';
 }
 
 const VALID_HEADER_STYLES: HeaderStyleType[] = ['classic', 'one-row', 'two-row', 'overlay'];
@@ -565,6 +591,12 @@ export function mergeFooterConfig(
     footerBgColor: sanitizeHexColor(src.footerBgColor, def.footerBgColor),
     footerTextColor: sanitizeHexColor(src.footerTextColor, def.footerTextColor),
     showBrandLogo: src.showBrandLogo !== false,
+    footerLogoUrl:
+      src.footerLogoUrl !== undefined
+        ? sanitizeBrandImageUrl(src.footerLogoUrl)
+        : def.footerLogoUrl,
+    footerLogoBackdrop:
+      typeof src.footerLogoBackdrop === 'boolean' ? src.footerLogoBackdrop : undefined,
     aboutText: typeof src.aboutText === 'string' ? src.aboutText.trim().slice(0, 300) : def.aboutText,
     showWhatsappRow: src.showWhatsappRow !== false,
     whatsappLabel:

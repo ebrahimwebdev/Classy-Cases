@@ -231,6 +231,7 @@ export type HomeSectionType =
 export type ProductGridSourceMode =
   | 'bestselling'
   | 'brand_tabs'
+  | 'protector_tabs'
   | 'explore_all'
   | 'category'
   | 'newest'

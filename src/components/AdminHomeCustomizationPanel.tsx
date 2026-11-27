@@ -271,6 +271,13 @@ function getSectionTypeMeta(section: HomeSectionConfig): {
       detailLine: `${section.title} · ${limit} products per brand`,
     };
   }
+  if (mode === 'protector_tabs') {
+    return {
+      primaryName: 'Product Grid',
+      styleMeta: 'Camera & Screen tabs',
+      detailLine: `${section.title} · Camera & Screen Protector tabs`,
+    };
+  }
   if (mode === 'explore_all') {
     return {
       primaryName: 'Product Grid',
@@ -317,6 +324,12 @@ const ADD_SECTION_OPTIONS: Array<{
     sourceMode: 'category',
     title: 'Product Grid (Category Row)',
     description: 'Showcase products from a specific brand/category, newest arrivals, or flash deals.',
+  },
+  {
+    type: 'product_grid',
+    sourceMode: 'protector_tabs',
+    title: 'Screen & Camera Protectors',
+    description: 'Showcase Camera Protector and Screen Protector filter tabs before Explore More Products.',
   },
   {
     type: 'promo_banner',
@@ -487,15 +500,19 @@ export function AdminHomeCustomizationPanel({
         promoTheme: 'maroon',
       };
     } else if (opt.type === 'product_grid') {
+      const mode = opt.sourceMode || 'category';
       created = {
         id,
         type: 'product_grid',
         label: 'Product Grid',
         enabled: true,
-        title: `${defaultCategory} Collection`,
-        sourceMode: opt.sourceMode || 'category',
-        categoryName: defaultCategory,
-        limit: 4,
+        title:
+          mode === 'protector_tabs'
+            ? 'Screen & Camera Protectors'
+            : `${defaultCategory} Collection`,
+        sourceMode: mode,
+        ...(mode === 'category' ? { categoryName: defaultCategory } : {}),
+        limit: mode === 'protector_tabs' ? 5 : 4,
       };
     } else if (opt.type === 'brand_strip') {
       created = {
@@ -976,7 +993,8 @@ export function AdminHomeCustomizationPanel({
               {editingSection.type === 'product_grid' && (
                 <div className="space-y-4">
                   {editingSection.sourceMode !== 'explore_all' &&
-                    editingSection.sourceMode !== 'brand_tabs' && (
+                    editingSection.sourceMode !== 'brand_tabs' &&
+                    editingSection.sourceMode !== 'protector_tabs' && (
                       <>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">

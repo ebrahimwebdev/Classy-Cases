@@ -51,6 +51,7 @@ import type { CatalogSortOption } from './CatalogFilterBar';
 import {
   BestsellingShowcaseSection,
   PhoneCasesShowcaseSection,
+  ProtectorsShowcaseSection,
 } from './CatalogShowcaseSections';
 import { CustomerReviewsCarousel } from './CustomerReviewsCarousel';
 import { FeaturedCategoriesSlider } from './FeaturedCategoriesSlider';
@@ -1413,6 +1414,35 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       onAddToCart={(product) => addToCart(product)}
                       onViewAll={(categoryName) => {
                         navigateShop(categoryName || 'All', { clearSearch: true });
+                      }}
+                    />
+                  );
+                }
+
+                if (mode === 'protector_tabs') {
+                  return (
+                    <ProtectorsShowcaseSection
+                      key={section.id}
+                      title={section.title}
+                      limit={rowLimit}
+                      products={products}
+                      categories={effectiveCategories}
+                      wishlist={wishlist}
+                      loading={loading}
+                      desktopColumns={rowCols}
+                      onSelectProduct={navigateProduct}
+                      onQuickView={(product) => setQuickViewProduct(product)}
+                      onToggleWishlist={toggleWishlist}
+                      onAddToCart={(product) => addToCart(product)}
+                      onViewAll={(categoryName, fallbackSearch) => {
+                        if (categoryName && categoryName !== 'All') {
+                          navigateShop(categoryName, { clearSearch: true });
+                        } else if (fallbackSearch) {
+                          setSearchQuery(fallbackSearch);
+                          navigateShop('All');
+                        } else {
+                          navigateShop('All', { clearSearch: true });
+                        }
                       }}
                     />
                   );

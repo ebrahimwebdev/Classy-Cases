@@ -4717,18 +4717,30 @@ async function startServer() {
     (process.env.NODE_ENV !== 'development' &&
       Boolean(process.env.K_SERVICE) &&
       fs.existsSync(path.join(distDir, 'index.html')));
-  if (!isProd) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
+  const serveStaticDist = () => {
     app.use(express.static(distDir));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
+  };
+
+  if (!isProd) {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      if (fs.existsSync(path.join(distDir, 'index.html'))) {
+        serveStaticDist();
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    serveStaticDist();
   }
 
   const PORT = Number(process.env.PORT) || 3000;

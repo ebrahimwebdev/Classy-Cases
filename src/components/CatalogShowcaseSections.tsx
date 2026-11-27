@@ -257,6 +257,277 @@ export function PhoneCasesShowcaseSection({
   );
 }
 
+export type ProtectorTab = 'all' | 'camera' | 'screen';
+
+const CAMERA_PROTECTOR_RE =
+  /camera\s*(lens|ring|protector|glass|guard|film)|lens\s*(protector|glass|guard|film)/i;
+const SCREEN_PROTECTOR_RE =
+  /screen\s*(protector|guard|glass|film)|tempered\s*glass|smart\s*devil|privacy\s*(glass|screen)|matte\s*(glass|screen)|hydrogel|uv\s*glass|9h\s*(glass|protector)/i;
+const ANY_PROTECTOR_RE = /protector/i;
+
+function productInCategorySet(product: PhoneCaseProduct, nameSet: Set<string>): boolean {
+  if (nameSet.size === 0) return false;
+  if (nameSet.has(product.category.trim().toLowerCase())) return true;
+  return (product.alsoShowIn || []).some((c) => nameSet.has(c.trim().toLowerCase()));
+}
+
+interface ProtectorsShowcaseProps extends Omit<ShowcaseBaseProps, 'onViewAll'> {
+  categories: Category[];
+  onViewAll: (category?: string, fallbackSearch?: string) => void;
+}
+
+export function ProtectorsShowcaseSection({
+  products,
+  categories,
+  wishlist,
+  loading,
+  desktopColumns = 5,
+  title,
+  limit = 5,
+  onSelectProduct,
+  onQuickView,
+  onToggleWishlist,
+  onAddToCart,
+  onViewAll,
+}: ProtectorsShowcaseProps) {
+  const showcaseGridClass = SHOWCASE_GRID_CLASSES[desktopColumns];
+  const [activeTab, setActiveTab] = useState<ProtectorTab>('all');
+  const safeLimit = Math.min(12, Math.max(2, Math.round(limit)));
+
+  const {
+    cameraCategoryNames,
+    screenCategoryNames,
+    generalCategoryNames,
+    cameraTargetCategory,
+    screenTargetCategory,
+    allTargetCategory,
+  } = useMemo(() => {
+    const camSet = new Set<string>();
+    const scrSet = new Set<string>();
+    const genSet = new Set<string>();
+    let camTarget = '';
+    let scrTarget = '';
+    let allTarget = '';
+
+    for (const cat of categories) {
+      if (cat.active === false) continue;
+      const name = cat.name.trim();
+      if (!name) continue;
+      const isCombined = /screen\s*&?\s*camera/i.test(name);
+      const isCam = !isCombined && CAMERA_PROTECTOR_RE.test(name);
+      const isScr = !isCombined && SCREEN_PROTECTOR_RE.test(name);
+
+      if (isCam) {
+        if (!camTarget) camTarget = name;
+        for (const n of getCategoryAndDescendantNames(categories, name)) {
+          camSet.add(n);
+        }
+      } else if (isScr) {
+        if (!scrTarget) scrTarget = name;
+        for (const n of getCategoryAndDescendantNames(categories, name)) {
+          scrSet.add(n);
+        }
+      } else if (isCombined || ANY_PROTECTOR_RE.test(name)) {
+        if (!allTarget || isCombined) allTarget = name;
+        for (const n of getCategoryAndDescendantNames(categories, name)) {
+          genSet.add(n);
+        }
+      }
+    }
+
+    return {
+      cameraCategoryNames: camSet,
+      screenCategoryNames: scrSet,
+      generalCategoryNames: genSet,
+      cameraTargetCategory: camTarget || allTarget,
+      screenTargetCategory: scrTarget || allTarget,
+      allTargetCategory: allTarget,
+    };
+  }, [categories]);
+
+  const filteredProducts = useMemo(() => {
+    const isCamera = (p: PhoneCaseProduct) => {
+      if (productInCategorySet(p, cameraCategoryNames)) return true;
+      const text = `${p.title} ${p.category} ${(p.alsoShowIn || []).join(' ')}`;
+      return CAMERA_PROTECTOR_RE.test(text);
+    };
+
+    const isScreen = (p: PhoneCaseProduct) => {
+      if (productInCategorySet(p, screenCategoryNames)) return true;
+      const text = `${p.title} ${p.category} ${(p.alsoShowIn || []).join(' ')}`;
+      return SCREEN_PROTECTOR_RE.test(text);
+    };
+
+    const isProtector = (p: PhoneCaseProduct) => {
+      if (isCamera(p) || isScreen(p)) return true;
+      if (productInCategorySet(p, generalCategoryNames)) return true;
+      const text = `${p.title} ${p.category} ${(p.alsoShowIn || []).join(' ')}`;
+      return ANY_PROTECTOR_RE.test(text);
+    };
+
+    const matched = products.filter((p) => {
+      if (activeTab === 'camera') return isCamera(p);
+      if (activeTab === 'screen') return isScreen(p);
+      return isProtector(p);
+    });
+
+    return matched.slice(0, safeLimit);
+  }, [
+    products,
+    activeTab,
+    safeLimit,
+    cameraCategoryNames,
+    screenCategoryNames,
+    generalCategoryNames,
+  ]);
+
+  if (loading && products.length === 0) {
+    return null;
+  }
+
+  const handleViewAll = () => {
+    if (activeTab === 'camera') {
+      if (cameraTargetCategory) {
+        onViewAll(cameraTargetCategory);
+      } else {
+        onViewAll('All', 'camera protector');
+      }
+      return;
+    }
+    if (activeTab === 'screen') {
+      if (screenTargetCategory) {
+        onViewAll(screenTargetCategory);
+      } else {
+        onViewAll('All', 'screen protector');
+      }
+      return;
+    }
+    if (allTargetCategory) {
+      onViewAll(allTargetCategory);
+    } else {
+      onViewAll('All', 'protector');
+    }
+  };
+
+  const tabButtonClass = (active: boolean) =>
+    `px-3.5 py-1.5 rounded-full border text-[11px] font-medium uppercase tracking-[1.5px] transition-colors cursor-pointer ${
+      active
+        ? 'bg-[#650108] border-[#650108] text-[#F2E8D2]'
+        : 'bg-[#FFFDF8] border-[#650108]/40 text-[#650108] hover:border-[#650108]'
+    }`;
+
+  return (
+    <section
+      id="screen-camera-protectors-showcase"
+      aria-labelledby="screen-camera-protectors-heading"
+      className="max-w-[1180px] mx-auto px-3 sm:px-8 pt-6 pb-4"
+    >
+      <div className="flex items-end justify-between gap-4 mb-3">
+        <div>
+          <h2
+            id="screen-camera-protectors-heading"
+            className="font-brand text-xl sm:text-2xl font-semibold text-[#650108] tracking-tight"
+          >
+            {title?.trim() || 'Screen & Camera Protectors'}
+          </h2>
+          <div className="w-10 h-[3px] bg-[#650108] mt-1.5" />
+        </div>
+        <button
+          type="button"
+          onClick={handleViewAll}
+          className="hidden sm:inline-block text-xs font-semibold uppercase tracking-[1.6px] text-[#650108] hover:opacity-75 whitespace-nowrap cursor-pointer"
+        >
+          view all
+        </button>
+      </div>
+
+      {/* Outlined Protector Sub-type Filter Tabs */}
+      <div
+        role="tablist"
+        aria-label="Filter Screen and Camera Protectors"
+        className="flex flex-wrap items-center gap-2 mb-5"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'all'}
+          onClick={() => setActiveTab('all')}
+          className={tabButtonClass(activeTab === 'all')}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'camera'}
+          onClick={() => setActiveTab((prev) => (prev === 'camera' ? 'all' : 'camera'))}
+          className={tabButtonClass(activeTab === 'camera')}
+        >
+          Camera Protector
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'screen'}
+          onClick={() => setActiveTab((prev) => (prev === 'screen' ? 'all' : 'screen'))}
+          className={tabButtonClass(activeTab === 'screen')}
+        >
+          Screen Protector
+        </button>
+      </div>
+
+      {filteredProducts.length === 0 ? (
+        <div className="border border-[#DFCFB0] rounded-2xl py-10 text-center bg-[#FAF4E6] px-4">
+          <p className="text-sm font-medium text-[#650108]">
+            {activeTab === 'camera'
+              ? 'No camera protectors found yet.'
+              : activeTab === 'screen'
+                ? 'No screen protectors found yet.'
+                : 'No screen or camera protectors found yet.'}
+          </p>
+          <p className="text-xs text-[#6B4C4E] mt-1">
+            Add products under Camera Protector or Screen Protector to showcase them here.
+          </p>
+        </div>
+      ) : (
+        <>
+          <MobileHorizontalTrack className={showcaseGridClass}>
+            {filteredProducts.map((product) => (
+              <PhoneCaseCard
+                key={`protectors-${product.id}`}
+                product={product}
+                isWishlisted={wishlist.includes(product.id)}
+                className={MOBILE_SLIDE_CARD_CLASS}
+                onSelectProduct={onSelectProduct}
+                onQuickView={onQuickView}
+                onToggleWishlist={onToggleWishlist}
+                onAddToCart={onAddToCart}
+              />
+            ))}
+          </MobileHorizontalTrack>
+
+          <div className="mt-4 flex justify-center sm:hidden">
+            <button
+              type="button"
+              onClick={handleViewAll}
+              className="px-5 py-2.5 rounded-xl border border-[#650108] bg-[#FFFDF8] text-[#650108] text-xs font-semibold uppercase tracking-[1.6px] inline-flex items-center gap-2 hover:bg-[#650108] hover:text-[#F2E8D2] transition-colors cursor-pointer"
+            >
+              <span>
+                {activeTab === 'camera'
+                  ? 'View All Camera Protectors'
+                  : activeTab === 'screen'
+                    ? 'View All Screen Protectors'
+                    : 'View All Protectors'}
+              </span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 interface CatalogShowcaseSectionsProps {
   products: PhoneCaseProduct[];
   categories: Category[];

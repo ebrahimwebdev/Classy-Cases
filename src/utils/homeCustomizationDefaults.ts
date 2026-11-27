@@ -70,6 +70,17 @@ export const DEFAULT_HOME_SECTIONS: HomeSectionConfig[] = [
     limit: 5,
   },
   {
+    id: 'screen_camera_protectors',
+    type: 'product_grid',
+    label: 'Product Grid',
+    enabled: true,
+    locked: true,
+    title: 'Screen & Camera Protectors',
+    subtitle: 'Camera & Screen protector tabs',
+    sourceMode: 'protector_tabs',
+    limit: 5,
+  },
+  {
     id: 'explore_more',
     type: 'product_grid',
     label: 'Product Grid',
@@ -125,6 +136,7 @@ const VALID_TYPES = new Set<HomeSectionType>([
 const VALID_SOURCE_MODES = new Set<ProductGridSourceMode>([
   'bestselling',
   'brand_tabs',
+  'protector_tabs',
   'explore_all',
   'category',
   'newest',
@@ -307,6 +319,13 @@ export function mergeHomeCustomization(
       // Preserve scrolling_notice above hero when missing from older saved configs
       if (base.id === 'scrolling_notice') {
         mergedSections.unshift(cloned);
+      } else if (base.id === 'screen_camera_protectors') {
+        const exploreIdx = mergedSections.findIndex((s) => s.id === 'explore_more');
+        if (exploreIdx >= 0) {
+          mergedSections.splice(exploreIdx, 0, cloned);
+        } else {
+          mergedSections.push(cloned);
+        }
       } else {
         mergedSections.push(cloned);
       }
@@ -343,6 +362,7 @@ export const HOME_LAYOUT_PRESETS: HomeLayoutPreset[] = [
         { ...DEFAULT_SECTION_MAP.get('scrolling_notice')!, enabled: false },
         { ...DEFAULT_SECTION_MAP.get('hero')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('featured_categories')!, enabled: true },
+        { ...DEFAULT_SECTION_MAP.get('screen_camera_protectors')!, enabled: false },
         { ...DEFAULT_SECTION_MAP.get('explore_more')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('customer_reviews')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('trust_highlights')!, enabled: false },
@@ -364,6 +384,7 @@ export const HOME_LAYOUT_PRESETS: HomeLayoutPreset[] = [
         { ...DEFAULT_SECTION_MAP.get('phone_cases')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('bestselling')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('trust_highlights')!, enabled: true },
+        { ...DEFAULT_SECTION_MAP.get('screen_camera_protectors')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('explore_more')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('customer_reviews')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('trusted_by')!, enabled: true },
@@ -393,6 +414,7 @@ export const HOME_LAYOUT_PRESETS: HomeLayoutPreset[] = [
         { ...DEFAULT_SECTION_MAP.get('bestselling')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('featured_categories')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('phone_cases')!, enabled: true },
+        { ...DEFAULT_SECTION_MAP.get('screen_camera_protectors')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('explore_more')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('customer_reviews')!, enabled: true },
         { ...DEFAULT_SECTION_MAP.get('trust_highlights')!, enabled: true },

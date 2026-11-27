@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { Category } from '../types';
 import { getRootCategoryFor, getTopLevelCategories } from '../utils/categoryTree';
+import { isProtectorCategory } from '../utils/protectorFilter';
 import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogos';
 
 interface FeaturedCategoriesSliderProps {
@@ -23,7 +24,10 @@ export function FeaturedCategoriesSlider({
   onSelectCategory,
 }: FeaturedCategoriesSliderProps) {
   const featuredCategories = useMemo(
-    () => getTopLevelCategories(categories).filter((c) => c.featured !== false),
+    () =>
+      getTopLevelCategories(categories).filter(
+        (c) => c.featured !== false && !isProtectorCategory(c, categories)
+      ),
     [categories]
   );
   const activeRoot = useMemo(

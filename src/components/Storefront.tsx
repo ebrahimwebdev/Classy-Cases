@@ -79,6 +79,7 @@ import {
   getSubcategories,
   getTopLevelCategories,
 } from '../utils/categoryTree';
+import { isProtectorProduct } from '../utils/protectorFilter';
 import { ShopCategoryPage } from './ShopCategoryPage';
 import { StorefrontFooter } from './StorefrontFooter';
 import {
@@ -816,12 +817,16 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
       ? settings.shopPageColumns
       : 5;
   const pageSize = desktopColumns;
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  const exploreProducts = useMemo(
+    () => filteredProducts.filter((p) => !isProtectorProduct(p, effectiveCategories)),
+    [filteredProducts, effectiveCategories]
+  );
+  const totalPages = Math.max(1, Math.ceil(exploreProducts.length / pageSize));
   const safePage = Math.min(carouselPage, totalPages - 1);
   const displayedProducts =
     viewAll || hasActiveFilters
-      ? filteredProducts
-      : filteredProducts.slice(safePage * pageSize, safePage * pageSize + pageSize);
+      ? exploreProducts
+      : exploreProducts.slice(safePage * pageSize, safePage * pageSize + pageSize);
 
   function addToCart(product: Product, model?: string, qty = 1, meta?: AddCartItemMeta) {
     addItem(product, model, qty, meta);
@@ -1383,6 +1388,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                       title={section.title}
                       limit={rowLimit}
                       products={products}
+                      categories={effectiveCategories}
                       wishlist={wishlist}
                       loading={loading}
                       desktopColumns={rowCols}
@@ -1466,8 +1472,8 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                             <div className="w-10 h-[3px] bg-[#650108]" />
                             {hasActiveFilters && (
                               <span className="text-xs font-normal text-[#6B4C4E] tabular-nums">
-                                {filteredProducts.length}{' '}
-                                {filteredProducts.length === 1 ? 'case' : 'cases'} found
+                                {exploreProducts.length}{' '}
+                                {exploreProducts.length === 1 ? 'case' : 'cases'} found
                               </span>
                             )}
                           </div>
@@ -1498,7 +1504,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
 
                       <PhoneCaseGrid
                         products={displayedProducts}
-                        mobileProducts={filteredProducts}
+                        mobileProducts={exploreProducts}
                         loading={loading}
                         wishlist={wishlist}
                         searchQuery={searchQuery}
@@ -1514,7 +1520,7 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
                         onResetFilters={resetAllFilters}
                       />
 
-                      {!viewAll && !hasActiveFilters && filteredProducts.length > pageSize && (
+                      {!viewAll && !hasActiveFilters && exploreProducts.length > pageSize && (
                         <div className="mt-6 flex justify-center">
                           <button
                             type="button"

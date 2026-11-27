@@ -3,6 +3,11 @@ import { ArrowRight, Megaphone } from 'lucide-react';
 import type { PhoneCaseProduct } from '../models/phoneCase';
 import type { Category, ProductGridSourceMode } from '../types';
 import { getCategoryAndDescendantNames, getTopLevelCategories } from '../utils/categoryTree';
+import {
+  isProtectorCategory,
+  isProtectorProduct,
+  PROTECTOR_CATEGORY_RE,
+} from '../utils/protectorFilter';
 import { CustomBrandLogo, MotorolaLogo, VivoLogo, XiaomiLogo } from './BrandLogos';
 import { MobileHorizontalTrack, MOBILE_SLIDE_CARD_CLASS } from './MobileHorizontalTrack';
 import { PhoneCaseCard } from './PhoneCaseGrid';
@@ -189,7 +194,14 @@ export function CustomProductRowSection({
   const safeLimit = Math.min(12, Math.max(2, Math.round(limit)));
 
   const rowProducts = useMemo(() => {
-    let list = [...products];
+    const isExplicitProtectorCategory =
+      sourceMode === 'category' &&
+      Boolean(categoryName && PROTECTOR_CATEGORY_RE.test(categoryName.trim()));
+
+    let list = isExplicitProtectorCategory
+      ? [...products]
+      : products.filter((p) => !isProtectorProduct(p, categories));
+
     if (sourceMode === 'category' && categoryName && categoryName !== 'All') {
       const names = getCategoryAndDescendantNames(categories, categoryName);
       list = list.filter(
@@ -290,7 +302,10 @@ export function BrandStripSection({
   onImageError,
   onSelectCategory,
 }: BrandStripSectionProps) {
-  const brands = useMemo(() => getTopLevelCategories(categories), [categories]);
+  const brands = useMemo(
+    () => getTopLevelCategories(categories).filter((c) => !isProtectorCategory(c, categories)),
+    [categories]
+  );
   if (brands.length === 0) return null;
 
   return (

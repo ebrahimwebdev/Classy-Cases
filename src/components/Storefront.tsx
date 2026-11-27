@@ -437,7 +437,9 @@ export function Storefront({ onOpenAdmin }: StorefrontProps) {
             mergedMap.set(cat.id, cat);
           }
           for (const fsCat of firestoreCategories) {
-            mergedMap.set(fsCat.id, fsCat);
+            if (!mergedMap.has(fsCat.id)) {
+              mergedMap.set(fsCat.id, fsCat);
+            }
           }
           const merged = Array.from(mergedMap.values());
           setCategories(merged);

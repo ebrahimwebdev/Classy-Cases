@@ -525,7 +525,7 @@ export async function deleteProductFromSql(productId: string) {
   }
 }
 
-export async function upsertCategoryToSql(c: Category, sortOrder = 0) {
+export async function upsertCategoryToSql(c: Category, sortOrder?: number) {
   try {
     await db
       .insert(categories)
@@ -543,7 +543,7 @@ export async function upsertCategoryToSql(c: Category, sortOrder = 0) {
         seoDescription: c.seoDescription || '',
         image: c.image || '',
         shippingClass: c.shippingClass || 'No class',
-        sortOrder,
+        sortOrder: sortOrder ?? 0,
       })
       .onConflictDoUpdate({
         target: categories.id,
@@ -560,11 +560,28 @@ export async function upsertCategoryToSql(c: Category, sortOrder = 0) {
           seoDescription: c.seoDescription || '',
           image: c.image || '',
           shippingClass: c.shippingClass || 'No class',
+          ...(sortOrder !== undefined ? { sortOrder } : {}),
         },
       });
   } catch (error) {
     console.error('Database query failed in upsertCategoryToSql:', error);
     throw new Error('Failed to save category.', { cause: error });
+  }
+}
+
+export async function reorderCategoriesInSql(orderedIds: string[]) {
+  try {
+    await db.transaction(async (tx) => {
+      for (let i = 0; i < orderedIds.length; i += 1) {
+        await tx
+          .update(categories)
+          .set({ sortOrder: i })
+          .where(eq(categories.id, orderedIds[i]));
+      }
+    });
+  } catch (error) {
+    console.error('Database query failed in reorderCategoriesInSql:', error);
+    throw new Error('Failed to save category order.', { cause: error });
   }
 }
 

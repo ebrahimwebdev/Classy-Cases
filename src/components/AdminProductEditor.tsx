@@ -761,7 +761,7 @@ export function AdminProductEditor({
               onClick={() =>
                 setVariantOptions((prev) => [...prev, { name: '', values: [] }])
               }
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 inline-flex items-center gap-1.5 pt-1"
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 [@media(hover:hover)]:hover:text-indigo-700 dark:[@media(hover:hover)]:hover:text-indigo-300 inline-flex items-center gap-1.5 pt-1"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Add Option</span>
@@ -1270,7 +1270,7 @@ export function AdminProductEditor({
                     }
                     setSpecsOpen((v) => !v);
                   }}
-                  className="text-xs font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1 hover:text-indigo-600"
+                  className="text-xs font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1 [@media(hover:hover)]:hover:text-indigo-600 dark:[@media(hover:hover)]:hover:text-indigo-400"
                 >
                   <span>Add</span>
                   <ChevronDown
@@ -1529,14 +1529,14 @@ export function AdminProductEditor({
                       <button
                         type="button"
                         onClick={() => mainFileRef.current?.click()}
-                        className="px-2.5 py-1 rounded-md bg-white/95 dark:bg-slate-900/95 text-[11px] font-semibold text-slate-900 dark:text-slate-100 hover:bg-white"
+                        className="px-2.5 py-1 rounded-md bg-white/95 dark:bg-slate-900/95 text-[11px] font-semibold text-slate-900 dark:text-slate-100 [@media(hover:hover)]:hover:bg-white dark:[@media(hover:hover)]:hover:bg-slate-800 transition-colors"
                       >
                         Replace
                       </button>
                       <button
                         type="button"
                         onClick={() => setMainImage('')}
-                        className="px-2.5 py-1 rounded-md bg-rose-600 text-[11px] font-semibold text-white hover:bg-rose-700"
+                        className="px-2.5 py-1 rounded-md bg-rose-600 text-[11px] font-semibold text-white [@media(hover:hover)]:hover:bg-rose-700 transition-colors"
                       >
                         Remove
                       </button>
@@ -1551,7 +1551,7 @@ export function AdminProductEditor({
                       const file = e.dataTransfer.files?.[0];
                       if (file) void handleFileRead(file, setMainImage);
                     }}
-                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer [@media(hover:hover)]:hover:border-indigo-400 [@media(hover:hover)]:hover:bg-indigo-50/30 dark:[@media(hover:hover)]:hover:bg-indigo-500/10 transition-colors"
                   >
                     <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Add main photo</p>
@@ -1635,7 +1635,7 @@ export function AdminProductEditor({
                         )
                       );
                     }}
-                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl py-8 px-4 text-center cursor-pointer [@media(hover:hover)]:hover:border-indigo-400 [@media(hover:hover)]:hover:bg-indigo-50/30 dark:[@media(hover:hover)]:hover:bg-indigo-500/10 transition-colors"
                   >
                     <ImageIcon className="w-6 h-6 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Add to gallery</p>

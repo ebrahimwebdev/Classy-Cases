@@ -513,6 +513,11 @@ export function AdminInventoryCatalogViews({
     }
   }
 
+  function getEffectiveParentKey(cat: Category): string {
+    if (!cat.parentId || cat.parentId === cat.id) return '';
+    return categories.some((c) => c.id === cat.parentId) ? cat.parentId : '';
+  }
+
   function buildReorderedSiblingList(
     sourceId: string,
     targetId: string,
@@ -522,16 +527,16 @@ export function AdminInventoryCatalogViews({
     const targetCat = categories.find((c) => c.id === targetId);
     if (!sourceCat || !targetCat || sourceId === targetId) return null;
 
-    const sourceParentKey = sourceCat.parentId || '';
-    const targetParentKey = targetCat.parentId || '';
+    const sourceParentKey = getEffectiveParentKey(sourceCat);
+    const targetParentKey = getEffectiveParentKey(targetCat);
 
     // Allow dropping a sub-category directly onto its parent row to move it first among children
     if (sourceParentKey && targetCat.id === sourceParentKey) {
-      const siblings = categories.filter((c) => (c.parentId || '') === sourceParentKey);
+      const siblings = categories.filter((c) => getEffectiveParentKey(c) === sourceParentKey);
       const reorderedSiblings = [sourceCat, ...siblings.filter((c) => c.id !== sourceId)];
       let siblingIdx = 0;
       return categories.map((c) =>
-        (c.parentId || '') === sourceParentKey ? reorderedSiblings[siblingIdx++] : c
+        getEffectiveParentKey(c) === sourceParentKey ? reorderedSiblings[siblingIdx++] : c
       );
     }
 
@@ -540,9 +545,10 @@ export function AdminInventoryCatalogViews({
     if (!sourceParentKey && targetParentKey) {
       let ancestor: Category | undefined = targetCat;
       const visited = new Set<string>();
-      while (ancestor?.parentId && !visited.has(ancestor.id)) {
+      while (ancestor && getEffectiveParentKey(ancestor) && !visited.has(ancestor.id)) {
         visited.add(ancestor.id);
-        ancestor = categories.find((c) => c.id === ancestor?.parentId);
+        const nextParentId = getEffectiveParentKey(ancestor);
+        ancestor = categories.find((c) => c.id === nextParentId);
       }
       if (!ancestor || ancestor.id === sourceId) return null;
       effectiveTargetId = ancestor.id;
@@ -550,7 +556,7 @@ export function AdminInventoryCatalogViews({
       return null;
     }
 
-    const siblings = categories.filter((c) => (c.parentId || '') === sourceParentKey);
+    const siblings = categories.filter((c) => getEffectiveParentKey(c) === sourceParentKey);
     const withoutSource = siblings.filter((c) => c.id !== sourceId);
     const targetIdx = withoutSource.findIndex((c) => c.id === effectiveTargetId);
     if (targetIdx === -1) return null;
@@ -566,16 +572,18 @@ export function AdminInventoryCatalogViews({
 
     let siblingPointer = 0;
     return categories.map((c) =>
-      (c.parentId || '') === sourceParentKey ? reorderedSiblings[siblingPointer++] : c
+      getEffectiveParentKey(c) === sourceParentKey ? reorderedSiblings[siblingPointer++] : c
     );
   }
 
   async function commitCategoryReorder(nextCategories: Category[] | null) {
     if (!nextCategories || !onReorderCategories || reorderingCats) return;
     setCatActionError('');
+    setCatSyncMsg('');
     setReorderingCats(true);
     try {
       await onReorderCategories(nextCategories);
+      setCatSyncMsg('Category order saved.');
     } catch (err) {
       setCatActionError(formatCategoryActionError(err, 'Failed to save category order.'));
     } finally {
@@ -584,8 +592,8 @@ export function AdminInventoryCatalogViews({
   }
 
   async function handleNudgeCategory(cat: Category, direction: -1 | 1) {
-    const parentKey = cat.parentId || '';
-    const siblings = categories.filter((c) => (c.parentId || '') === parentKey);
+    const parentKey = getEffectiveParentKey(cat);
+    const siblings = categories.filter((c) => getEffectiveParentKey(c) === parentKey);
     const currentIdx = siblings.findIndex((c) => c.id === cat.id);
     const swapIdx = currentIdx + direction;
     if (currentIdx === -1 || swapIdx < 0 || swapIdx >= siblings.length) return;
@@ -920,8 +928,8 @@ export function AdminInventoryCatalogViews({
                     const isActive = cat.active !== false;
                     const isFeatured = cat.featured !== false;
                     const busy = togglingCatId === cat.id || deletingCatId === cat.id || reorderingCats;
-                    const parentKey = cat.parentId || '';
-                    const siblings = categories.filter((c) => (c.parentId || '') === parentKey);
+                    const parentKey = getEffectiveParentKey(cat);
+                    const siblings = categories.filter((c) => getEffectiveParentKey(c) === parentKey);
                     const siblingIndex = siblings.findIndex((c) => c.id === cat.id);
                     const canMoveUp = siblingIndex > 0;
                     const canMoveDown = siblingIndex >= 0 && siblingIndex < siblings.length - 1;
@@ -929,12 +937,13 @@ export function AdminInventoryCatalogViews({
                     const isDropBefore = dropTargetCatId === cat.id && dropPosition === 'before';
                     const isDropAfter = dropTargetCatId === cat.id && dropPosition === 'after';
                     const draggedCat = draggedCatId ? categories.find((c) => c.id === draggedCatId) : undefined;
+                    const draggedParentKey = draggedCat ? getEffectiveParentKey(draggedCat) : '';
                     const canDropHere = Boolean(
                       draggedCat &&
                         draggedCat.id !== cat.id &&
-                        ((draggedCat.parentId || '') === parentKey ||
-                          (!draggedCat.parentId && depth > 0) ||
-                          draggedCat.parentId === cat.id)
+                        (draggedParentKey === parentKey ||
+                          (!draggedParentKey && depth > 0) ||
+                          draggedParentKey === cat.id)
                     );
 
                     return (
@@ -970,7 +979,11 @@ export function AdminInventoryCatalogViews({
                         onDrop={(e) => {
                           e.preventDefault();
                           const sourceId = draggedCatId || e.dataTransfer.getData('text/plain');
-                          const pos = dropPosition || 'before';
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const fallbackPos: 'before' | 'after' =
+                            e.clientY - rect.top > rect.height / 2 ? 'after' : 'before';
+                          const pos =
+                            dropTargetCatId === cat.id && dropPosition ? dropPosition : fallbackPos;
                           setDraggedCatId(null);
                           setDropTargetCatId(null);
                           setDropPosition(null);
@@ -1110,7 +1123,7 @@ export function AdminInventoryCatalogViews({
                             onClick={() =>
                               handleQuickToggleCategory(cat, { featured: !isFeatured })
                             }
-                            className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors cursor-pointer disabled:opacity-50"
+                            className="p-1.5 rounded-lg [@media(hover:hover)]:hover:bg-amber-50 dark:[@media(hover:hover)]:hover:bg-amber-500/15 transition-colors cursor-pointer disabled:opacity-50"
                             title={isFeatured ? 'Featured on storefront' : 'Click to feature'}
                             aria-label={`Toggle featured for ${cat.name}`}
                           >
@@ -1118,7 +1131,7 @@ export function AdminInventoryCatalogViews({
                               className={`w-4 h-4 ${
                                 isFeatured
                                   ? 'fill-amber-400 text-amber-400'
-                                  : 'text-slate-400 dark:text-slate-500 hover:text-amber-400'
+                                  : 'text-slate-400 dark:text-slate-500 [@media(hover:hover)]:hover:text-amber-400'
                               }`}
                             />
                           </button>
@@ -1130,8 +1143,8 @@ export function AdminInventoryCatalogViews({
                             onClick={() => handleQuickToggleCategory(cat, { active: !isActive })}
                             className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50 ${
                               isActive
-                                ? 'bg-emerald-100/80 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200/70'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                ? 'bg-emerald-100/80 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 [@media(hover:hover)]:hover:bg-emerald-200/70 dark:[@media(hover:hover)]:hover:bg-emerald-500/30'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 [@media(hover:hover)]:hover:bg-slate-200 dark:[@media(hover:hover)]:hover:bg-slate-700'
                             }`}
                             title="Click to toggle category status"
                           >
@@ -2192,13 +2205,13 @@ export function AdminInventoryCatalogViews({
                   const isOut = isTracked && p.stock <= 0;
                   const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
+                    <tr key={p.id} className="[@media(hover:hover)]:hover:bg-slate-50/70 dark:[@media(hover:hover)]:hover:bg-slate-800/60 transition-colors">
                       <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">{p.sku}</td>
                       <td className="py-3 px-4">
                         <button
                           type="button"
                           onClick={() => onEditProduct(p)}
-                          className="font-semibold text-slate-900 dark:text-slate-100 hover:text-indigo-600 text-left"
+                          className="font-semibold text-slate-900 dark:text-slate-100 [@media(hover:hover)]:hover:text-indigo-600 dark:[@media(hover:hover)]:hover:text-indigo-400 text-left transition-colors"
                         >
                           {p.title}
                         </button>
@@ -2274,7 +2287,7 @@ export function AdminInventoryCatalogViews({
             const isOut = isTracked && p.stock <= 0;
             const isLow = isTracked && p.stock > 0 && p.stock < 5;
             return (
-              <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs">
+              <div key={p.id} className="px-4 py-3 flex items-center justify-between gap-3 text-xs [@media(hover:hover)]:hover:bg-slate-50/70 dark:[@media(hover:hover)]:hover:bg-slate-800/60 transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
                   <Package className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
                   <div className="min-w-0">
@@ -2340,7 +2353,7 @@ export function AdminInventoryCatalogViews({
                   const isOut = isTracked && p.stock <= 0;
                   const isLow = isTracked && p.stock > 0 && p.stock < 5;
                   return (
-                  <tr key={p.id}>
+                  <tr key={p.id} className="[@media(hover:hover)]:hover:bg-slate-50/70 dark:[@media(hover:hover)]:hover:bg-slate-800/60 transition-colors">
                     <td className="py-3 px-4 font-mono text-slate-500 dark:text-slate-400">{p.sku}</td>
                     <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100">
                       <div className="flex items-center gap-2 flex-wrap">

@@ -44,6 +44,7 @@ import {
   insertSubscriberToSql,
   listHeroMediaFromSql,
   loadOrSeedStoreFromSql,
+  reorderCategoriesInSql,
   replaceProductsInSql,
   saveHeroMediaToSql,
   saveStoreConfigToSql,
@@ -3326,9 +3327,7 @@ async function startServer() {
     try {
       db.categories = nextList;
       if (isSqlConfigured()) {
-        for (let i = 0; i < nextList.length; i += 1) {
-          await upsertCategoryToSql(nextList[i], i);
-        }
+        await reorderCategoriesInSql(nextList.map((c) => c.id));
       }
       saveDatabase();
       res.json({ categories: db.categories });

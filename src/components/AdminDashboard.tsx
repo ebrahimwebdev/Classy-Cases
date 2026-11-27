@@ -829,7 +829,9 @@ export function AdminDashboard({
     const createdCategory: Category | undefined = data.category;
     if (createdCategory && auth.currentUser) {
       const nextList = [...categories, createdCategory];
-      await saveCategoryToFirestore(createdCategory, categories.length, nextList);
+      await saveCategoryToFirestore(createdCategory, categories.length, nextList).catch((err) => {
+        console.warn('Firestore category create sync skipped:', err);
+      });
     }
     await fetchOverview(adminToken);
   }
@@ -840,8 +842,10 @@ export function AdminDashboard({
     }
     const res = await fetch(`/api/admin/categories/${id}`, {
       method: 'PUT',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
         Authorization: `Bearer ${adminToken}`,
       },
       body: JSON.stringify(patch),
@@ -854,7 +858,9 @@ export function AdminDashboard({
     if (updatedCategory && auth.currentUser) {
       const idx = Math.max(0, categories.findIndex((c) => c.id === id));
       const nextList = categories.map((c) => (c.id === id ? updatedCategory : c));
-      await saveCategoryToFirestore(updatedCategory, idx, nextList);
+      await saveCategoryToFirestore(updatedCategory, idx, nextList).catch((err) => {
+        console.warn('Firestore category update sync skipped:', err);
+      });
     }
     await fetchOverview(adminToken);
   }
@@ -950,7 +956,9 @@ export function AdminDashboard({
       throw new Error(data.error || 'Failed to delete category.');
     }
     if (auth.currentUser) {
-      await deleteCategoryFromFirestore(id, reparentedChildren);
+      await deleteCategoryFromFirestore(id, reparentedChildren).catch((err) => {
+        console.warn('Firestore category delete sync skipped:', err);
+      });
     }
     await fetchOverview(adminToken);
   }
@@ -974,8 +982,10 @@ export function AdminDashboard({
     try {
       const res = await fetch('/api/admin/categories/reorder', {
         method: 'PUT',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({ orderedIds: nextCategories.map((c) => c.id) }),
@@ -984,8 +994,14 @@ export function AdminDashboard({
       if (!res.ok) {
         throw new Error(data.error || 'Failed to save category order.');
       }
+      const persistedCategories: Category[] = Array.isArray(data.categories)
+        ? data.categories
+        : nextCategories;
+      setCategories(persistedCategories);
       if (auth.currentUser) {
-        await syncCategoriesToFirestore(nextCategories);
+        await syncCategoriesToFirestore(persistedCategories).catch((err) => {
+          console.warn('Firestore category reorder sync skipped:', err);
+        });
       }
       await fetchOverview(adminToken);
     } catch (err) {

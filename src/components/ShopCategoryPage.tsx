@@ -316,18 +316,6 @@ export function ShopCategoryPage({
               );
             })}
           </div>
-          {selectedCategory.trim().toLowerCase() !==
-            protectorCardsInfo.parentCategoryName.toLowerCase() && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-[#6B4C4E]">
-              <button
-                type="button"
-                onClick={() => onSelectCategory(protectorCardsInfo.parentCategoryName)}
-                className="underline font-semibold text-[#650108] hover:opacity-75 cursor-pointer"
-              >
-                Show All {protectorCardsInfo.parentCategoryName}
-              </button>
-            </div>
-          )}
         </div>
       ) : (
         <div
